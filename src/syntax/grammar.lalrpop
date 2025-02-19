@@ -1,0 +1,89 @@
+use crate::utils::ident::Ident;
+use crate::utils::intern::InternStr;
+use crate::utils::lit::{LitType, LitVal};
+use crate::utils::prim::Prim;
+use crate::syntax::ast::*;
+
+use std::str::FromStr;
+use lalrpop_util::ParseError;
+
+grammar;
+
+pub Nat: usize = <s:r"[0-9]+"> => usize::from_str(s).unwrap();
+pub Int: i64 = {
+    <n: Nat> => n as i64,
+    "-" <n: Nat> => - (n as i64),
+}
+pub Float: f64 = <s:r"(-)?[0-9]+\.[0-9]+"> => f64::from_str(s).unwrap();
+pub Bool: bool = {
+    "false" => false,
+    "true" => true,
+};
+pub Char: char = <s:r"'.'"> => char::from_str(&s[1..2]).unwrap();
+
+pub LId: Ident = <s:r"[_a-z][_a-zA-Z0-9]*"> => Ident::dummy(&InternStr::new(s));
+pub UId: Ident = <s:r"[A-Z][_a-zA-Z0-9]*"> => Ident::dummy(&InternStr::new(s));
+
+pub LitVal: LitVal = {
+    <x: Int> => LitVal::Int(x),
+    <x: Float> => LitVal::Float(x),
+    <x: Char> => LitVal::Char(x),
+    <x: Bool> => LitVal::Bool(x),
+};
+
+pub LitType: LitType = {
+    "Int" => LitType::TyInt,
+    "Float" => LitType::TyFloat,
+    "Char" => LitType::TyChar,
+    "Bool" => LitType::TyBool,
+};
+
+pub Prim: Prim = {
+    "@iadd" => Prim::IAdd,
+    "@isub" => Prim::ISub,
+    "@imul" => Prim::IMul,
+}
+
+Comma<T>: Vec<T> = {
+    <mut xs: (<T> ",")*> <x: T?> => match x {
+        None => xs,
+        Some(x) => {
+            xs.push(x);
+            xs
+        }
+    }
+};
+
+pub Program: Program = {
+    <funcs: FuncDecl*> =>
+        Program { funcs },
+}
+
+pub FuncDecl: FuncDecl = {
+    "function" <name: LId> "(" <pars: Comma<(<LId> ":" <LitType>)>> ")" "->" <res: LitType>
+        "begin" <body: Expr> "end" =>
+            FuncDecl { name, pars, res, body },
+}
+
+pub Expr: Expr = {
+    <lit: LitVal> => Expr::Lit { lit },
+    <var: LId> <args: ExprTuple?> => 
+        match args {
+            None => Expr::Var { var },
+            Some(args) => Expr::App { func: var, args},
+        },
+    <prim: Prim> "(" <args: Comma<Expr>> ")" => Expr::Prim { prim, args},
+    "let" <bind: LId> "=" <body: Expr> ";" <cont: Expr> =>
+        Expr::Let { bind, body: Box::new(body), cont: Box::new(cont)},
+    <exprs: ExprTuple> =>?
+        if exprs.len() == 1 {
+            Ok(exprs.into_iter().nth(0).unwrap())
+        } else {
+            Err(ParseError::User { error: "tuple expr not supported yet!" })
+        },
+}
+
+pub ExprTuple : Vec<Expr> = {
+    "(" <exprs: Comma<Expr>> ")" =>
+        exprs,
+}
