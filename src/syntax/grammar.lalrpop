@@ -5,7 +5,6 @@ use crate::utils::prim::Prim;
 use crate::syntax::ast::*;
 
 use std::str::FromStr;
-use lalrpop_util::ParseError;
 
 grammar;
 
@@ -55,8 +54,22 @@ Comma<T>: Vec<T> = {
 };
 
 pub Program: Program = {
-    <funcs: FuncDecl*> =>
-        Program { funcs },
+    <decls: Declaration*> => {
+        let mut datas = Vec::new();
+        let mut funcs = Vec::new();
+        for decl in decls.into_iter() {
+            match decl {
+                Declaration::Data(data) => { datas.push(data); }
+                Declaration::Func(func) => { funcs.push(func); }
+            }
+        }
+        Program { datas, funcs }
+    },  
+}
+
+pub Declaration: Declaration = {
+    <data: DataDecl> => Declaration::Data(data),
+    <func: FuncDecl> => Declaration::Func(func),
 }
 
 pub FuncDecl: FuncDecl = {
@@ -65,25 +78,35 @@ pub FuncDecl: FuncDecl = {
             FuncDecl { name, pars, res, body },
 }
 
-pub Expr: Expr = {
-    <lit: LitVal> => Expr::Lit { lit },
-    <var: LId> <args: ExprTuple?> => 
-        match args {
-            None => Expr::Var { var },
-            Some(args) => Expr::App { func: var, args},
-        },
-    <prim: Prim> "(" <args: Comma<Expr>> ")" => Expr::Prim { prim, args},
-    "let" <bind: LId> "=" <body: Expr> ";" <cont: Expr> =>
-        Expr::Let { bind, body: Box::new(body), cont: Box::new(cont)},
-    <exprs: ExprTuple> =>?
-        if exprs.len() == 1 {
-            Ok(exprs.into_iter().nth(0).unwrap())
-        } else {
-            Err(ParseError::User { error: "tuple expr not supported yet!" })
-        },
+pub DataDecl: DataDecl = {
+    "datatype" <name: UId> "where" <cons: ("|" <Constructor>)* > "end" =>
+        DataDecl { name, cons },
 }
 
-pub ExprTuple : Vec<Expr> = {
-    "(" <exprs: Comma<Expr>> ")" =>
-        exprs,
+pub Constructor: Constructor = {
+    <name: UId> =>
+        Constructor { name, flds: Vec::new() },
+    <name: UId> "{" <flds: Comma<(<LId> ":" <LitType>)>> "}" =>
+        Constructor { name, flds },
+}
+
+pub Expr: Expr = {
+    <lit: LitVal> => Expr::Lit { lit },
+    <var: LId>  => Expr::Var { var },
+    <prim: Prim> "(" <args: Comma<Expr>> ")" =>
+        Expr::Prim { prim, args},
+    <name: UId> =>
+        Expr::Cons { name, flds: Vec::new() },
+    <name: UId> "{" <flds: Comma<(<LId> ":" <Expr>)>> "}" =>
+        Expr::Cons { name, flds },
+    <var: LId> "." <fld: LId> =>
+        Expr::Fld { var, fld },
+    "match" <expr: Expr> "as" <bind: LId> "with" <brchs: ("|" <UId> "=>" <Expr>)*> "end" =>
+        Expr::Match { expr: Box::new(expr), bind, brchs },
+    "let" <bind: LId> "=" <body: Expr> ";" <cont: Expr> =>
+        Expr::Let { bind, body: Box::new(body), cont: Box::new(cont)},
+    <var: LId> "(" <args: Comma<Expr>> ")" =>
+        Expr::App { func: var, args },
+    "(" <expr: Expr> ")" =>
+        expr,
 }
