@@ -32,11 +32,11 @@ end
 fn match_syntax_parser_test() {
     let p1: &'static str = r#"
 datatype IntList where
-| Cons { head: Int, tail: Int }
+| Cons { head: Int, tail: IntList }
 | Nil
 end
 
-function append(xs: Int, x: Int) -> Int
+function append(xs: IntList, x: Int) -> Int
 begin
     match xs as lst with
     | Cons => Cons { head: lst.head, tail: append(lst.tail, x) }

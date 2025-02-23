@@ -15,8 +15,8 @@ pub enum Declaration {
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct FuncDecl {
     pub name: Ident,
-    pub pars: Vec<(Ident, LitType)>,
-    pub res: LitType,
+    pub pars: Vec<(Ident, Type)>,
+    pub res: Type,
     pub body: Expr,
 }
 
@@ -29,7 +29,13 @@ pub struct DataDecl {
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct Constructor {
     pub name: Ident,
-    pub flds: Vec<(Ident, LitType)>,
+    pub flds: Vec<(Ident, Type)>,
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub enum Type {
+    Lit(LitType),
+    Data(Ident),
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]

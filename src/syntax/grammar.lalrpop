@@ -73,7 +73,7 @@ pub Declaration: Declaration = {
 }
 
 pub FuncDecl: FuncDecl = {
-    "function" <name: LId> "(" <pars: Comma<(<LId> ":" <LitType>)>> ")" "->" <res: LitType>
+    "function" <name: LId> "(" <pars: Comma<(<LId> ":" <Type>)>> ")" "->" <res: Type>
         "begin" <body: Expr> "end" =>
             FuncDecl { name, pars, res, body },
 }
@@ -86,8 +86,13 @@ pub DataDecl: DataDecl = {
 pub Constructor: Constructor = {
     <name: UId> =>
         Constructor { name, flds: Vec::new() },
-    <name: UId> "{" <flds: Comma<(<LId> ":" <LitType>)>> "}" =>
+    <name: UId> "{" <flds: Comma<(<LId> ":" <Type>)>> "}" =>
         Constructor { name, flds },
+}
+
+pub Type: Type = {
+    <lit: LitType> => Type::Lit(lit),
+    <data: UId> => Type::Data(data),
 }
 
 pub Expr: Expr = {
