@@ -21,7 +21,7 @@ end
 fn data_decl_parser_test() {
     let d1: &'static str = r#"
 datatype OptInt where
-| Some { value: Int }
+| Some(Int)
 | None
 end
 "#;
@@ -32,15 +32,15 @@ end
 fn match_syntax_parser_test() {
     let p1: &'static str = r#"
 datatype IntList where
-| Cons { head: Int, tail: IntList }
+| Cons(Int, IntList)
 | Nil
 end
 
 function append(xs: IntList, x: Int) -> Int
 begin
-    match xs as lst with
-    | Cons => Cons { head: lst.head, tail: append(lst.tail, x) }
-    | Nil => Cons { head: x, tail: Nil }
+    match xs with
+    | Cons(head, tail) => Cons(head, append(tail, x))
+    | Nil => Cons(x, Nil)
     end
 end
 "#;

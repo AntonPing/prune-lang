@@ -29,13 +29,19 @@ pub struct DataDecl {
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct Constructor {
     pub name: Ident,
-    pub flds: Vec<(Ident, Type)>,
+    pub flds: Vec<Type>,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Type {
     Lit(LitType),
     Data(Ident),
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub struct Pattern {
+    pub name: Ident,
+    pub flds: Vec<Ident>,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
@@ -52,16 +58,11 @@ pub enum Expr {
     },
     Cons {
         name: Ident,
-        flds: Vec<(Ident, Expr)>,
-    },
-    Fld {
-        var: Ident,
-        fld: Ident,
+        flds: Vec<Expr>,
     },
     Match {
         expr: Box<Expr>,
-        bind: Ident,
-        brchs: Vec<(Ident, Expr)>,
+        brchs: Vec<(Pattern, Expr)>,
     },
     Let {
         bind: Ident,

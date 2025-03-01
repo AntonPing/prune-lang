@@ -86,13 +86,20 @@ pub DataDecl: DataDecl = {
 pub Constructor: Constructor = {
     <name: UId> =>
         Constructor { name, flds: Vec::new() },
-    <name: UId> "{" <flds: Comma<(<LId> ":" <Type>)>> "}" =>
+    <name: UId> "(" <flds: Comma<Type>> ")" =>
         Constructor { name, flds },
 }
 
 pub Type: Type = {
     <lit: LitType> => Type::Lit(lit),
     <data: UId> => Type::Data(data),
+}
+
+pub Pattern: Pattern = {
+    <name: UId> =>
+        Pattern { name, flds: Vec::new() },
+    <name: UId> "(" <flds: Comma<LId>> ")" =>
+        Pattern { name, flds },
 }
 
 pub Expr: Expr = {
@@ -102,12 +109,10 @@ pub Expr: Expr = {
         Expr::Prim { prim, args},
     <name: UId> =>
         Expr::Cons { name, flds: Vec::new() },
-    <name: UId> "{" <flds: Comma<(<LId> ":" <Expr>)>> "}" =>
+    <name: UId> "(" <flds: Comma<Expr>> ")" =>
         Expr::Cons { name, flds },
-    <var: LId> "." <fld: LId> =>
-        Expr::Fld { var, fld },
-    "match" <expr: Expr> "as" <bind: LId> "with" <brchs: ("|" <UId> "=>" <Expr>)*> "end" =>
-        Expr::Match { expr: Box::new(expr), bind, brchs },
+    "match" <expr: Expr> "with" <brchs: ("|" <Pattern> "=>" <Expr>)*> "end" =>
+        Expr::Match { expr: Box::new(expr), brchs },
     "let" <bind: LId> "=" <body: Expr> ";" <cont: Expr> =>
         Expr::Let { bind, body: Box::new(body), cont: Box::new(cont)},
     <var: LId> "(" <args: Comma<Expr>> ")" =>
