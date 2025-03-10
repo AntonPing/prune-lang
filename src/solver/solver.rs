@@ -30,7 +30,7 @@ impl PredSolver {
         pred.free_vars(&mut map);
 
         let mut paths = Vec::new();
-        for form in &pred.body {
+        for form in &pred.succ_forms {
             let eqs: Vec<(UnifyTerm, UnifyTerm)> = form
                 .eqs
                 .iter()
@@ -50,7 +50,7 @@ impl PredSolver {
 
             if let Ok(base_sol) = base_sol {
                 let rec_preds = form
-                    .preds
+                    .succ_preds
                     .iter()
                     .map(|(name, args)| {
                         let args = args.iter().map(|arg| arg.instantiate(&map)).collect();

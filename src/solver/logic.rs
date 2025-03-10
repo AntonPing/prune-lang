@@ -9,17 +9,19 @@ pub enum Formula {
     And(Vec<Formula>),
     Or(Vec<Formula>),
     Prim(Prim, Vec<Term>),
-    Pred(Ident, Vec<Term>),
+    PredSucc(Ident, Vec<Term>),
+    PredFail(Ident, Vec<Term>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Predicate {
     name: Ident,
     pars: Vec<Ident>,
-    body: Formula,
+    succ_form: Formula,
+    fail_form: Formula,
 }
 
-fn formula_flatten(form: Formula) -> Formula {
+pub fn formula_flatten(form: Formula) -> Formula {
     match form {
         Formula::And(forms) => {
             let mut vec = Vec::new();
@@ -71,40 +73,50 @@ pub fn prog_to_pred_dict(prog: &Program) -> HashMap<Ident, Predicate> {
 fn func_to_predicate(func: &FuncDecl) -> Predicate {
     let name = func.name;
     let mut pars: Vec<Ident> = func.pars.iter().map(|(id, _typ)| *id).collect();
-    let (term, form) = expr_to_formula(&func.body);
+    let (term, succ_form) = expr_to_succ_form(&func.body);
+    let fail_form = expr_to_fail_form(&func.body);
 
     if let Term::Var(x) = term {
         pars.push(x);
-        let body = formula_flatten(form);
-        Predicate { name, pars, body }
+        Predicate {
+            name,
+            pars,
+            succ_form: formula_flatten(succ_form),
+            fail_form: formula_flatten(fail_form),
+        }
     } else {
         let x = Ident::fresh(&"x");
         pars.push(x);
-        let body = formula_flatten(Formula::And(vec![Formula::Eq(Term::Var(x), term), form]));
-        Predicate { name, pars, body }
+        let succ_form = Formula::And(vec![Formula::Eq(Term::Var(x), term), succ_form]);
+        Predicate {
+            name,
+            pars,
+            succ_form: formula_flatten(succ_form),
+            fail_form: formula_flatten(fail_form),
+        }
     }
 }
 
-fn expr_to_formula(expr: &Expr) -> (Term, Formula) {
+fn expr_to_succ_form(expr: &Expr) -> (Term, Formula) {
     match expr {
         Expr::Lit { lit } => (Term::Lit(*lit), Formula::Const(true)),
         Expr::Var { var } => (Term::Var(*var), Formula::Const(true)),
         Expr::Prim { prim, args } => {
             let x = Ident::fresh(&"x");
             let (mut terms, mut forms): (Vec<Term>, Vec<Formula>) =
-                args.iter().map(|expr| expr_to_formula(expr)).unzip();
+                args.iter().map(|arg| expr_to_succ_form(arg)).unzip();
             terms.push(Term::Var(x));
             forms.push(Formula::Prim(*prim, terms));
             (Term::Var(x), Formula::And(forms))
         }
         Expr::Cons { name, flds } => {
             let (terms, forms): (Vec<Term>, Vec<Formula>) =
-                flds.iter().map(|expr| expr_to_formula(expr)).unzip();
+                flds.iter().map(|fld| expr_to_succ_form(fld)).unzip();
             (Term::Cons(*name, terms), Formula::And(forms))
         }
         Expr::Match { expr, brchs } => {
             let x = Ident::fresh(&"x");
-            let (term, form) = expr_to_formula(expr);
+            let (term, form) = expr_to_succ_form(expr);
             let forms = brchs
                 .iter()
                 .map(|(patn, expr)| {
@@ -115,7 +127,7 @@ fn expr_to_formula(expr: &Expr) -> (Term, Formula) {
                         ),
                         term.clone(),
                     );
-                    let (term2, form2) = expr_to_formula(expr);
+                    let (term2, form2) = expr_to_succ_form(expr);
                     let form3 = Formula::Eq(Term::Var(x), term2);
                     Formula::And(vec![form1, form2, form3])
                 })
@@ -123,21 +135,107 @@ fn expr_to_formula(expr: &Expr) -> (Term, Formula) {
             (Term::Var(x), Formula::And(vec![form, Formula::Or(forms)]))
         }
         Expr::Let { bind, expr, cont } => {
-            let (term1, form1) = expr_to_formula(expr);
-            let (term2, form2) = expr_to_formula(cont);
+            let (term1, form1) = expr_to_succ_form(expr);
+            let (term2, form2) = expr_to_succ_form(cont);
             let form = Formula::And(vec![form1, Formula::Eq(Term::Var(*bind), term1), form2]);
             (term2, form)
         }
         Expr::App { func, args } => {
             let x = Ident::fresh(&"x");
             let (mut terms, mut forms): (Vec<Term>, Vec<Formula>) =
-                args.iter().map(|expr| expr_to_formula(expr)).unzip();
+                args.iter().map(|arg| expr_to_succ_form(arg)).unzip();
             terms.push(Term::Var(x));
-            forms.push(Formula::Pred(*func, terms));
+            forms.push(Formula::PredSucc(*func, terms));
             (Term::Var(x), Formula::And(forms))
         }
         Expr::Assert { expr, cont } => {
-            todo!()
+            let (term1, form1) = expr_to_succ_form(expr);
+            let (term2, form2) = expr_to_succ_form(cont);
+            let form = Formula::And(vec![
+                form1,
+                Formula::Eq(term1, Term::Lit(LitVal::Bool(true))),
+                form2,
+            ]);
+            (term2, form)
+        }
+    }
+}
+
+fn expr_to_fail_form(expr: &Expr) -> Formula {
+    match expr {
+        Expr::Lit { lit: _ } => Formula::Const(false),
+        Expr::Var { var: _ } => Formula::Const(false),
+        Expr::Prim { prim: _, args } => {
+            let forms = args.iter().map(|expr| expr_to_fail_form(expr)).collect();
+            Formula::Or(forms)
+        }
+        Expr::Cons { name: _, flds } => {
+            let forms = flds.iter().map(|expr| expr_to_fail_form(expr)).collect();
+            Formula::Or(forms)
+        }
+        Expr::Match { expr, brchs } => {
+            let fail_form = expr_to_fail_form(expr);
+            let (term, succ_form) = expr_to_succ_form(expr);
+            let forms = brchs
+                .iter()
+                .map(|(patn, expr)| {
+                    let form1 = Formula::Eq(
+                        Term::Cons(
+                            patn.name,
+                            patn.flds.iter().map(|fld| Term::Var(*fld)).collect(),
+                        ),
+                        term.clone(),
+                    );
+                    let form2 = expr_to_fail_form(expr);
+                    Formula::And(vec![form1, form2])
+                })
+                .collect();
+            Formula::Or(vec![
+                fail_form,
+                Formula::And(vec![succ_form, Formula::Or(forms)]),
+            ])
+        }
+        Expr::Let { bind, expr, cont } => {
+            let fail_form1 = expr_to_fail_form(expr);
+            let (term1, succ_form1) = expr_to_succ_form(expr);
+            let fail_form2 = expr_to_fail_form(cont);
+            Formula::Or(vec![
+                fail_form1,
+                Formula::And(vec![
+                    succ_form1,
+                    Formula::Eq(Term::Var(*bind), term1),
+                    fail_form2,
+                ]),
+            ])
+        }
+        Expr::App { func, args } => {
+            let fail_forms = args.iter().map(|arg| expr_to_fail_form(arg)).collect();
+
+            let (terms, forms): (Vec<Term>, Vec<Formula>) =
+                args.iter().map(|arg| expr_to_succ_form(arg)).unzip();
+
+            Formula::Or(vec![
+                Formula::Or(fail_forms),
+                Formula::And(vec![Formula::And(forms), Formula::PredFail(*func, terms)]),
+            ])
+        }
+        Expr::Assert { expr, cont } => {
+            let fail_form1 = expr_to_fail_form(expr);
+            let (term1, succ_form1) = expr_to_succ_form(expr);
+            let fail_form2 = expr_to_fail_form(cont);
+
+            Formula::Or(vec![
+                fail_form1,
+                Formula::And(vec![
+                    succ_form1.clone(),
+                    Formula::Eq(term1.clone(), Term::Lit(LitVal::Bool(false))),
+                ]),
+                Formula::And(vec![
+                    succ_form1,
+                    Formula::Eq(term1, Term::Lit(LitVal::Bool(true))),
+                    fail_form2,
+                ]),
+            ])
         }
     }
 }
@@ -146,7 +244,8 @@ fn expr_to_formula(expr: &Expr) -> (Term, Formula) {
 pub struct DnfFormula {
     pub eqs: Vec<(Term, Term)>,
     pub prims: Vec<(Prim, Vec<Term>)>,
-    pub preds: Vec<(Ident, Vec<Term>)>,
+    pub succ_preds: Vec<(Ident, Vec<Term>)>,
+    pub fail_preds: Vec<(Ident, Vec<Term>)>,
 }
 
 impl DnfFormula {
@@ -154,7 +253,8 @@ impl DnfFormula {
         DnfFormula {
             eqs: Vec::new(),
             prims: Vec::new(),
-            preds: Vec::new(),
+            succ_preds: Vec::new(),
+            fail_preds: Vec::new(),
         }
     }
 
@@ -168,7 +268,11 @@ impl DnfFormula {
             args.iter().for_each(|arg| arg.free_vars(vars));
         }
 
-        for (_prim, args) in &self.preds {
+        for (_prim, args) in &self.succ_preds {
+            args.iter().for_each(|arg| arg.free_vars(vars));
+        }
+
+        for (_prim, args) in &self.fail_preds {
             args.iter().for_each(|arg| arg.free_vars(vars));
         }
     }
@@ -178,7 +282,8 @@ impl DnfFormula {
 pub struct DnfPredicate {
     pub name: Ident,
     pub pars: Vec<Ident>,
-    pub body: Vec<DnfFormula>,
+    pub succ_forms: Vec<DnfFormula>,
+    pub fail_forms: Vec<DnfFormula>,
 }
 
 impl DnfPredicate {
@@ -188,7 +293,11 @@ impl DnfPredicate {
             vars.push(*par);
         }
 
-        for form in &self.body {
+        for form in &self.succ_forms {
+            form.free_vars(vars);
+        }
+
+        for form in &self.fail_forms {
             form.free_vars(vars);
         }
     }
@@ -203,13 +312,17 @@ pub fn dnf_pred_dict(dict: &HashMap<Ident, Predicate>) -> HashMap<Ident, DnfPred
 }
 
 fn dnf_trans_predicate(pred: &Predicate) -> DnfPredicate {
-    let mut body = Vec::new();
-    body.push(DnfFormula::new());
-    dnf_trans_formula(&mut body, &pred.body);
+    let mut succ_forms = Vec::new();
+    let mut fail_forms = Vec::new();
+    succ_forms.push(DnfFormula::new());
+    fail_forms.push(DnfFormula::new());
+    dnf_trans_formula(&mut succ_forms, &pred.succ_form);
+    dnf_trans_formula(&mut fail_forms, &pred.fail_form);
     DnfPredicate {
         name: pred.name,
         pars: pred.pars.clone(),
-        body,
+        succ_forms,
+        fail_forms,
     }
 }
 
@@ -240,8 +353,17 @@ fn dnf_trans_formula(body: &mut Vec<DnfFormula>, form: &Formula) {
         Formula::Prim(prim, args) => {
             body.last_mut().unwrap().prims.push((*prim, args.clone()));
         }
-        Formula::Pred(name, args) => {
-            body.last_mut().unwrap().preds.push((*name, args.clone()));
+        Formula::PredSucc(name, args) => {
+            body.last_mut()
+                .unwrap()
+                .succ_preds
+                .push((*name, args.clone()));
+        }
+        Formula::PredFail(name, args) => {
+            body.last_mut()
+                .unwrap()
+                .fail_preds
+                .push((*name, args.clone()));
         }
     }
 }
@@ -257,7 +379,10 @@ end
 function append(xs: IntList, x: Int) -> Int
 begin
     match xs with
-    | Cons(head, tail) => Cons(head, append(tail, x))
+    | Cons(head, tail) => 
+        assert head;
+        assert tail;
+        Cons(head, append(tail, x))
     | Nil => Cons(x, Nil)
     end
 end
