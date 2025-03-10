@@ -23,6 +23,17 @@ impl Ident {
         Ident { name, index: 0 }
     }
 
+    // only for displaying
+    pub fn hole(hole: usize) -> Ident {
+        let mut str = String::new();
+        str.push('?');
+        str.push_str(&hole.to_string());
+        Ident {
+            name: InternStr::new(&str),
+            index: 0,
+        }
+    }
+
     pub fn is_dummy(&self) -> bool {
         self.index == 0
     }
