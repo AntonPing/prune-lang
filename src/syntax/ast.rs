@@ -66,11 +66,15 @@ pub enum Expr {
     },
     Let {
         bind: Ident,
-        body: Box<Expr>,
+        expr: Box<Expr>,
         cont: Box<Expr>,
     },
     App {
         func: Ident,
         args: Vec<Expr>,
+    },
+    Assert {
+        expr: Box<Expr>,
+        cont: Box<Expr>,
     },
 }

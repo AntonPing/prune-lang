@@ -122,8 +122,8 @@ fn expr_to_formula(expr: &Expr) -> (Term, Formula) {
                 .collect();
             (Term::Var(x), Formula::And(vec![form, Formula::Or(forms)]))
         }
-        Expr::Let { bind, body, cont } => {
-            let (term1, form1) = expr_to_formula(body);
+        Expr::Let { bind, expr, cont } => {
+            let (term1, form1) = expr_to_formula(expr);
             let (term2, form2) = expr_to_formula(cont);
             let form = Formula::And(vec![form1, Formula::Eq(Term::Var(*bind), term1), form2]);
             (term2, form)
@@ -135,6 +135,9 @@ fn expr_to_formula(expr: &Expr) -> (Term, Formula) {
             terms.push(Term::Var(x));
             forms.push(Formula::Pred(*func, terms));
             (Term::Var(x), Formula::And(forms))
+        }
+        Expr::Assert { expr, cont } => {
+            todo!()
         }
     }
 }
