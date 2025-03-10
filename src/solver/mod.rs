@@ -5,5 +5,6 @@ use crate::utils::prim::Prim;
 use std::collections::HashMap;
 use term::*;
 
+pub mod logic;
 pub mod term;
 pub mod unify;
