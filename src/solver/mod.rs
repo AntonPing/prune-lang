@@ -6,5 +6,6 @@ use std::collections::HashMap;
 use term::*;
 
 pub mod logic;
+pub mod solver;
 pub mod term;
 pub mod unify;
