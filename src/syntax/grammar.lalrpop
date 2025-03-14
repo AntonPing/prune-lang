@@ -1,7 +1,7 @@
 use crate::utils::ident::Ident;
 use crate::utils::intern::InternStr;
 use crate::utils::lit::{LitType, LitVal};
-use crate::utils::prim::Prim;
+use crate::utils::prim::{Prim, Compare};
 use crate::syntax::ast::*;
 
 use std::str::FromStr;
@@ -41,6 +41,18 @@ pub Prim: Prim = {
     "@iadd" => Prim::IAdd,
     "@isub" => Prim::ISub,
     "@imul" => Prim::IMul,
+    "@idiv" => Prim::IDiv,
+    "@irem" => Prim::IRem,
+    "@ineg" => Prim::INeg,
+    "@icmplt" => Prim::ICmp(Compare::Lt),
+    "@icmple" => Prim::ICmp(Compare::Le),
+    "@icmpeq" => Prim::ICmp(Compare::Eq),
+    "@icmpgt" => Prim::ICmp(Compare::Gt),
+    "@icmpge" => Prim::ICmp(Compare::Ge),
+    "@icmpne" => Prim::ICmp(Compare::Ne),
+    "@band" => Prim::BAnd,
+    "@bor" => Prim::BOr,
+    "@bnot" => Prim::BNot,
 }
 
 Comma<T>: Vec<T> = {
