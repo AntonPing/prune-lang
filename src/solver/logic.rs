@@ -148,6 +148,9 @@ fn expr_to_succ_form(expr: &Expr) -> (Term, Formula) {
             forms.push(Formula::PredSucc(*func, terms));
             (Term::Var(x), Formula::And(forms))
         }
+        Expr::Ifte { cond, then, els } => {
+            todo!()
+        }
         Expr::Assert { expr, cont } => {
             let (term1, form1) = expr_to_succ_form(expr);
             let (term2, form2) = expr_to_succ_form(cont);
@@ -218,6 +221,9 @@ fn expr_to_fail_form(expr: &Expr) -> Formula {
                 Formula::Or(fail_forms),
                 Formula::And(vec![Formula::And(forms), Formula::PredFail(*func, terms)]),
             ])
+        }
+        Expr::Ifte { cond, then, els } => {
+            todo!()
         }
         Expr::Assert { expr, cont } => {
             let fail_form1 = expr_to_fail_form(expr);

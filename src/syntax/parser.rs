@@ -29,7 +29,7 @@ end
 }
 
 #[test]
-fn match_syntax_parser_test() {
+fn match_syntax_parser_test_1() {
     let p1: &'static str = r#"
 datatype IntList where
 | Cons(Int, IntList)
@@ -41,6 +41,30 @@ begin
     match xs with
     | Cons(head, tail) => Cons(head, append(tail, x))
     | Nil => Cons(x, Nil)
+    end
+end
+"#;
+    assert!(parser::ProgramParser::new().parse(p1).is_ok());
+}
+
+#[test]
+fn match_syntax_parser_test_2() {
+    let p1: &'static str = r#"
+datatype AVLTree where
+| Node(AVLTree, Int, AVLTree)
+| Empty
+end
+
+function insert(tree: AVLTree, x: Int) -> AVLTree
+begin
+    match tree with
+    | Node(left, y, right) => 
+        if @icmplt(x, y) then
+            Node(insert(left, x), y, right)
+        else if @icmpgt(x, y) then
+            Node(left, y, insert(right, x))
+        else tree
+    | Empty => Node(Empty, x, Empty)
     end
 end
 "#;

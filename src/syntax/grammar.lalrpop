@@ -131,6 +131,8 @@ pub Expr: Expr = {
         Expr::App { func: var, args },
     "(" <expr: Expr> ")" =>
         expr,
+    "if" <cond: Expr> "then" <then: Expr> "else" <els: Expr> =>
+        Expr::Ifte { cond: Box::new(cond), then: Box::new(then), els: Box::new(els) },
     "assert" <expr: Expr> ";" <cont: Expr> =>
         Expr::Assert { expr: Box::new(expr), cont: Box::new(cont) }
 }

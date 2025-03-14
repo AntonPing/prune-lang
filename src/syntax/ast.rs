@@ -73,6 +73,11 @@ pub enum Expr {
         func: Ident,
         args: Vec<Expr>,
     },
+    Ifte {
+        cond: Box<Expr>,
+        then: Box<Expr>,
+        els: Box<Expr>,
+    },
     Assert {
         expr: Box<Expr>,
         cont: Box<Expr>,
