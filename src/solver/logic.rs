@@ -149,7 +149,26 @@ fn expr_to_succ_form(expr: &Expr) -> (Term, Formula) {
             (Term::Var(x), Formula::And(forms))
         }
         Expr::Ifte { cond, then, els } => {
-            todo!()
+            let x = Ident::fresh(&"x");
+            let (term0, form0) = expr_to_succ_form(cond);
+            let (term1, form1) = expr_to_succ_form(then);
+            let (term2, form2) = expr_to_succ_form(els);
+            let form = Formula::And(vec![
+                form0,
+                Formula::Or(vec![
+                    Formula::And(vec![
+                        Formula::Eq(term0.clone(), Term::Lit(LitVal::Bool(true))),
+                        form1,
+                        Formula::Eq(Term::Var(x), term1),
+                    ]),
+                    Formula::And(vec![
+                        Formula::Eq(term0, Term::Lit(LitVal::Bool(false))),
+                        form2,
+                        Formula::Eq(Term::Var(x), term2),
+                    ]),
+                ]),
+            ]);
+            (Term::Var(x), form)
         }
         Expr::Assert { expr, cont } => {
             let (term1, form1) = expr_to_succ_form(expr);
@@ -223,7 +242,23 @@ fn expr_to_fail_form(expr: &Expr) -> Formula {
             ])
         }
         Expr::Ifte { cond, then, els } => {
-            todo!()
+            let fail_form0 = expr_to_fail_form(cond);
+            let (term0, succ_form0) = expr_to_succ_form(cond);
+            let fail_form1 = expr_to_fail_form(then);
+            let fail_form2 = expr_to_fail_form(els);
+            Formula::Or(vec![
+                fail_form0,
+                Formula::And(vec![
+                    succ_form0.clone(),
+                    Formula::Eq(term0.clone(), Term::Lit(LitVal::Bool(true))),
+                    fail_form1,
+                ]),
+                Formula::And(vec![
+                    succ_form0,
+                    Formula::Eq(term0.clone(), Term::Lit(LitVal::Bool(false))),
+                    fail_form2,
+                ]),
+            ])
         }
         Expr::Assert { expr, cont } => {
             let fail_form1 = expr_to_fail_form(expr);

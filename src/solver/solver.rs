@@ -163,7 +163,7 @@ impl Solver {
 }
 
 #[test]
-fn prog_to_solver_test() {
+fn prog_to_solver_test_1() {
     let p1: &'static str = r#"
 datatype IntList where
 | Cons(Int, IntList)
@@ -204,5 +204,55 @@ end
                 println!("{:#?}", sol);
             }
         }
+    }
+}
+
+#[test]
+fn prog_to_solver_test_2() {
+    let p1: &'static str = r#"
+datatype AVLTree where
+| Node(AVLTree, Int, AVLTree)
+| Empty
+end
+
+function insert(tree: AVLTree, x: Int) -> AVLTree
+begin
+    match tree with
+    | Node(left, y, right) => 
+        if @icmplt(x, y) then
+            Node(insert(left, x), y, right)
+        else if @icmpgt(x, y) then
+            Node(left, y, insert(right, x))
+        else tree
+    | Empty => Node(Empty, x, Empty)
+    end
+end
+"#;
+    let prog = crate::syntax::parser::parser::ProgramParser::new()
+        .parse(p1)
+        .unwrap();
+
+    let dict = super::logic::prog_to_pred_dict(&prog);
+    println!("{:#?}", dict);
+    let dict2 = super::logic::dnf_pred_dict(&dict);
+    println!("{:#?}", dict2);
+    let mut solver = Solver::new(&dict2);
+    println!("{:#?}", solver);
+
+    for iter in 0..3 {
+        solver.solve_step();
+        println!("iter={}", iter);
+        for pred in solver.succ_preds.values() {
+            for sol in pred.sols.iter() {
+                let sol = sol.vars.merge_name_all(&pred.pars);
+                println!("{:#?}", sol);
+            }
+        }
+        // for pred in solver.fail_preds.values() {
+        //     for sol in pred.sols.iter() {
+        //         let sol = sol.vars.merge_name_all(&pred.pars);
+        //         println!("{:#?}", sol);
+        //     }
+        // }
     }
 }
