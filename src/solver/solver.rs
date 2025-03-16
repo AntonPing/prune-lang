@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
-use crate::utils::ident::Ident;
-use crate::utils::prim::Prim;
-
 use super::logic::DnfFormula;
 use super::logic::DnfPredicate;
+use super::solution::*;
 use super::term::*;
-use super::unify::*;
+use crate::utils::ident::Ident;
+use crate::utils::prim::Prim;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct InductivePath {
@@ -160,6 +159,22 @@ impl Solver {
             self.succ_preds.get_mut(&k).unwrap().sols = v;
         }
     }
+
+    pub fn merge_print(&self) {
+        println!("----------successed solution----------");
+        for pred in self.succ_preds.values() {
+            for sol in pred.sols.iter() {
+                sol.merge_print(pred.name, &pred.pars);
+            }
+        }
+        println!("----------failed solution----------");
+        for pred in self.fail_preds.values() {
+            for sol in pred.sols.iter() {
+                sol.merge_print(pred.name, &pred.pars);
+            }
+        }
+        println!("------------------------------");
+    }
 }
 
 #[test]
@@ -174,7 +189,7 @@ function append(xs: IntList, x: Int) -> Int
 begin
     match xs with
     | Cons(head, tail) => Cons(head, append(tail, x))
-    | Nil => Cons(x, Nil)
+    | Nil => assert x; Cons(x, Nil)
     end
 end
 "#;
@@ -190,20 +205,9 @@ end
     println!("{:#?}", solver);
 
     for iter in 0..3 {
-        solver.solve_step();
         println!("iter={}", iter);
-        // for pred in solver.succ_preds.values() {
-        //     for sol in pred.sols.iter() {
-        //         let sol = sol.vars.merge_name_all(&pred.pars);
-        //         println!("{:#?}", sol);
-        //     }
-        // }
-        for pred in solver.fail_preds.values() {
-            for sol in pred.sols.iter() {
-                let sol = sol.vars.merge_name_all(&pred.pars);
-                println!("{:#?}", sol);
-            }
-        }
+        solver.merge_print();
+        solver.solve_step();
     }
 }
 
@@ -227,6 +231,28 @@ begin
     | Empty => Node(Empty, x, Empty)
     end
 end
+
+function abs(x: Int) -> Int
+begin
+    if @icmplt(x, 0) then @ineg(x) else x
+end
+
+function max(x: Int, y: Int) -> Int
+begin
+    if @icmplt(x, y) then y else x
+end
+
+function tree_depth(tree: AVLTree) -> Int
+begin
+    match tree with
+    | Node(left, y, right) => 
+        let left_depth = tree_depth(left);
+        let right_depth = tree_depth(right);
+        assert @icmple(abs(@isub(left_depth, right_depth)), 1);
+        @iadd(max(left_depth, right_depth), 1)
+    | Empty => 0
+    end
+end
 "#;
     let prog = crate::syntax::parser::parser::ProgramParser::new()
         .parse(p1)
@@ -240,19 +266,8 @@ end
     println!("{:#?}", solver);
 
     for iter in 0..3 {
-        solver.solve_step();
         println!("iter={}", iter);
-        for pred in solver.succ_preds.values() {
-            for sol in pred.sols.iter() {
-                let sol = sol.vars.merge_name_all(&pred.pars);
-                println!("{:#?}", sol);
-            }
-        }
-        // for pred in solver.fail_preds.values() {
-        //     for sol in pred.sols.iter() {
-        //         let sol = sol.vars.merge_name_all(&pred.pars);
-        //         println!("{:#?}", sol);
-        //     }
-        // }
+        solver.merge_print();
+        solver.solve_step();
     }
 }

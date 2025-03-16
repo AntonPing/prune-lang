@@ -7,7 +7,9 @@ use itertools::Itertools;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 
+pub mod constr;
 pub mod logic;
+pub mod solution;
 pub mod solver;
 pub mod term;
 pub mod unify;
