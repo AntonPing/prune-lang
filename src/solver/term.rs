@@ -7,6 +7,23 @@ pub enum Term {
     Cons(Ident, Vec<Term>),
 }
 
+impl Display for Term {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Term::Var(var) => Display::fmt(&var, f),
+            Term::Lit(lit) => Display::fmt(&lit, f),
+            Term::Cons(cons, flds) => {
+                if flds.is_empty() {
+                    Display::fmt(&cons, f)
+                } else {
+                    let flds = flds.iter().format(&", ");
+                    write!(f, "{cons}({flds})")
+                }
+            }
+        }
+    }
+}
+
 impl Term {
     pub fn subst(self, env: &HashMap<Ident, Term>) -> Self {
         match self {
@@ -50,6 +67,23 @@ pub enum UnifyTerm {
     Hole(usize),
     Lit(LitVal),
     Cons(Ident, Vec<UnifyTerm>),
+}
+
+impl Display for UnifyTerm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnifyTerm::Hole(hole) => write!(f, "?{hole}"),
+            UnifyTerm::Lit(lit) => Display::fmt(&lit, f),
+            UnifyTerm::Cons(cons, flds) => {
+                if flds.is_empty() {
+                    Display::fmt(&cons, f)
+                } else {
+                    let flds = flds.iter().format(&", ");
+                    write!(f, "{cons}({flds})")
+                }
+            }
+        }
+    }
 }
 
 impl UnifyTerm {
