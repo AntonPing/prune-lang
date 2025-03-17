@@ -133,30 +133,39 @@ impl Solver {
         }
     }
 
-    pub fn solve_step(&mut self) {
-        let mut new_sol_map: HashMap<Ident, Vec<Solution>> = HashMap::new();
-
-        for pred in self.succ_preds.values() {
-            let mut new_sol: Vec<Solution> = Vec::new();
-
-            for path in &pred.paths {
-                let mut path_sols = vec![path.base_sol.clone()];
-                for (name, args) in &path.succ_preds {
-                    let ind_sols = &self.succ_preds[name].sols;
-                    path_sols = concat_sol_set(&path_sols, ind_sols, args);
-                }
-                for (name, args) in &path.fail_preds {
-                    let ind_sols = &self.fail_preds[name].sols;
-                    path_sols = concat_sol_set(&path_sols, ind_sols, args);
-                }
-                new_sol.append(&mut path_sols);
+    pub fn solve_pred(&self, pred: &PredSolver) -> Vec<Solution> {
+        let mut new_sol: Vec<Solution> = Vec::new();
+        for path in &pred.paths {
+            let mut path_sols = vec![path.base_sol.clone()];
+            for (name, args) in &path.succ_preds {
+                let ind_sols = &self.succ_preds[name].sols;
+                path_sols = concat_sol_set(&path_sols, ind_sols, args);
             }
-
-            new_sol_map.insert(pred.name, new_sol);
+            for (name, args) in &path.fail_preds {
+                let ind_sols = &self.fail_preds[name].sols;
+                path_sols = concat_sol_set(&path_sols, ind_sols, args);
+            }
+            new_sol.append(&mut path_sols);
         }
+        new_sol
+    }
 
-        for (k, v) in new_sol_map.into_iter() {
+    pub fn solve_step(&mut self) {
+        let mut new_succ_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
+        let mut new_fail_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
+        for pred in self.succ_preds.values() {
+            let new_sol = self.solve_pred(pred);
+            new_succ_sols.insert(pred.name, new_sol);
+        }
+        for pred in self.fail_preds.values() {
+            let new_sol = self.solve_pred(pred);
+            new_fail_sols.insert(pred.name, new_sol);
+        }
+        for (k, v) in new_succ_sols.into_iter() {
             self.succ_preds.get_mut(&k).unwrap().sols = v;
+        }
+        for (k, v) in new_fail_sols.into_iter() {
+            self.fail_preds.get_mut(&k).unwrap().sols = v;
         }
     }
 
