@@ -47,7 +47,10 @@ impl Solution {
             let term = term.as_ref().map(|term| term.rename_shift(len));
             self.vars.arena.push(term);
         }
-        self.cons.prims.append(&mut other.cons.prims.clone());
+        for (prim, args) in other.cons.prims.iter().cloned() {
+            let args = args.into_iter().map(|arg| arg.rename_shift(len)).collect();
+            self.cons.prims.push((prim, args));
+        }
 
         for (hole, arg) in (len..(len + args.len())).zip(args.iter()) {
             if self.vars.assign(hole, arg).is_err() {
