@@ -72,42 +72,23 @@ pub struct PredSolver {
 }
 
 impl PredSolver {
-    pub fn new(pred: &DnfPredicate) -> (PredSolver, PredSolver) {
+    pub fn new(pred: &DnfPredicate) -> PredSolver {
         let name = pred.name;
-        let mut pars = pred.pars.clone();
-
         let mut map = Vec::new();
         pred.free_vars(&mut map);
 
-        let succ_paths: Vec<InductivePath> = pred
-            .succ_forms
+        let paths: Vec<InductivePath> = pred
+            .forms
             .iter()
             .filter_map(|form| InductivePath::new(form, &map))
             .collect();
 
-        let fail_paths: Vec<InductivePath> = pred
-            .fail_forms
-            .iter()
-            .filter_map(|form| InductivePath::new(form, &map))
-            .collect();
-
-        let succ_pars = pars.clone();
-        pars.pop().unwrap();
-
-        (
-            PredSolver {
-                name,
-                pars: succ_pars,
-                paths: succ_paths,
-                sols: Vec::new(),
-            },
-            PredSolver {
-                name,
-                pars,
-                paths: fail_paths,
-                sols: Vec::new(),
-            },
-        )
+        PredSolver {
+            name,
+            pars: pred.pars.clone(),
+            paths,
+            sols: Vec::new(),
+        }
     }
 }
 
@@ -115,22 +96,39 @@ impl PredSolver {
 pub struct Solver {
     succ_preds: HashMap<Ident, PredSolver>,
     fail_preds: HashMap<Ident, PredSolver>,
+    check_preds: HashMap<Ident, PredSolver>,
 }
 
 impl Solver {
-    pub fn new(preds: &HashMap<Ident, DnfPredicate>) -> Solver {
-        let (succ_preds, fail_preds) = preds
+    pub fn new(
+        succ_preds: &HashMap<Ident, DnfPredicate>,
+        fail_preds: &HashMap<Ident, DnfPredicate>,
+        check_preds: &HashMap<Ident, DnfPredicate>,
+    ) -> Solver {
+        let succ_preds = succ_preds
             .iter()
-            .map(|(name, pred)| {
-                let (pred1, pred2) = PredSolver::new(pred);
-                ((*name, pred1), (*name, pred2))
-            })
-            .unzip();
+            .map(|(name, pred)| (*name, PredSolver::new(pred)))
+            .collect();
+
+        let fail_preds = fail_preds
+            .iter()
+            .map(|(name, pred)| (*name, PredSolver::new(pred)))
+            .collect();
+
+        let check_preds = check_preds
+            .iter()
+            .map(|(name, pred)| (*name, PredSolver::new(pred)))
+            .collect();
 
         Solver {
             succ_preds,
             fail_preds,
+            check_preds,
         }
+    }
+
+    pub fn check_counter_example(&self) -> bool {
+        self.check_preds.values().any(|pred| !pred.sols.is_empty())
     }
 
     pub fn solve_pred(&self, pred: &PredSolver) -> Vec<Solution> {
@@ -153,6 +151,7 @@ impl Solver {
     pub fn solve_step(&mut self) {
         let mut new_succ_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
         let mut new_fail_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
+        let mut new_check_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
         for pred in self.succ_preds.values() {
             let new_sol = self.solve_pred(pred);
             new_succ_sols.insert(pred.name, new_sol);
@@ -161,11 +160,18 @@ impl Solver {
             let new_sol = self.solve_pred(pred);
             new_fail_sols.insert(pred.name, new_sol);
         }
+        for pred in self.check_preds.values() {
+            let new_sol = self.solve_pred(pred);
+            new_check_sols.insert(pred.name, new_sol);
+        }
         for (k, v) in new_succ_sols.into_iter() {
             self.succ_preds.get_mut(&k).unwrap().sols = v;
         }
         for (k, v) in new_fail_sols.into_iter() {
             self.fail_preds.get_mut(&k).unwrap().sols = v;
+        }
+        for (k, v) in new_check_sols.into_iter() {
+            self.check_preds.get_mut(&k).unwrap().sols = v;
         }
     }
 
@@ -178,6 +184,12 @@ impl Solver {
         }
         println!("----------failed solution----------");
         for pred in self.fail_preds.values() {
+            for sol in pred.sols.iter() {
+                sol.merge_print(pred.name, &pred.pars);
+            }
+        }
+        println!("----------counter examples----------");
+        for pred in self.check_preds.values() {
             for sol in pred.sols.iter() {
                 sol.merge_print(pred.name, &pred.pars);
             }
@@ -198,22 +210,20 @@ function append(xs: IntList, x: Int) -> Int
 begin
     match xs with
     | Cons(head, tail) => Cons(head, append(tail, x))
-    | Nil => assert x; Cons(x, Nil)
+    | Nil => Cons(x, Nil)
     end
 end
 "#;
     let prog = crate::syntax::parser::parser::ProgramParser::new()
         .parse(p1)
         .unwrap();
-
-    let dict = super::logic::prog_to_pred_dict(&prog);
-    println!("{:#?}", dict);
-    let dict2 = super::logic::dnf_pred_dict(&dict);
-    println!("{:#?}", dict2);
-    let mut solver = Solver::new(&dict2);
+    let (succ_preds, fail_preds, check_preds) = super::logic::prog_to_triple(&prog);
+    let succ_preds = super::logic::dnf_pred_dict(&succ_preds);
+    let fail_preds = super::logic::dnf_pred_dict(&fail_preds);
+    let check_preds = super::logic::dnf_pred_dict(&check_preds);
+    let mut solver = Solver::new(&succ_preds, &fail_preds, &check_preds);
     println!("{:#?}", solver);
-
-    for iter in 0..3 {
+    for iter in 0..5 {
         println!("iter={}", iter);
         solver.merge_print();
         solver.solve_step();
@@ -231,7 +241,7 @@ end
 function insert(tree: AVLTree, x: Int) -> AVLTree
 begin
     match tree with
-    | Node(left, y, right) => 
+    | Node(left, y, right) =>
         if @icmplt(x, y) then
             Node(insert(left, x), y, right)
         else if @icmpgt(x, y) then
@@ -254,7 +264,7 @@ end
 function tree_depth(tree: AVLTree) -> Int
 begin
     match tree with
-    | Node(left, y, right) => 
+    | Node(left, y, right) =>
         let left_depth = tree_depth(left);
         let right_depth = tree_depth(right);
         assert @icmple(abs(@isub(left_depth, right_depth)), 1);
@@ -266,15 +276,64 @@ end
     let prog = crate::syntax::parser::parser::ProgramParser::new()
         .parse(p1)
         .unwrap();
-
-    let dict = super::logic::prog_to_pred_dict(&prog);
-    println!("{:#?}", dict);
-    let dict2 = super::logic::dnf_pred_dict(&dict);
-    println!("{:#?}", dict2);
-    let mut solver = Solver::new(&dict2);
+    let (succ_preds, fail_preds, check_preds) = super::logic::prog_to_triple(&prog);
+    let succ_preds = super::logic::dnf_pred_dict(&succ_preds);
+    let fail_preds = super::logic::dnf_pred_dict(&fail_preds);
+    let check_preds = super::logic::dnf_pred_dict(&check_preds);
+    let mut solver = Solver::new(&succ_preds, &fail_preds, &check_preds);
     println!("{:#?}", solver);
-
     for iter in 0..3 {
+        println!("iter={}", iter);
+        solver.merge_print();
+        solver.solve_step();
+    }
+}
+
+#[test]
+fn prog_to_solver_test_3() {
+    let p1: &'static str = r#"
+datatype IntList where
+| Cons(Int, IntList)
+| Nil
+end
+
+function reverse(xs: IntList) -> IntList
+begin
+    match xs with
+    | Cons(head, tail) => Cons(42, reverse(tail))
+    | Nil => Nil
+    end
+end
+
+function intlist_eq(xs: IntList, ys: IntList) -> Bool
+begin
+    match xs with
+    | Cons(head, tail) => match ys with
+        | Cons(head2, tail2) => @band(@icmpeq(head, head2), intlist_eq(tail, tail2))
+        | Nil => false
+        end
+    | Nil => match ys with
+        | Cons(head, tail) => false
+        | Nil => true
+        end
+    end
+end
+
+predicate twice_reverse(xs: IntList)
+begin
+    intlist_eq(reverse(reverse(xs)), xs) = false
+end
+"#;
+    let prog = crate::syntax::parser::parser::ProgramParser::new()
+        .parse(p1)
+        .unwrap();
+    let (succ_preds, fail_preds, check_preds) = super::logic::prog_to_triple(&prog);
+    let succ_preds = super::logic::dnf_pred_dict(&succ_preds);
+    let fail_preds = super::logic::dnf_pred_dict(&fail_preds);
+    let check_preds = super::logic::dnf_pred_dict(&check_preds);
+    let mut solver = Solver::new(&succ_preds, &fail_preds, &check_preds);
+    println!("{:#?}", solver);
+    for iter in 0..4 {
         println!("iter={}", iter);
         solver.merge_print();
         solver.solve_step();
