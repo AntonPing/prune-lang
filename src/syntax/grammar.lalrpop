@@ -69,19 +69,22 @@ pub Program: Program = {
     <decls: Declaration*> => {
         let mut datas = Vec::new();
         let mut funcs = Vec::new();
+        let mut preds = Vec::new();
         for decl in decls.into_iter() {
             match decl {
                 Declaration::Data(data) => { datas.push(data); }
                 Declaration::Func(func) => { funcs.push(func); }
+                Declaration::Pred(pred) => { preds.push(pred); }
             }
         }
-        Program { datas, funcs }
+        Program { datas, funcs, preds }
     },  
 }
 
 pub Declaration: Declaration = {
     <data: DataDecl> => Declaration::Data(data),
     <func: FuncDecl> => Declaration::Func(func),
+    <pred: PredDecl> => Declaration::Pred(pred),
 }
 
 pub FuncDecl: FuncDecl = {
@@ -93,6 +96,12 @@ pub FuncDecl: FuncDecl = {
 pub DataDecl: DataDecl = {
     "datatype" <name: UId> "where" <cons: ("|" <Constructor>)* > "end" =>
         DataDecl { name, cons },
+}
+
+pub PredDecl: PredDecl = {
+    "predicate" <name: LId> "(" <pars: Comma<(<LId> ":" <Type>)>> ")" 
+        "begin" <body: Form> "end" =>
+            PredDecl { name, pars, body },
 }
 
 pub Constructor: Constructor = {
@@ -129,10 +138,23 @@ pub Expr: Expr = {
         Expr::Let { bind, expr: Box::new(expr), cont: Box::new(cont)},
     <var: LId> "(" <args: Comma<Expr>> ")" =>
         Expr::App { func: var, args },
-    "(" <expr: Expr> ")" =>
-        expr,
     "if" <cond: Expr> "then" <then: Expr> "else" <els: Expr> =>
         Expr::Ifte { cond: Box::new(cond), then: Box::new(then), els: Box::new(els) },
     "assert" <expr: Expr> ";" <cont: Expr> =>
-        Expr::Assert { expr: Box::new(expr), cont: Box::new(cont) }
+        Expr::Assert { expr: Box::new(expr), cont: Box::new(cont) },
+    "(" <expr: Expr> ")" =>
+        expr,
+}
+
+pub Form: Form = {
+    <lhs: Expr> "=" <rhs: Expr> =>
+        Form::Eq(lhs, rhs),
+    "fail" <expr: Expr> => 
+        Form::Fail(expr),
+    "and" "(" <forms: Comma<Form>> ")" =>
+        Form::And(forms),
+    "or" "(" <forms: Comma<Form>> ")" =>
+        Form::Or(forms),
+    "(" <form: Form> ")" =>
+        form,
 }

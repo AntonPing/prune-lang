@@ -4,20 +4,14 @@ use super::*;
 pub struct Program {
     pub datas: Vec<DataDecl>,
     pub funcs: Vec<FuncDecl>,
+    pub preds: Vec<PredDecl>,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Declaration {
     Data(DataDecl),
     Func(FuncDecl),
-}
-
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub struct FuncDecl {
-    pub name: Ident,
-    pub pars: Vec<(Ident, Type)>,
-    pub res: Type,
-    pub body: Expr,
+    Pred(PredDecl),
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
@@ -36,6 +30,14 @@ pub struct Constructor {
 pub enum Type {
     Lit(LitType),
     Data(Ident),
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub struct FuncDecl {
+    pub name: Ident,
+    pub pars: Vec<(Ident, Type)>,
+    pub res: Type,
+    pub body: Expr,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
@@ -82,4 +84,19 @@ pub enum Expr {
         expr: Box<Expr>,
         cont: Box<Expr>,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub struct PredDecl {
+    pub name: Ident,
+    pub pars: Vec<(Ident, Type)>,
+    pub body: Form,
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub enum Form {
+    Eq(Expr, Expr),
+    Fail(Expr),
+    And(Vec<Form>),
+    Or(Vec<Form>),
 }

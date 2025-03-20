@@ -67,6 +67,17 @@ begin
     | Empty => Node(Empty, x, Empty)
     end
 end
+
+predicate contains_after_insert(tree: AVLTree, x: Int)
+begin
+    or(
+        and(
+            new_tree = insert(tree, x),
+            contains(new_tree, x) = false,
+        ),
+        fail insert(tree, x),
+    )
+end
 "#;
     assert!(parser::ProgramParser::new().parse(p1).is_ok());
 }
