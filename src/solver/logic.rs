@@ -288,7 +288,7 @@ fn compile_pred(pred: &PredDecl) -> Predicate {
     Predicate {
         name,
         pars,
-        form: compile_form(&pred.body),
+        form: formula_flatten(compile_form(&pred.body)),
     }
 }
 
@@ -387,44 +387,45 @@ fn dnf_trans_predicate(pred: &Predicate) -> DnfPredicate {
     }
 }
 
-fn dnf_trans_formula(body: &mut Vec<DnfFormula>, form: &Formula) {
+fn dnf_trans_formula(vec: &mut Vec<DnfFormula>, form: &Formula) {
     match form {
         Formula::Const(true) => {}
         Formula::Const(false) => {
-            body.pop().unwrap();
+            vec.clear();
         }
         Formula::Eq(term1, term2) => {
-            body.last_mut()
-                .unwrap()
-                .eqs
-                .push((term1.clone(), term2.clone()));
+            for form in vec.iter_mut() {
+                form.eqs.push((term1.clone(), term2.clone()));
+            }
         }
         Formula::And(forms) => {
             for form in forms {
-                dnf_trans_formula(body, form);
+                dnf_trans_formula(vec, form);
             }
         }
         Formula::Or(forms) => {
-            let root_form = body.pop().unwrap();
+            let mut save = Vec::new();
+            std::mem::swap(vec, &mut save);
             for form in forms {
-                body.push(root_form.clone());
-                dnf_trans_formula(body, form);
+                let mut new_vec = save.clone();
+                dnf_trans_formula(&mut new_vec, form);
+                vec.append(&mut new_vec);
             }
         }
         Formula::Prim(prim, args) => {
-            body.last_mut().unwrap().prims.push((*prim, args.clone()));
+            for form in vec.iter_mut() {
+                form.prims.push((*prim, args.clone()));
+            }
         }
         Formula::PredSucc(name, args) => {
-            body.last_mut()
-                .unwrap()
-                .succ_preds
-                .push((*name, args.clone()));
+            for form in vec.iter_mut() {
+                form.succ_preds.push((*name, args.clone()));
+            }
         }
         Formula::PredFail(name, args) => {
-            body.last_mut()
-                .unwrap()
-                .fail_preds
-                .push((*name, args.clone()));
+            for form in vec.iter_mut() {
+                form.fail_preds.push((*name, args.clone()));
+            }
         }
     }
 }
