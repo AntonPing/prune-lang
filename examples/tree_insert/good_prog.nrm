@@ -1,0 +1,51 @@
+datatype IntTree where
+| Node(IntTree, Int, IntTree)
+| Empty
+end
+
+function insert(tree: IntTree, x: Int) -> IntTree
+begin
+    match tree with
+    | Node(left, y, right) =>
+        if @icmplt(x, y) then
+            Node(insert(left, x), y, right)
+        else if @icmpgt(x, y) then
+            Node(left, y, insert(right, x))
+        else tree
+    | Empty => Node(Empty, x, Empty)
+    end
+end
+
+datatype CheckSort where
+| Left(Int)
+| Right(Int)
+| Root
+end
+
+function is_sorted(tree: AVLTree) -> Bool
+begin
+    is_sorted_help(tree, Root)
+end
+
+function is_sorted_help(tree: AVLTree, chk: CheckSort) -> Bool
+begin
+    match tree with
+    | Node(left, y, right) =>
+        let p = match chk with
+            | Left(x1) => @icmplt(y, x1)
+            | Right(x2) => @icmplt(x2, y)
+            | Root => true
+            end;
+        if p then @band(is_sorted_help(left, Left(y)), is_sorted_help(right, Right(y)))
+        else false
+    | Empty => true
+    end
+end
+
+predicate always_sorted(xs: IntList, x: Int)
+begin
+    and(
+        is_sorted(xs) = true,
+        is_sorted(insert(xs, x)) = false,
+    )
+end

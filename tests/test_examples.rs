@@ -93,3 +93,13 @@ fn test_reverse_good() {
 fn test_reverse_bad() {
     test_bad_prog("reverse", 20);
 }
+
+#[test]
+fn test_tree_insert_good() {
+    test_good_prog("tree_insert", 4);
+}
+
+#[test]
+fn test_tree_insert_bad() {
+    test_bad_prog("tree_insert", 10);
+}
