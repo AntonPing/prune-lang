@@ -23,17 +23,6 @@ impl Ident {
         Ident { name, index: 0 }
     }
 
-    // only for displaying
-    pub fn hole(hole: usize) -> Ident {
-        let mut str = String::new();
-        str.push('?');
-        str.push_str(&hole.to_string());
-        Ident {
-            name: InternStr::new(&str),
-            index: 0,
-        }
-    }
-
     pub fn is_dummy(&self) -> bool {
         self.index == 0
     }
@@ -76,7 +65,21 @@ impl AsRef<str> for Ident {
 }
 
 #[test]
-fn uniquify_test() {
+fn ident_fresh_test() {
+    let s1 = InternStr::new(&"foo");
+    let x1 = Ident::fresh(&s1);
+    let x2 = Ident::fresh(&s1);
+    let x3 = Ident::fresh(&s1);
+    assert_ne!(x1, x2);
+    assert_ne!(x1, x3);
+    assert_ne!(x2, x3);
+    assert_eq!(x1.name, x2.name);
+    assert_eq!(x1.name, x3.name);
+    assert_eq!(x2.name, x3.name);
+}
+
+#[test]
+fn ident_uniquify_test() {
     let s1 = InternStr::new(&"foo");
     let x1 = Ident::fresh(&s1);
     let x2 = x1.uniquify();

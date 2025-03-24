@@ -3,11 +3,19 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync;
 
+static INDEXD_BUF_SIZE: usize = 256;
+
 static INTERNER: Lazy<sync::Mutex<Interner>> = Lazy::new(|| {
-    let interner = Interner {
+    let mut interner = Interner {
         str_to_idx: HashMap::new(),
         idx_to_str: Vec::new(),
     };
+    for i in 0..INDEXD_BUF_SIZE {
+        let s = format!("x_{}", i);
+        let s = s.leak();
+        interner.str_to_idx.insert(s.to_string(), i);
+        interner.idx_to_str.push(s);
+    }
     sync::Mutex::new(interner)
 });
 
@@ -29,6 +37,14 @@ impl InternStr {
             interner.str_to_idx.insert(s.clone(), idx);
             interner.idx_to_str.push(Box::leak(Box::new(s)));
             InternStr(idx)
+        }
+    }
+
+    pub fn indexd(idx: usize) -> InternStr {
+        if idx < INDEXD_BUF_SIZE {
+            InternStr(idx)
+        } else {
+            InternStr::new(format!("x_{}", idx).as_str())
         }
     }
 
@@ -57,7 +73,7 @@ impl AsRef<str> for InternStr {
 }
 
 #[test]
-fn intern_test() {
+fn intern_new_test() {
     // test function InternStr::new()
     let foo1: &str = "foo";
     let foo2: String = "foo".to_string();
@@ -75,4 +91,20 @@ fn intern_test() {
     assert_eq!(format!("{}", s2), "foo");
     assert_eq!(format!("{}", s3), "bar");
     assert_eq!(format!("{}", s4), "bar");
+}
+
+#[test]
+fn intern_indexd_test() {
+    let s1 = InternStr::indexd(42);
+    let s2 = InternStr::indexd(42);
+    let s3 = InternStr::indexd(500);
+    let s4 = InternStr::indexd(500);
+    assert_eq!(s1, s2);
+    assert_eq!(s3, s4);
+    assert_ne!(s1, s3);
+    assert_ne!(s2, s4);
+    assert_eq!(format!("{}", s1), "x_42");
+    assert_eq!(format!("{}", s2), "x_42");
+    assert_eq!(format!("{}", s3), "x_500");
+    assert_eq!(format!("{}", s4), "x_500");
 }
