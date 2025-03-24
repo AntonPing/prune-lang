@@ -1,0 +1,25 @@
+datatype IntList where
+| Cons(Int, IntList)
+| Nil
+end
+
+function append(xs: IntList, x: Int) -> Int
+begin
+    match xs with
+    | Cons(head, tail) => Cons(head, append(tail, x))
+    | Nil => Nil
+    end
+end
+
+function is_elem(xs: IntList, x: Int) -> Bool
+begin
+    match xs with
+    | Cons(head, tail) => if @icmpeq(head, x) then true else is_elem(tail, x) 
+    | Nil => false
+    end
+end
+
+predicate is_elem_after_append(xs: IntList, x: Int)
+begin
+    is_elem(append(xs, x), x) = false
+end
