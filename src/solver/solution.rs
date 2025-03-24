@@ -61,6 +61,14 @@ impl Solution {
         Ok(())
     }
 
+    pub fn merge_cons(&mut self) {
+        for (_prim, args) in self.cons.prims.iter_mut() {
+            for arg in args {
+                *arg = self.vars.merge(arg);
+            }
+        }
+    }
+
     pub fn merge_print(&self, name: Ident, pars: &Vec<Ident>) {
         println!("{}({}):", name, pars.iter().format(&", "));
         for (hole, (name, term)) in pars.iter().zip(self.vars.arena.iter()).enumerate() {

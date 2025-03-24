@@ -1,7 +1,9 @@
+use smtlib::*;
 use std::collections::HashMap;
 
 use super::logic::DnfFormula;
 use super::logic::DnfPredicate;
+use super::smt::solve_cons_sat;
 use super::solution::*;
 use super::term::*;
 use crate::utils::ident::Ident;
@@ -91,20 +93,23 @@ impl PredSolver {
         }
     }
 }
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Solver {
+#[derive(Debug)]
+pub struct Checker<'st, B: Backend> {
+    st: &'st Storage,
+    solver: &'st mut Solver<'st, B>,
     succ_preds: HashMap<Ident, PredSolver>,
     fail_preds: HashMap<Ident, PredSolver>,
     check_preds: HashMap<Ident, PredSolver>,
 }
 
-impl Solver {
+impl<'st, B: Backend> Checker<'st, B> {
     pub fn new(
+        st: &'st Storage,
+        solver: &'st mut Solver<'st, B>,
         succ_preds: &HashMap<Ident, DnfPredicate>,
         fail_preds: &HashMap<Ident, DnfPredicate>,
         check_preds: &HashMap<Ident, DnfPredicate>,
-    ) -> Solver {
+    ) -> Checker<'st, B> {
         let succ_preds = succ_preds
             .iter()
             .map(|(name, pred)| (*name, PredSolver::new(pred)))
@@ -120,7 +125,9 @@ impl Solver {
             .map(|(name, pred)| (*name, PredSolver::new(pred)))
             .collect();
 
-        Solver {
+        Checker {
+            st,
+            solver,
             succ_preds,
             fail_preds,
             check_preds,
@@ -131,7 +138,7 @@ impl Solver {
         self.check_preds.values().any(|pred| !pred.sols.is_empty())
     }
 
-    pub fn solve_pred(&self, pred: &PredSolver) -> Vec<Solution> {
+    pub fn solve_pred(&mut self, pred: &PredSolver) -> Vec<Solution> {
         let mut new_sol: Vec<Solution> = Vec::new();
         for path in &pred.paths {
             let mut path_sols = vec![path.base_sol.clone()];
@@ -143,7 +150,13 @@ impl Solver {
                 let ind_sols = &self.fail_preds[name].sols;
                 path_sols = concat_sol_set(&path_sols, ind_sols, args);
             }
-            new_sol.append(&mut path_sols);
+            for sol in path_sols.into_iter() {
+                let mut sol = sol;
+                sol.merge_cons();
+                if solve_cons_sat(self.st, self.solver, &sol.cons) {
+                    new_sol.push(sol);
+                }
+            }
         }
         new_sol
     }
@@ -152,15 +165,15 @@ impl Solver {
         let mut new_succ_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
         let mut new_fail_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
         let mut new_check_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
-        for pred in self.succ_preds.values() {
+        for pred in self.succ_preds.clone().values() {
             let new_sol = self.solve_pred(pred);
             new_succ_sols.insert(pred.name, new_sol);
         }
-        for pred in self.fail_preds.values() {
+        for pred in self.fail_preds.clone().values() {
             let new_sol = self.solve_pred(pred);
             new_fail_sols.insert(pred.name, new_sol);
         }
-        for pred in self.check_preds.values() {
+        for pred in self.check_preds.clone().values() {
             let new_sol = self.solve_pred(pred);
             new_check_sols.insert(pred.name, new_sol);
         }
@@ -221,12 +234,23 @@ end
     let succ_preds = super::logic::dnf_pred_dict(&succ_preds);
     let fail_preds = super::logic::dnf_pred_dict(&fail_preds);
     let check_preds = super::logic::dnf_pred_dict(&check_preds);
-    let mut solver = Solver::new(&succ_preds, &fail_preds, &check_preds);
-    println!("{:#?}", solver);
-    for iter in 0..5 {
+
+    let st = Storage::new();
+    let mut solver = Solver::new(
+        &st,
+        backend::z3_binary::Z3Binary::new("D:/z3-4.14.1-x64-win/bin/z3.exe").unwrap(),
+    )
+    .unwrap();
+    let mut checker = Checker::new(&st, &mut solver, &succ_preds, &fail_preds, &check_preds);
+    // println!("{:#?}", checker);
+
+    for iter in 0..4 {
         println!("iter={}", iter);
-        solver.merge_print();
-        solver.solve_step();
+        checker.solve_step();
+        checker.merge_print();
+        if checker.check_counter_example() {
+            break;
+        }
     }
 }
 
@@ -280,12 +304,23 @@ end
     let succ_preds = super::logic::dnf_pred_dict(&succ_preds);
     let fail_preds = super::logic::dnf_pred_dict(&fail_preds);
     let check_preds = super::logic::dnf_pred_dict(&check_preds);
-    let mut solver = Solver::new(&succ_preds, &fail_preds, &check_preds);
-    println!("{:#?}", solver);
-    for iter in 0..3 {
+
+    let st = Storage::new();
+    let mut solver = Solver::new(
+        &st,
+        backend::z3_binary::Z3Binary::new("D:/z3-4.14.1-x64-win/bin/z3.exe").unwrap(),
+    )
+    .unwrap();
+    let mut checker = Checker::new(&st, &mut solver, &succ_preds, &fail_preds, &check_preds);
+    // println!("{:#?}", checker);
+
+    for iter in 0..4 {
         println!("iter={}", iter);
-        solver.merge_print();
-        solver.solve_step();
+        checker.solve_step();
+        checker.merge_print();
+        if checker.check_counter_example() {
+            break;
+        }
     }
 }
 
@@ -313,7 +348,7 @@ begin
         | Nil => false
         end
     | Nil => match ys with
-        | Cons(head, tail) => false
+        | Cons(head3, tail3) => false
         | Nil => true
         end
     end
@@ -331,11 +366,89 @@ end
     let succ_preds = super::logic::dnf_pred_dict(&succ_preds);
     let fail_preds = super::logic::dnf_pred_dict(&fail_preds);
     let check_preds = super::logic::dnf_pred_dict(&check_preds);
-    let mut solver = Solver::new(&succ_preds, &fail_preds, &check_preds);
-    println!("{:#?}", solver);
-    for iter in 0..4 {
+
+    let st = Storage::new();
+    let mut solver = Solver::new(
+        &st,
+        backend::z3_binary::Z3Binary::new("D:/z3-4.14.1-x64-win/bin/z3.exe").unwrap(),
+    )
+    .unwrap();
+    let mut checker = Checker::new(&st, &mut solver, &succ_preds, &fail_preds, &check_preds);
+    // println!("{:#?}", checker);
+
+    for iter in 0..10 {
         println!("iter={}", iter);
-        solver.merge_print();
-        solver.solve_step();
+        checker.solve_step();
+        checker.merge_print();
+        if checker.check_counter_example() {
+            break;
+        }
+    }
+}
+
+#[test]
+fn prog_to_solver_test_4() {
+    let p1: &'static str = r#"
+datatype IntList where
+| Cons(Int, IntList)
+| Nil
+end
+
+function reverse(xs: IntList) -> IntList
+begin
+    reverse_help(xs, Nil)
+end
+
+function reverse_help(xs: IntList, ys: IntList) -> IntList
+begin
+    match xs with
+    | Cons(head, tail) => reverse_help(tail, Cons(head, ys))
+    | Nil => ys
+    end
+end
+
+function intlist_eq(xs: IntList, ys: IntList) -> Bool
+begin
+    match xs with
+    | Cons(head, tail) => match ys with
+        | Cons(head2, tail2) => @band(@icmpeq(head, head2), intlist_eq(tail, tail2))
+        | Nil => false
+        end
+    | Nil => match ys with
+        | Cons(head3, tail3) => false
+        | Nil => true
+        end
+    end
+end
+
+predicate twice_reverse(xs: IntList)
+begin
+    intlist_eq(reverse(reverse(xs)), xs) = false
+end
+"#;
+    let prog = crate::syntax::parser::parser::ProgramParser::new()
+        .parse(p1)
+        .unwrap();
+    let (succ_preds, fail_preds, check_preds) = super::logic::prog_to_triple(&prog);
+    let succ_preds = super::logic::dnf_pred_dict(&succ_preds);
+    let fail_preds = super::logic::dnf_pred_dict(&fail_preds);
+    let check_preds = super::logic::dnf_pred_dict(&check_preds);
+
+    let st = Storage::new();
+    let mut solver = Solver::new(
+        &st,
+        backend::z3_binary::Z3Binary::new("D:/z3-4.14.1-x64-win/bin/z3.exe").unwrap(),
+    )
+    .unwrap();
+    let mut checker = Checker::new(&st, &mut solver, &succ_preds, &fail_preds, &check_preds);
+    // println!("{:#?}", checker);
+
+    for iter in 0..10 {
+        println!("iter={}", iter);
+        checker.solve_step();
+        checker.merge_print();
+        if checker.check_counter_example() {
+            break;
+        }
     }
 }
