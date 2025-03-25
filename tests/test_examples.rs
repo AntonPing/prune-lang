@@ -22,12 +22,11 @@ pub fn test_good_prog<S: AsRef<path::Path>>(prog_name: S, iter: usize) {
         smtlib::backend::z3_binary::Z3Binary::new("D:/z3-4.14.1-x64-win/bin/z3.exe").unwrap(),
     )
     .unwrap();
-    let mut checker =
-        solver::solver::Checker::new(&st, &mut solver, &succ_preds, &fail_preds, &check_preds);
+    let mut checker = solver::solver::Checker::new(&succ_preds, &fail_preds, &check_preds);
     // println!("{:#?}", checker);
     for _k in 0..iter {
         // println!("iter={}", k + 1);
-        checker.solve_step();
+        checker.solve_step(&st, &mut solver);
         if checker.check_counter_example() {
             checker.merge_print();
             assert!(false);
@@ -55,12 +54,11 @@ pub fn test_bad_prog<S: AsRef<path::Path>>(prog_name: S, iter: usize) {
         smtlib::backend::z3_binary::Z3Binary::new("D:/z3-4.14.1-x64-win/bin/z3.exe").unwrap(),
     )
     .unwrap();
-    let mut checker =
-        solver::solver::Checker::new(&st, &mut solver, &succ_preds, &fail_preds, &check_preds);
+    let mut checker = solver::solver::Checker::new(&succ_preds, &fail_preds, &check_preds);
     // println!("{:#?}", checker);
     for _k in 0..iter {
         // println!("iter={}", k + 1);
-        checker.solve_step();
+        checker.solve_step(&st, &mut solver);
         if checker.check_counter_example() {
             // checker.merge_print();
             return;
