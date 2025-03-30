@@ -1,3 +1,4 @@
+use rand::seq::SliceRandom;
 use smtlib::*;
 use std::collections::HashMap;
 
@@ -8,6 +9,8 @@ use super::solution::*;
 use super::term::*;
 use crate::utils::ident::Ident;
 use crate::utils::prim::Prim;
+
+use rand;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct InductivePath {
@@ -193,6 +196,46 @@ impl Checker {
         for (k, v) in new_check_sols.into_iter() {
             self.check_sols.insert(k, v);
         }
+    }
+
+    pub fn drop_sols(&mut self, capacity: usize) {
+        let mut rng = rand::rng();
+        for sols in self.succ_sols.values_mut() {
+            if sols.len() > capacity {
+                sols.shuffle(&mut rng);
+                sols.resize_with(capacity, || unreachable!());
+            }
+        }
+        for sols in self.fail_sols.values_mut() {
+            if sols.len() > capacity {
+                sols.shuffle(&mut rng);
+                sols.resize_with(capacity, || unreachable!());
+            }
+        }
+        for sols in self.check_sols.values_mut() {
+            if sols.len() > capacity {
+                sols.shuffle(&mut rng);
+                sols.resize_with(capacity, || unreachable!());
+            }
+        }
+    }
+
+    pub fn print_stat(&self) {
+        println!("------------------------------");
+        for pred in self.succ_preds.values() {
+            println!("{}(succ): {}", pred.name, self.succ_sols[&pred.name].len())
+        }
+        for pred in self.fail_preds.values() {
+            println!("{}(fail): {}", pred.name, self.fail_sols[&pred.name].len())
+        }
+        for pred in self.check_preds.values() {
+            println!(
+                "{}(check): {}",
+                pred.name,
+                self.check_sols[&pred.name].len()
+            )
+        }
+        println!("------------------------------");
     }
 
     pub fn merge_print(&self) {

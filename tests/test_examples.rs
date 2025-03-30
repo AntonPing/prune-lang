@@ -27,6 +27,9 @@ pub fn test_good_prog<S: AsRef<path::Path>>(prog_name: S, iter: usize) {
     for _k in 0..iter {
         // println!("iter={}", k + 1);
         checker.solve_step(&st, &mut solver);
+        // checker.print_stat();
+        checker.drop_sols(100);
+        // checker.print_stat();
         if checker.check_counter_example() {
             checker.merge_print();
             assert!(false);
@@ -59,6 +62,9 @@ pub fn test_bad_prog<S: AsRef<path::Path>>(prog_name: S, iter: usize) {
     for _k in 0..iter {
         // println!("iter={}", k + 1);
         checker.solve_step(&st, &mut solver);
+        // checker.print_stat();
+        checker.drop_sols(100);
+        // checker.print_stat();
         if checker.check_counter_example() {
             // checker.merge_print();
             return;
@@ -94,7 +100,7 @@ fn test_reverse_bad() {
 
 #[test]
 fn test_tree_insert_good() {
-    test_good_prog("tree_insert", 4);
+    test_good_prog("tree_insert", 5);
 }
 
 #[test]
