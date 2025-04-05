@@ -1,10 +1,10 @@
+use easy_smt::Context;
 use rand::seq::SliceRandom;
-use smtlib::*;
 use std::collections::HashMap;
 
 use super::logic::DnfFormula;
 use super::logic::DnfPredicate;
-use super::smt::solve_cons_sat;
+use super::smt_z3::solve_cons_sat;
 use super::solution::*;
 use super::term::*;
 use crate::utils::ident::Ident;
@@ -94,6 +94,7 @@ impl PredPaths {
         }
     }
 }
+
 #[derive(Debug)]
 pub struct Checker {
     succ_preds: HashMap<Ident, PredPaths>,
@@ -143,12 +144,7 @@ impl Checker {
         self.check_sols.values().any(|sols| !sols.is_empty())
     }
 
-    pub fn solve_pred<'st, B: Backend>(
-        &self,
-        pred: &PredPaths,
-        st: &'st Storage,
-        solver: &mut Solver<'st, B>,
-    ) -> Vec<Solution> {
+    pub fn solve_pred(&self, ctx: &mut Context, pred: &PredPaths) -> Vec<Solution> {
         let mut new_sol: Vec<Solution> = Vec::new();
         for path in &pred.paths {
             let mut path_sols = vec![path.base_sol.clone()];
@@ -163,7 +159,7 @@ impl Checker {
             for sol in path_sols.into_iter() {
                 let mut sol = sol;
                 sol.merge_cons();
-                if solve_cons_sat(st, solver, &sol.cons) {
+                if solve_cons_sat(ctx, &sol.cons) {
                     new_sol.push(sol);
                 }
             }
@@ -171,20 +167,20 @@ impl Checker {
         new_sol
     }
 
-    pub fn solve_step<'st, B: Backend>(&mut self, st: &'st Storage, solver: &mut Solver<'st, B>) {
+    pub fn solve_step(&mut self, ctx: &mut Context) {
         let mut new_succ_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
         let mut new_fail_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
         let mut new_check_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
         for pred in self.succ_preds.values() {
-            let new_sol = self.solve_pred(pred, st, solver);
+            let new_sol = self.solve_pred(ctx, pred);
             new_succ_sols.insert(pred.name, new_sol);
         }
         for pred in self.fail_preds.values() {
-            let new_sol = self.solve_pred(pred, st, solver);
+            let new_sol = self.solve_pred(ctx, pred);
             new_fail_sols.insert(pred.name, new_sol);
         }
         for pred in self.check_preds.values() {
-            let new_sol = self.solve_pred(pred, st, solver);
+            let new_sol = self.solve_pred(ctx, pred);
             new_check_sols.insert(pred.name, new_sol);
         }
         for (k, v) in new_succ_sols.into_iter() {

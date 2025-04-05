@@ -9,7 +9,7 @@ use std::fmt::{Debug, Display};
 
 pub mod constr;
 pub mod logic;
-pub mod smt;
+pub mod smt_z3;
 pub mod solution;
 pub mod solver;
 pub mod term;
