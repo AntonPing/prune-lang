@@ -2,10 +2,9 @@ use easy_smt::Context;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 
-use super::logic::DnfFormula;
-use super::logic::DnfPredicate;
 use super::smt_z3::solve_cons_sat;
 use super::solution::*;
+use crate::logic::trans::{DnfFormula, DnfPredicate};
 use crate::utils::ident::Ident;
 use crate::utils::prim::Prim;
 

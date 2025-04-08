@@ -1,5 +1,5 @@
 use easy_smt::ContextBuilder;
-use norem_lang::{solver, syntax};
+use norem_lang::{logic, solver, syntax};
 use std::{fs, path};
 
 pub fn test_good_prog<S: AsRef<path::Path>>(prog_name: S, iter: usize) {
@@ -13,10 +13,10 @@ pub fn test_good_prog<S: AsRef<path::Path>>(prog_name: S, iter: usize) {
         .parse(&src.as_str())
         .unwrap();
 
-    let (succ_preds, fail_preds, check_preds) = solver::logic::prog_to_triple(&prog);
-    let succ_preds = solver::logic::dnf_pred_dict(&succ_preds);
-    let fail_preds = solver::logic::dnf_pred_dict(&fail_preds);
-    let check_preds = solver::logic::dnf_pred_dict(&check_preds);
+    let (succ_preds, fail_preds, check_preds) = logic::trans::prog_to_triple(&prog);
+    let succ_preds = logic::trans::dnf_pred_dict(&succ_preds);
+    let fail_preds = logic::trans::dnf_pred_dict(&fail_preds);
+    let check_preds = logic::trans::dnf_pred_dict(&check_preds);
     let mut checker = solver::solver::Checker::new(&succ_preds, &fail_preds, &check_preds);
 
     let mut ctx = ContextBuilder::new()
@@ -50,10 +50,10 @@ pub fn test_bad_prog<S: AsRef<path::Path>>(prog_name: S, iter: usize) {
         .parse(&src.as_str())
         .unwrap();
 
-    let (succ_preds, fail_preds, check_preds) = solver::logic::prog_to_triple(&prog);
-    let succ_preds = solver::logic::dnf_pred_dict(&succ_preds);
-    let fail_preds = solver::logic::dnf_pred_dict(&fail_preds);
-    let check_preds = solver::logic::dnf_pred_dict(&check_preds);
+    let (succ_preds, fail_preds, check_preds) = logic::trans::prog_to_triple(&prog);
+    let succ_preds = logic::trans::dnf_pred_dict(&succ_preds);
+    let fail_preds = logic::trans::dnf_pred_dict(&fail_preds);
+    let check_preds = logic::trans::dnf_pred_dict(&check_preds);
     let mut checker = solver::solver::Checker::new(&succ_preds, &fail_preds, &check_preds);
 
     let mut ctx = ContextBuilder::new()
