@@ -5,12 +5,12 @@ use super::*;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Formula {
     Const(bool),
-    Eq(Term, Term),
+    Eq(Term<Ident>, Term<Ident>),
     And(Vec<Formula>),
     Or(Vec<Formula>),
-    Prim(Prim, Vec<Term>),
-    PredSucc(Ident, Vec<Term>),
-    PredFail(Ident, Vec<Term>),
+    Prim(Prim, Vec<Term<Ident>>),
+    PredSucc(Ident, Vec<Term<Ident>>),
+    PredFail(Ident, Vec<Term<Ident>>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -98,20 +98,20 @@ fn func_to_predicate(func: &FuncDecl) -> (Predicate, Predicate) {
     }
 }
 
-fn expr_to_succ_form(expr: &Expr) -> (Term, Formula) {
+fn expr_to_succ_form(expr: &Expr) -> (Term<Ident>, Formula) {
     match expr {
         Expr::Lit { lit } => (Term::Lit(*lit), Formula::Const(true)),
         Expr::Var { var } => (Term::Var(*var), Formula::Const(true)),
         Expr::Prim { prim, args } => {
             let x = Ident::fresh(&"x");
-            let (mut terms, mut forms): (Vec<Term>, Vec<Formula>) =
+            let (mut terms, mut forms): (Vec<Term<Ident>>, Vec<Formula>) =
                 args.iter().map(|arg| expr_to_succ_form(arg)).unzip();
             terms.push(Term::Var(x));
             forms.push(Formula::Prim(*prim, terms));
             (Term::Var(x), Formula::And(forms))
         }
         Expr::Cons { name, flds } => {
-            let (terms, forms): (Vec<Term>, Vec<Formula>) =
+            let (terms, forms): (Vec<Term<Ident>>, Vec<Formula>) =
                 flds.iter().map(|fld| expr_to_succ_form(fld)).unzip();
             (Term::Cons(*name, terms), Formula::And(forms))
         }
@@ -143,7 +143,7 @@ fn expr_to_succ_form(expr: &Expr) -> (Term, Formula) {
         }
         Expr::App { func, args } => {
             let x = Ident::fresh(&"x");
-            let (mut terms, mut forms): (Vec<Term>, Vec<Formula>) =
+            let (mut terms, mut forms): (Vec<Term<Ident>>, Vec<Formula>) =
                 args.iter().map(|arg| expr_to_succ_form(arg)).unzip();
             terms.push(Term::Var(x));
             forms.push(Formula::PredSucc(*func, terms));
@@ -234,7 +234,7 @@ fn expr_to_fail_form(expr: &Expr) -> Formula {
         Expr::App { func, args } => {
             let fail_forms = args.iter().map(|arg| expr_to_fail_form(arg)).collect();
 
-            let (terms, forms): (Vec<Term>, Vec<Formula>) =
+            let (terms, forms): (Vec<Term<Ident>>, Vec<Formula>) =
                 args.iter().map(|arg| expr_to_succ_form(arg)).unzip();
 
             Formula::Or(vec![
@@ -313,10 +313,10 @@ fn compile_form(form: &Form) -> Formula {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DnfFormula {
-    pub eqs: Vec<(Term, Term)>,
-    pub prims: Vec<(Prim, Vec<Term>)>,
-    pub succ_preds: Vec<(Ident, Vec<Term>)>,
-    pub fail_preds: Vec<(Ident, Vec<Term>)>,
+    pub eqs: Vec<(Term<Ident>, Term<Ident>)>,
+    pub prims: Vec<(Prim, Vec<Term<Ident>>)>,
+    pub succ_preds: Vec<(Ident, Vec<Term<Ident>>)>,
+    pub fail_preds: Vec<(Ident, Vec<Term<Ident>>)>,
 }
 
 impl DnfFormula {

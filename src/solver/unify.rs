@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct UnifyArena {
-    pub arena: Vec<Option<UnifyTerm>>,
+    pub arena: Vec<Option<Term<usize>>>,
 }
 
 impl UnifyArena {
@@ -26,19 +26,19 @@ impl UnifyArena {
         offset
     }
 
-    pub fn merge(&self, term: &UnifyTerm) -> UnifyTerm {
+    pub fn merge(&self, term: &Term<usize>) -> Term<usize> {
         match term {
-            UnifyTerm::Hole(hole) => {
+            Term::Var(hole) => {
                 if let Some(term2) = &self.arena[*hole] {
                     self.merge(term2)
                 } else {
-                    UnifyTerm::Hole(*hole)
+                    Term::Var(*hole)
                 }
             }
-            UnifyTerm::Lit(lit) => UnifyTerm::Lit(*lit),
-            UnifyTerm::Cons(cons, flds) => {
+            Term::Lit(lit) => Term::Lit(*lit),
+            Term::Cons(cons, flds) => {
                 let flds = flds.iter().map(|fld| self.merge(fld)).collect();
-                UnifyTerm::Cons(*cons, flds)
+                Term::Cons(*cons, flds)
             }
         }
     }
@@ -58,9 +58,9 @@ impl UnifyArena {
         self.arena = new_arena;
     }
 
-    // pub fn merge_name(&self, term: &UnifyTerm, vars: &Vec<Ident>) -> Term {
+    // pub fn merge_name(&self, term: &Term<usize>, vars: &Vec<Ident>) -> Term {
     //     match term {
-    //         UnifyTerm::Hole(hole) => {
+    //         Term::Hole(hole) => {
     //             if let Some(term2) = &self.arena[*hole] {
     //                 self.merge_name(term2, vars)
     //             } else {
@@ -71,8 +71,8 @@ impl UnifyArena {
     //                 }
     //             }
     //         }
-    //         UnifyTerm::Lit(lit) => Term::Lit(*lit),
-    //         UnifyTerm::Cons(cons, flds) => {
+    //         Term::Lit(lit) => Term::Lit(*lit),
+    //         Term::Cons(cons, flds) => {
     //             let flds = flds.iter().map(|fld| self.merge_name(fld, vars)).collect();
     //             Term::Cons(*cons, flds)
     //         }
@@ -82,14 +82,14 @@ impl UnifyArena {
     // pub fn merge_name_all(&self, vars: &Vec<Ident>) -> Vec<(Ident, Term)> {
     //     let mut vec = Vec::new();
     //     for (hole, var) in vars.iter().enumerate() {
-    //         let term = self.merge_name(&UnifyTerm::Hole(hole), vars);
+    //         let term = self.merge_name(&Term::Hole(hole), vars);
     //         vec.push((*var, term));
     //     }
     //     vec
     // }
 
-    pub fn assign(&mut self, hole: usize, term: &UnifyTerm) -> Result<(), ()> {
-        if term.occur_check(hole) {
+    pub fn assign(&mut self, hole: usize, term: &Term<usize>) -> Result<(), ()> {
+        if term.occur_check(&hole) {
             return Err(());
         }
         if let Some(t) = &self.arena[hole] {
@@ -102,20 +102,18 @@ impl UnifyArena {
         Ok(())
     }
 
-    pub fn unify(&mut self, t1: &UnifyTerm, t2: &UnifyTerm) -> Result<(), ()> {
+    pub fn unify(&mut self, t1: &Term<usize>, t2: &Term<usize>) -> Result<(), ()> {
         match (t1, t2) {
-            (UnifyTerm::Hole(hole1), UnifyTerm::Hole(hole2)) if hole1 == hole2 => Ok(()),
-            (UnifyTerm::Hole(hole), term) | (term, UnifyTerm::Hole(hole)) => {
-                self.assign(*hole, term)
-            }
-            (UnifyTerm::Lit(lit1), UnifyTerm::Lit(lit2)) => {
+            (Term::Var(hole1), Term::Var(hole2)) if hole1 == hole2 => Ok(()),
+            (Term::Var(hole), term) | (term, Term::Var(hole)) => self.assign(*hole, term),
+            (Term::Lit(lit1), Term::Lit(lit2)) => {
                 if lit1 == lit2 {
                     Ok(())
                 } else {
                     Err(())
                 }
             }
-            (UnifyTerm::Cons(cons1, flds1), UnifyTerm::Cons(cons2, flds2)) => {
+            (Term::Cons(cons1, flds1), Term::Cons(cons2, flds2)) => {
                 if cons1 == cons2 && flds1.len() == flds2.len() {
                     for (fld1, fld2) in flds1.into_iter().zip(flds2.into_iter()) {
                         self.unify(fld1, fld2)?;

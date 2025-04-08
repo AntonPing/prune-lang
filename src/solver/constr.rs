@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Constr {
-    pub prims: Vec<(Prim, Vec<UnifyTerm>)>,
+    pub prims: Vec<(Prim, Vec<Term<usize>>)>,
 }
 
 impl Display for Constr {

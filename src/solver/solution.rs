@@ -19,8 +19,8 @@ impl Display for Solution {
 impl Solution {
     pub fn from_base(
         len: usize,
-        eqs: &Vec<(UnifyTerm, UnifyTerm)>,
-        prims: Vec<(Prim, Vec<UnifyTerm>)>,
+        eqs: &Vec<(Term<usize>, Term<usize>)>,
+        prims: Vec<(Prim, Vec<Term<usize>>)>,
     ) -> Result<Solution, ()> {
         let mut sol = Solution {
             vars: UnifyArena::new(len),
@@ -32,33 +32,32 @@ impl Solution {
         Ok(sol)
     }
 
-    pub fn concat(&mut self, other: &Solution) {
+    fn concat_join(&self, other: &Solution, args: &Vec<Term<usize>>) -> Result<Solution, ()> {
         let len = self.vars.len();
-        for term in other.vars.arena.iter() {
-            let term = term.as_ref().map(|term| term.rename_shift(len));
-            self.vars.arena.push(term);
-        }
-        self.cons.prims.append(&mut other.cons.prims.clone());
-    }
+        let mut vars = self.vars.clone();
+        let mut cons = self.cons.clone();
 
-    pub fn concat_join(&mut self, other: &Solution, args: &Vec<UnifyTerm>) -> Result<(), ()> {
-        let len = self.vars.len();
         for term in other.vars.arena.iter() {
-            let term = term.as_ref().map(|term| term.rename_shift(len));
-            self.vars.arena.push(term);
+            if let Some(term) = term {
+                let term = term.var_offset(len);
+                vars.arena.push(Some(term));
+            } else {
+                vars.arena.push(None);
+            }
         }
+
         for (prim, args) in other.cons.prims.iter().cloned() {
-            let args = args.into_iter().map(|arg| arg.rename_shift(len)).collect();
-            self.cons.prims.push((prim, args));
+            let args = args.into_iter().map(|arg| arg.var_offset(len)).collect();
+            cons.prims.push((prim, args));
         }
 
         for (hole, arg) in (len..(len + args.len())).zip(args.iter()) {
-            if self.vars.assign(hole, arg).is_err() {
+            if vars.assign(hole, arg).is_err() {
                 return Err(());
             }
         }
 
-        Ok(())
+        Ok(Solution { vars, cons })
     }
 
     pub fn merge_cons(&mut self) {
@@ -89,13 +88,12 @@ impl Solution {
 pub fn concat_sol_set(
     sols1: &Vec<Solution>,
     sols2: &Vec<Solution>,
-    args: &Vec<UnifyTerm>,
+    args: &Vec<Term<usize>>,
 ) -> Vec<Solution> {
     let mut vec = Vec::new();
     for sol1 in sols1 {
         for sol2 in sols2 {
-            let mut res = sol1.clone();
-            if res.concat_join(sol2, args).is_ok() {
+            if let Ok(res) = sol1.concat_join(sol2, args) {
                 vec.push(res);
             }
         }

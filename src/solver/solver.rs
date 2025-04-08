@@ -6,32 +6,33 @@ use super::logic::DnfFormula;
 use super::logic::DnfPredicate;
 use super::smt_z3::solve_cons_sat;
 use super::solution::*;
-use super::term::*;
 use crate::utils::ident::Ident;
 use crate::utils::prim::Prim;
+
+use super::*;
 
 use rand;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct InductivePath {
     base_sol: Solution,
-    succ_preds: Vec<(Ident, Vec<UnifyTerm>)>,
-    fail_preds: Vec<(Ident, Vec<UnifyTerm>)>,
+    succ_preds: Vec<(Ident, Vec<Term<usize>>)>,
+    fail_preds: Vec<(Ident, Vec<Term<usize>>)>,
 }
 
 impl InductivePath {
-    pub fn new(form: &DnfFormula, map: &Vec<Ident>) -> Option<InductivePath> {
-        let eqs: Vec<(UnifyTerm, UnifyTerm)> = form
+    pub fn new(form: &DnfFormula, map: &HashMap<Ident, usize>) -> Option<InductivePath> {
+        let eqs: Vec<(Term<usize>, Term<usize>)> = form
             .eqs
             .iter()
-            .map(|(t1, t2)| (t1.instantiate(&map), t2.instantiate(&map)))
+            .map(|(t1, t2)| (t1.var_map(&map), t2.var_map(&map)))
             .collect();
 
-        let prims: Vec<(Prim, Vec<UnifyTerm>)> = form
+        let prims: Vec<(Prim, Vec<Term<usize>>)> = form
             .prims
             .iter()
             .map(|(prim, args)| {
-                let args = args.iter().map(|arg| arg.instantiate(&map)).collect();
+                let args = args.iter().map(|arg| arg.var_map(&map)).collect();
                 (*prim, args)
             })
             .collect();
@@ -43,7 +44,7 @@ impl InductivePath {
                 .succ_preds
                 .iter()
                 .map(|(name, args)| {
-                    let args = args.iter().map(|arg| arg.instantiate(&map)).collect();
+                    let args = args.iter().map(|arg| arg.var_map(&map)).collect();
                     (*name, args)
                 })
                 .collect();
@@ -52,7 +53,7 @@ impl InductivePath {
                 .fail_preds
                 .iter()
                 .map(|(name, args)| {
-                    let args = args.iter().map(|arg| arg.instantiate(&map)).collect();
+                    let args = args.iter().map(|arg| arg.var_map(&map)).collect();
                     (*name, args)
                 })
                 .collect();
@@ -78,8 +79,10 @@ pub struct PredPaths {
 impl PredPaths {
     pub fn new(pred: &DnfPredicate) -> PredPaths {
         let name = pred.name;
-        let mut map = Vec::new();
-        pred.free_vars(&mut map);
+
+        let mut vec = Vec::new();
+        pred.free_vars(&mut vec);
+        let map = vec.into_iter().enumerate().map(|(i, x)| (x, i)).collect();
 
         let paths: Vec<InductivePath> = pred
             .forms

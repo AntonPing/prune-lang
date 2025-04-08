@@ -7,7 +7,7 @@ use crate::utils::lit::LitVal;
 use crate::utils::prim::*;
 
 use super::constr::Constr;
-use super::term::*;
+use super::*;
 
 pub fn solve_cons_sat(ctx: &mut Context, cons: &Constr) -> bool {
     // println!("{:?}", cons);
@@ -94,10 +94,10 @@ pub fn solve_cons_sat(ctx: &mut Context, cons: &Constr) -> bool {
 pub fn get_int(
     ctx: &mut Context,
     map: &mut HashMap<usize, SExpr>,
-    term: &UnifyTerm,
+    term: &Term<usize>,
 ) -> Option<SExpr> {
     match term {
-        UnifyTerm::Hole(hole) => {
+        Term::Var(hole) => {
             if let Some(sexp) = map.get(hole) {
                 Some(*sexp)
             } else {
@@ -108,7 +108,7 @@ pub fn get_int(
                 Some(sexp)
             }
         }
-        UnifyTerm::Lit(LitVal::Int(x)) => Some(ctx.numeral(*x)),
+        Term::Lit(LitVal::Int(x)) => Some(ctx.numeral(*x)),
         _ => None,
     }
 }
@@ -116,10 +116,10 @@ pub fn get_int(
 pub fn get_bool(
     ctx: &mut Context,
     map: &mut HashMap<usize, SExpr>,
-    term: &UnifyTerm,
+    term: &Term<usize>,
 ) -> Option<SExpr> {
     match term {
-        UnifyTerm::Hole(hole) => {
+        Term::Var(hole) => {
             if let Some(sexp) = map.get(hole) {
                 Some(*sexp)
             } else {
@@ -130,8 +130,8 @@ pub fn get_bool(
                 Some(sexp)
             }
         }
-        UnifyTerm::Lit(LitVal::Bool(true)) => Some(ctx.true_()),
-        UnifyTerm::Lit(LitVal::Bool(false)) => Some(ctx.false_()),
+        Term::Lit(LitVal::Bool(true)) => Some(ctx.true_()),
+        Term::Lit(LitVal::Bool(false)) => Some(ctx.false_()),
         _ => None,
     }
 }
