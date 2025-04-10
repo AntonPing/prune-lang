@@ -12,3 +12,10 @@ easy-smt = "0.3.1"
 
 [build-dependencies]
 lalrpop = "0.22.1"
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "test_benches"
+harness = false
