@@ -11,15 +11,14 @@ pub enum Formula {
     And(Vec<Formula>),
     Or(Vec<Formula>),
     Prim(Prim, Vec<Term<Ident>>),
-    PredSucc(Ident, Vec<Term<Ident>>),
-    PredFail(Ident, Vec<Term<Ident>>),
+    PredCall(PredIdent, Vec<Term<Ident>>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Predicate {
-    name: Ident,
-    pars: Vec<Ident>,
-    form: Formula,
+    pub name: PredIdent,
+    pub pars: Vec<Ident>,
+    pub form: Formula,
 }
 
 pub fn formula_flatten(form: Formula) -> Formula {
@@ -72,12 +71,12 @@ fn func_to_predicate(func: &FuncDecl) -> (Predicate, Predicate) {
     if let Term::Var(x) = term {
         succ_pars.push(x);
         let succ_pred = Predicate {
-            name,
+            name: PredIdent::Succ(name),
             pars: succ_pars,
             form: formula_flatten(succ_form),
         };
         let fail_pred = Predicate {
-            name,
+            name: PredIdent::Fail(name),
             pars: fail_pars,
             form: formula_flatten(fail_form),
         };
@@ -87,12 +86,12 @@ fn func_to_predicate(func: &FuncDecl) -> (Predicate, Predicate) {
         succ_pars.push(x);
         let succ_form = Formula::And(vec![Formula::Eq(Term::Var(x), term), succ_form]);
         let succ_pred = Predicate {
-            name,
+            name: PredIdent::Succ(name),
             pars: succ_pars,
             form: formula_flatten(succ_form),
         };
         let fail_pred = Predicate {
-            name,
+            name: PredIdent::Fail(name),
             pars: fail_pars,
             form: formula_flatten(fail_form),
         };
@@ -148,7 +147,7 @@ fn expr_to_succ_form(expr: &Expr) -> (Term<Ident>, Formula) {
             let (mut terms, mut forms): (Vec<Term<Ident>>, Vec<Formula>) =
                 args.iter().map(|arg| expr_to_succ_form(arg)).unzip();
             terms.push(Term::Var(x));
-            forms.push(Formula::PredSucc(*func, terms));
+            forms.push(Formula::PredCall(PredIdent::Succ(*func), terms));
             (Term::Var(x), Formula::And(forms))
         }
         Expr::Ifte { cond, then, els } => {
@@ -241,7 +240,10 @@ fn expr_to_fail_form(expr: &Expr) -> Formula {
 
             Formula::Or(vec![
                 Formula::Or(fail_forms),
-                Formula::And(vec![Formula::And(forms), Formula::PredFail(*func, terms)]),
+                Formula::And(vec![
+                    Formula::And(forms),
+                    Formula::PredCall(PredIdent::Fail(*func), terms),
+                ]),
             ])
         }
         Expr::Ifte { cond, then, els } => {
@@ -285,10 +287,9 @@ fn expr_to_fail_form(expr: &Expr) -> Formula {
 }
 
 fn compile_pred(pred: &PredDecl) -> Predicate {
-    let name = pred.name;
     let pars: Vec<Ident> = pred.pars.iter().map(|(id, _typ)| *id).collect();
     Predicate {
-        name,
+        name: PredIdent::Check(pred.name),
         pars,
         form: formula_flatten(compile_form(&pred.body)),
     }
@@ -313,12 +314,42 @@ fn compile_form(form: &Form) -> Formula {
     }
 }
 
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub enum PredIdent {
+    Succ(Ident),
+    Fail(Ident),
+    Check(Ident),
+}
+
+impl PredIdent {
+    pub fn is_succ(&self) -> bool {
+        matches!(self, PredIdent::Succ(_))
+    }
+
+    pub fn is_fail(&self) -> bool {
+        matches!(self, PredIdent::Fail(_))
+    }
+
+    pub fn is_check(&self) -> bool {
+        matches!(self, PredIdent::Check(_))
+    }
+}
+
+impl std::fmt::Display for PredIdent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PredIdent::Succ(ident) => write!(f, "(succ){}", ident),
+            PredIdent::Fail(ident) => write!(f, "(fail){}", ident),
+            PredIdent::Check(ident) => write!(f, "(check){}", ident),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct DnfFormula {
     pub eqs: Vec<(Term<Ident>, Term<Ident>)>,
     pub prims: Vec<(Prim, Vec<Term<Ident>>)>,
-    pub succ_preds: Vec<(Ident, Vec<Term<Ident>>)>,
-    pub fail_preds: Vec<(Ident, Vec<Term<Ident>>)>,
+    pub preds: Vec<(PredIdent, Vec<Term<Ident>>)>,
 }
 
 impl DnfFormula {
@@ -326,8 +357,7 @@ impl DnfFormula {
         DnfFormula {
             eqs: Vec::new(),
             prims: Vec::new(),
-            succ_preds: Vec::new(),
-            fail_preds: Vec::new(),
+            preds: Vec::new(),
         }
     }
 
@@ -341,11 +371,7 @@ impl DnfFormula {
             args.iter().for_each(|arg| arg.free_vars(vars));
         }
 
-        for (_prim, args) in &self.succ_preds {
-            args.iter().for_each(|arg| arg.free_vars(vars));
-        }
-
-        for (_prim, args) in &self.fail_preds {
+        for (_prim, args) in &self.preds {
             args.iter().for_each(|arg| arg.free_vars(vars));
         }
     }
@@ -353,7 +379,7 @@ impl DnfFormula {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DnfPredicate {
-    pub name: Ident,
+    pub name: PredIdent,
     pub pars: Vec<Ident>,
     pub forms: Vec<DnfFormula>,
 }
@@ -369,13 +395,14 @@ impl DnfPredicate {
         }
     }
 }
-pub fn dnf_pred_dict(dict: &HashMap<Ident, Predicate>) -> HashMap<Ident, DnfPredicate> {
-    let mut preds = HashMap::new();
+
+pub fn dnf_pred_dict(dict: &HashMap<PredIdent, Predicate>) -> HashMap<PredIdent, DnfPredicate> {
+    let mut res: HashMap<_, DnfPredicate> = HashMap::new();
     for (name, pred) in dict {
         let pred = dnf_trans_predicate(pred);
-        preds.insert(*name, pred);
+        res.insert(*name, pred);
     }
-    preds
+    res
 }
 
 fn dnf_trans_predicate(pred: &Predicate) -> DnfPredicate {
@@ -419,40 +446,27 @@ fn dnf_trans_formula(vec: &mut Vec<DnfFormula>, form: &Formula) {
                 form.prims.push((*prim, args.clone()));
             }
         }
-        Formula::PredSucc(name, args) => {
+        Formula::PredCall(name, args) => {
             for form in vec.iter_mut() {
-                form.succ_preds.push((*name, args.clone()));
-            }
-        }
-        Formula::PredFail(name, args) => {
-            for form in vec.iter_mut() {
-                form.fail_preds.push((*name, args.clone()));
+                form.preds.push((*name, args.clone()));
             }
         }
     }
 }
 
-pub fn prog_to_triple(
-    prog: &Program,
-) -> (
-    HashMap<Ident, Predicate>,
-    HashMap<Ident, Predicate>,
-    HashMap<Ident, Predicate>,
-) {
-    let mut succ_preds = HashMap::new();
-    let mut fail_preds = HashMap::new();
-    let mut check_preds = HashMap::new();
+pub fn prog_to_dict(prog: &Program) -> HashMap<PredIdent, Predicate> {
+    let mut dict = HashMap::new();
 
     for func in &prog.funcs {
         let (succ_pred, fail_pred) = func_to_predicate(func);
-        succ_preds.insert(func.name, succ_pred);
-        fail_preds.insert(func.name, fail_pred);
+        dict.insert(PredIdent::Succ(func.name), succ_pred);
+        dict.insert(PredIdent::Fail(func.name), fail_pred);
     }
     for pred in &prog.preds {
-        let pred = compile_pred(pred);
-        check_preds.insert(pred.name, pred);
+        let check_pred = compile_pred(pred);
+        dict.insert(PredIdent::Check(pred.name), check_pred);
     }
-    (succ_preds, fail_preds, check_preds)
+    dict
 }
 
 #[test]
@@ -478,10 +492,8 @@ end
         .parse(p1)
         .unwrap();
 
-    let (succ_preds, fail_preds, check_preds) = prog_to_triple(&prog);
-    println!("{:#?}", succ_preds);
-    println!("{:#?}", fail_preds);
-    println!("{:#?}", check_preds);
-    let succ_preds = dnf_pred_dict(&succ_preds);
-    println!("{:#?}", succ_preds);
+    let dict = prog_to_dict(&prog);
+    println!("{:#?}", dict);
+    let dict = dnf_pred_dict(&dict);
+    println!("{:#?}", dict);
 }

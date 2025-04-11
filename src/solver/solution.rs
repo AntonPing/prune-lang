@@ -1,3 +1,5 @@
+use crate::logic::trans::PredIdent;
+
 use super::constr::Constr;
 use super::unify::UnifyArena;
 use super::*;
@@ -68,7 +70,7 @@ impl Solution {
         }
     }
 
-    pub fn merge_print(&self, name: Ident, pars: &Vec<Ident>) {
+    pub fn merge_print(&self, name: PredIdent, pars: &Vec<Ident>) {
         println!("{}({}):", name, pars.iter().format(&", "));
         for (hole, (name, term)) in pars.iter().zip(self.vars.arena.iter()).enumerate() {
             if let Some(term) = term {

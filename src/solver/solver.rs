@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use super::smt_z3::solve_cons_sat;
 use super::solution::*;
-use crate::logic::trans::{DnfFormula, DnfPredicate};
+use crate::logic::trans::{DnfFormula, DnfPredicate, PredIdent};
 use crate::utils::ident::Ident;
 use crate::utils::prim::Prim;
 
@@ -15,8 +15,7 @@ use rand;
 #[derive(Clone, Debug, PartialEq)]
 pub struct InductivePath {
     base_sol: Solution,
-    succ_preds: Vec<(Ident, Vec<Term<usize>>)>,
-    fail_preds: Vec<(Ident, Vec<Term<usize>>)>,
+    ind_preds: Vec<(PredIdent, Vec<Term<usize>>)>,
 }
 
 impl InductivePath {
@@ -39,17 +38,8 @@ impl InductivePath {
         let base_sol = Solution::from_base(map.len(), &eqs, prims);
 
         if let Ok(base_sol) = base_sol {
-            let succ_preds = form
-                .succ_preds
-                .iter()
-                .map(|(name, args)| {
-                    let args = args.iter().map(|arg| arg.var_map(&map)).collect();
-                    (*name, args)
-                })
-                .collect();
-
-            let fail_preds = form
-                .fail_preds
+            let ind_preds = form
+                .preds
                 .iter()
                 .map(|(name, args)| {
                     let args = args.iter().map(|arg| arg.var_map(&map)).collect();
@@ -59,8 +49,7 @@ impl InductivePath {
 
             Some(InductivePath {
                 base_sol,
-                succ_preds,
-                fail_preds,
+                ind_preds,
             })
         } else {
             None
@@ -70,7 +59,7 @@ impl InductivePath {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PredPaths {
-    name: Ident,
+    name: PredIdent,
     pars: Vec<Ident>,
     paths: Vec<InductivePath>,
 }
@@ -99,63 +88,37 @@ impl PredPaths {
 
 #[derive(Debug)]
 pub struct Checker {
-    succ_preds: HashMap<Ident, PredPaths>,
-    fail_preds: HashMap<Ident, PredPaths>,
-    check_preds: HashMap<Ident, PredPaths>,
-    succ_sols: HashMap<Ident, Vec<Solution>>,
-    fail_sols: HashMap<Ident, Vec<Solution>>,
-    check_sols: HashMap<Ident, Vec<Solution>>,
+    preds_map: HashMap<PredIdent, PredPaths>,
+    sols_map: HashMap<PredIdent, Vec<Solution>>,
 }
 
 impl Checker {
-    pub fn new(
-        succ_preds: &HashMap<Ident, DnfPredicate>,
-        fail_preds: &HashMap<Ident, DnfPredicate>,
-        check_preds: &HashMap<Ident, DnfPredicate>,
-    ) -> Checker {
-        let succ_preds: HashMap<Ident, PredPaths> = succ_preds
+    pub fn new(dict: &HashMap<PredIdent, DnfPredicate>) -> Checker {
+        let preds_map = dict
             .iter()
             .map(|(name, pred)| (*name, PredPaths::new(pred)))
             .collect();
 
-        let fail_preds: HashMap<Ident, PredPaths> = fail_preds
-            .iter()
-            .map(|(name, pred)| (*name, PredPaths::new(pred)))
-            .collect();
-
-        let check_preds: HashMap<Ident, PredPaths> = check_preds
-            .iter()
-            .map(|(name, pred)| (*name, PredPaths::new(pred)))
-            .collect();
-
-        let succ_sols = succ_preds.keys().map(|k| (*k, Vec::new())).collect();
-        let fail_sols = fail_preds.keys().map(|k| (*k, Vec::new())).collect();
-        let check_sols = check_preds.keys().map(|k| (*k, Vec::new())).collect();
+        let sols_map = dict.keys().map(|k| (*k, Vec::new())).collect();
 
         Checker {
-            succ_preds,
-            fail_preds,
-            check_preds,
-            succ_sols,
-            fail_sols,
-            check_sols,
+            preds_map,
+            sols_map,
         }
     }
 
     pub fn check_counter_example(&self) -> bool {
-        self.check_sols.values().any(|sols| !sols.is_empty())
+        self.sols_map
+            .iter()
+            .any(|(name, sols)| name.is_check() && !sols.is_empty())
     }
 
     pub fn solve_pred(&self, ctx: &mut Context, pred: &PredPaths) -> Vec<Solution> {
         let mut new_sol: Vec<Solution> = Vec::new();
         for path in &pred.paths {
             let mut path_sols = vec![path.base_sol.clone()];
-            for (name, args) in &path.succ_preds {
-                let ind_sols = &self.succ_sols[name];
-                path_sols = concat_sol_set(&path_sols, ind_sols, args);
-            }
-            for (name, args) in &path.fail_preds {
-                let ind_sols = &self.fail_sols[name];
+            for (name, args) in &path.ind_preds {
+                let ind_sols = &self.sols_map[name];
                 path_sols = concat_sol_set(&path_sols, ind_sols, args);
             }
             for sol in path_sols.into_iter() {
@@ -170,47 +133,17 @@ impl Checker {
     }
 
     pub fn solve_step(&mut self, ctx: &mut Context) {
-        let mut new_succ_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
-        let mut new_fail_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
-        let mut new_check_sols: HashMap<Ident, Vec<Solution>> = HashMap::new();
-        for pred in self.succ_preds.values() {
+        let mut new_sols_map: HashMap<PredIdent, Vec<Solution>> = HashMap::new();
+        for (name, pred) in self.preds_map.iter() {
             let new_sol = self.solve_pred(ctx, pred);
-            new_succ_sols.insert(pred.name, new_sol);
+            new_sols_map.insert(*name, new_sol);
         }
-        for pred in self.fail_preds.values() {
-            let new_sol = self.solve_pred(ctx, pred);
-            new_fail_sols.insert(pred.name, new_sol);
-        }
-        for pred in self.check_preds.values() {
-            let new_sol = self.solve_pred(ctx, pred);
-            new_check_sols.insert(pred.name, new_sol);
-        }
-        for (k, v) in new_succ_sols.into_iter() {
-            self.succ_sols.insert(k, v);
-        }
-        for (k, v) in new_fail_sols.into_iter() {
-            self.fail_sols.insert(k, v);
-        }
-        for (k, v) in new_check_sols.into_iter() {
-            self.check_sols.insert(k, v);
-        }
+        self.sols_map = new_sols_map;
     }
 
     pub fn drop_sols(&mut self, capacity: usize) {
         let mut rng = rand::rng();
-        for sols in self.succ_sols.values_mut() {
-            if sols.len() > capacity {
-                sols.shuffle(&mut rng);
-                sols.resize_with(capacity, || unreachable!());
-            }
-        }
-        for sols in self.fail_sols.values_mut() {
-            if sols.len() > capacity {
-                sols.shuffle(&mut rng);
-                sols.resize_with(capacity, || unreachable!());
-            }
-        }
-        for sols in self.check_sols.values_mut() {
+        for sols in self.sols_map.values_mut() {
             if sols.len() > capacity {
                 sols.shuffle(&mut rng);
                 sols.resize_with(capacity, || unreachable!());
@@ -220,39 +153,17 @@ impl Checker {
 
     pub fn print_stat(&self) {
         println!("------------------------------");
-        for pred in self.succ_preds.values() {
-            println!("{}(succ): {}", pred.name, self.succ_sols[&pred.name].len())
-        }
-        for pred in self.fail_preds.values() {
-            println!("{}(fail): {}", pred.name, self.fail_sols[&pred.name].len())
-        }
-        for pred in self.check_preds.values() {
-            println!(
-                "{}(check): {}",
-                pred.name,
-                self.check_sols[&pred.name].len()
-            )
+        for (name, sols) in self.sols_map.iter() {
+            println!("{}: {}", name, sols.len())
         }
         println!("------------------------------");
     }
 
     pub fn merge_print(&self) {
-        println!("----------successed solution----------");
-        for pred in self.succ_preds.values() {
-            for sol in &self.succ_sols[&pred.name] {
-                sol.merge_print(pred.name, &pred.pars);
-            }
-        }
-        println!("----------failed solution----------");
-        for pred in self.fail_preds.values() {
-            for sol in &self.fail_sols[&pred.name] {
-                sol.merge_print(pred.name, &pred.pars);
-            }
-        }
-        println!("----------counter examples----------");
-        for pred in self.check_preds.values() {
-            for sol in &self.check_sols[&pred.name] {
-                sol.merge_print(pred.name, &pred.pars);
+        println!("------------------------------");
+        for (name, pred) in self.preds_map.iter() {
+            for sol in &self.sols_map[name] {
+                sol.merge_print(*name, &pred.pars);
             }
         }
         println!("------------------------------");

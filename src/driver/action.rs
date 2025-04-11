@@ -13,11 +13,9 @@ pub fn parse_program<S: AsRef<path::Path>>(path: S) -> Result<ast::Program, ()> 
 }
 
 pub fn build_checker(prog: &ast::Program) -> Result<Checker, ()> {
-    let (succ_preds, fail_preds, check_preds) = trans::prog_to_triple(prog);
-    let succ_preds = trans::dnf_pred_dict(&succ_preds);
-    let fail_preds = trans::dnf_pred_dict(&fail_preds);
-    let check_preds = trans::dnf_pred_dict(&check_preds);
-    let chk = solver::solver::Checker::new(&succ_preds, &fail_preds, &check_preds);
+    let dict = trans::prog_to_dict(prog);
+    let dict = trans::dnf_pred_dict(&dict);
+    let chk = solver::solver::Checker::new(&dict);
     Ok(chk)
 }
 
