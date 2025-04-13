@@ -1,5 +1,5 @@
 use crate::logic::trans;
-use crate::solver::{self, solver::Checker};
+use crate::solver_bu::{self, solver::Checker};
 use crate::syntax::{self, ast};
 use easy_smt::{Context, ContextBuilder};
 use std::{fs, path};
@@ -15,7 +15,7 @@ pub fn parse_program<S: AsRef<path::Path>>(path: S) -> Result<ast::Program, ()> 
 pub fn build_checker(prog: &ast::Program) -> Result<Checker, ()> {
     let dict = trans::prog_to_dict(prog);
     let dict = trans::dnf_pred_dict(&dict);
-    let chk = solver::solver::Checker::new(&dict);
+    let chk = solver_bu::solver::Checker::new(&dict);
     Ok(chk)
 }
 
