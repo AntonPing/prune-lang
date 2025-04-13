@@ -82,7 +82,7 @@ fn func_to_predicate(func: &FuncDecl) -> (Predicate, Predicate) {
         };
         (succ_pred, fail_pred)
     } else {
-        let x = Ident::fresh(&"x");
+        let x = Ident::fresh(&"res");
         succ_pars.push(x);
         let succ_form = Formula::And(vec![Formula::Eq(Term::Var(x), term), succ_form]);
         let succ_pred = Predicate {
@@ -104,7 +104,7 @@ fn expr_to_succ_form(expr: &Expr) -> (Term<Ident>, Formula) {
         Expr::Lit { lit } => (Term::Lit(*lit), Formula::Const(true)),
         Expr::Var { var } => (Term::Var(*var), Formula::Const(true)),
         Expr::Prim { prim, args } => {
-            let x = Ident::fresh(&"x");
+            let x = Ident::fresh(&"res");
             let (mut terms, mut forms): (Vec<Term<Ident>>, Vec<Formula>) =
                 args.iter().map(|arg| expr_to_succ_form(arg)).unzip();
             terms.push(Term::Var(x));
@@ -117,7 +117,7 @@ fn expr_to_succ_form(expr: &Expr) -> (Term<Ident>, Formula) {
             (Term::Cons(*name, terms), Formula::And(forms))
         }
         Expr::Match { expr, brchs } => {
-            let x = Ident::fresh(&"x");
+            let x = Ident::fresh(&"res");
             let (term, form) = expr_to_succ_form(expr);
             let forms = brchs
                 .iter()
@@ -143,7 +143,7 @@ fn expr_to_succ_form(expr: &Expr) -> (Term<Ident>, Formula) {
             (term2, form)
         }
         Expr::App { func, args } => {
-            let x = Ident::fresh(&"x");
+            let x = Ident::fresh(&"res");
             let (mut terms, mut forms): (Vec<Term<Ident>>, Vec<Formula>) =
                 args.iter().map(|arg| expr_to_succ_form(arg)).unzip();
             terms.push(Term::Var(x));
@@ -151,7 +151,7 @@ fn expr_to_succ_form(expr: &Expr) -> (Term<Ident>, Formula) {
             (Term::Var(x), Formula::And(forms))
         }
         Expr::Ifte { cond, then, els } => {
-            let x = Ident::fresh(&"x");
+            let x = Ident::fresh(&"res");
             let (term0, form0) = expr_to_succ_form(cond);
             let (term1, form1) = expr_to_succ_form(then);
             let (term2, form2) = expr_to_succ_form(els);

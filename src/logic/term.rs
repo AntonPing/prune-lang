@@ -26,35 +26,8 @@ impl<V: Display> Display for Term<V> {
     }
 }
 
-impl<V> Term<V> {
-    pub fn var_rename<F: Fn(&V) -> V>(&self, f: &F) -> Self {
-        match self {
-            Term::Var(var) => Term::Var(f(var)),
-            Term::Lit(lit) => Term::Lit(*lit),
-            Term::Cons(cons, terms) => {
-                let terms = terms.into_iter().map(|term| term.var_rename(f)).collect();
-                Term::Cons(*cons, terms)
-            }
-        }
-    }
-
-    pub fn var_rename_inplace<F: Fn(&mut V)>(&mut self, f: &F) {
-        match self {
-            Term::Var(var) => {
-                f(var);
-            }
-            Term::Lit(_lit) => {}
-            Term::Cons(_cons, terms) => {
-                terms
-                    .into_iter()
-                    .for_each(|term| term.var_rename_inplace(f));
-            }
-        }
-    }
-}
-
 impl Term<usize> {
-    pub fn var_offset(&self, offset: usize) -> Self {
+    pub fn var_offset(&self, offset: usize) -> Term<usize> {
         match self {
             Term::Var(var) => Term::Var(*var + offset),
             Term::Lit(lit) => Term::Lit(*lit),
@@ -76,6 +49,19 @@ impl<V1: Eq + Hash> Term<V1> {
             Term::Lit(lit) => Term::Lit(*lit),
             Term::Cons(cons, terms) => {
                 let terms = terms.into_iter().map(|term| term.var_map(map)).collect();
+                Term::Cons(*cons, terms)
+            }
+        }
+    }
+}
+
+impl<V1> Term<V1> {
+    pub fn var_map_func<V2, F: Fn(&V1) -> V2>(&self, f: &F) -> Term<V2> {
+        match self {
+            Term::Var(var) => Term::Var(f(var)),
+            Term::Lit(lit) => Term::Lit(*lit),
+            Term::Cons(cons, terms) => {
+                let terms = terms.into_iter().map(|term| term.var_map_func(f)).collect();
                 Term::Cons(*cons, terms)
             }
         }
