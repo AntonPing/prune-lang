@@ -1,50 +1,50 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use norem_lang::driver::action;
 
-fn bench_append_good(c: &mut Criterion) {
-    c.bench_function("append_good", |b| {
-        b.iter(|| action::test_example_good_prog("append", 20).unwrap())
+fn bench_bu_append_bad(c: &mut Criterion) {
+    c.bench_function("append_bad(bu)", |b| {
+        b.iter(|| action::test_bu_bad_prog("append", 20).unwrap())
     });
 }
 
-fn bench_append_bad(c: &mut Criterion) {
-    c.bench_function("append_bad", |b| {
-        b.iter(|| action::test_example_bad_prog("append", 20).unwrap())
+fn bench_bu_reverse_bad(c: &mut Criterion) {
+    c.bench_function("reverse_bad(bu)", |b| {
+        b.iter(|| action::test_bu_bad_prog("reverse", 20).unwrap())
     });
 }
 
-fn bench_reverse_good(c: &mut Criterion) {
-    c.bench_function("reverse_good", |b| {
-        b.iter(|| action::test_example_good_prog("reverse", 20).unwrap())
+fn bench_bu_tree_insert_bad(c: &mut Criterion) {
+    c.bench_function("tree_insert_bad(bu)", |b| {
+        b.iter(|| action::test_bu_bad_prog("tree_insert", 20).unwrap())
     });
 }
 
-fn bench_reverse_bad(c: &mut Criterion) {
-    c.bench_function("reverse_bad", |b| {
-        b.iter(|| action::test_example_bad_prog("reverse", 20).unwrap())
+fn bench_td_append_bad(c: &mut Criterion) {
+    c.bench_function("append_bad(td)", |b| {
+        b.iter(|| action::test_td_bad_prog("append", "is_elem_after_append", 20).unwrap())
     });
 }
 
-fn bench_tree_insert_good(c: &mut Criterion) {
-    c.bench_function("tree_insert_good", |b| {
-        b.iter(|| action::test_example_good_prog("tree_insert", 4).unwrap())
+fn bench_td_reverse_bad(c: &mut Criterion) {
+    c.bench_function("reverse_bad(td)", |b| {
+        b.iter(|| action::test_td_bad_prog("reverse", "twice_reverse", 20).unwrap())
     });
 }
 
-fn bench_tree_insert_bad(c: &mut Criterion) {
-    c.bench_function("tree_insert_bad", |b| {
-        b.iter(|| action::test_example_bad_prog("tree_insert", 20).unwrap())
+fn bench_td_tree_insert_bad(c: &mut Criterion) {
+    c.bench_function("tree_insert_bad(td)", |b| {
+        b.iter(|| action::test_td_bad_prog("tree_insert", "always_sorted", 5).unwrap())
     });
 }
 
 criterion_group!(
     benches,
-    bench_append_good,
-    bench_append_bad,
-    bench_reverse_good,
-    bench_reverse_bad,
-    bench_tree_insert_good,
-    bench_tree_insert_bad,
+    bench_bu_append_bad,
+    bench_bu_reverse_bad,
+    bench_bu_tree_insert_bad,
+    bench_td_append_bad,
+    bench_td_reverse_bad,
+    bench_td_tree_insert_bad,
 );
 
 criterion_main!(benches);

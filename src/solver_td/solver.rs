@@ -141,7 +141,7 @@ impl Solver {
         StateResult::Running
     }
 
-    pub fn run_loop(&mut self) {
+    pub fn run_loop(&mut self, iter: usize) -> bool {
         // use std::io::{self, Read, Write};
         // let mut stdin = io::stdin();
         // let mut stdout = io::stdout();
@@ -150,21 +150,21 @@ impl Solver {
 
         loop {
             // println!("{}", self);
-            match self.run_step(5) {
+            match self.run_step(iter) {
                 StateResult::Running => {
                     // write!(stdout, "Press any key to continue...\n").unwrap();
                     // stdout.flush().unwrap();
                     // let _ = stdin.read(&mut [0u8]).unwrap();
                 }
                 StateResult::Succ => {
-                    println!("successed to find solution!");
+                    // println!("successed to find solution!");
                     // println!("{}", self);
-                    break;
+                    return true;
                 }
                 StateResult::Fail => {
-                    println!("failed to find any solution!");
+                    // println!("failed to find any solution!");
                     // println!("{}", self);
-                    break;
+                    return false;
                 }
             }
         }
@@ -209,7 +209,7 @@ end
         &dict,
         PredIdent::Check(Ident::dummy(&"is_elem_after_append")),
     );
-    state.run_loop();
+    state.run_loop(5);
 }
 
 #[test]
@@ -273,5 +273,5 @@ end
         .unwrap();
     let dict = crate::logic::trans::prog_to_dict(&prog);
     let mut state = Solver::new(&dict, PredIdent::Check(Ident::dummy(&"always_sorted")));
-    state.run_loop();
+    state.run_loop(5);
 }

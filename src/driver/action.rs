@@ -1,6 +1,7 @@
-use crate::logic::trans;
-use crate::solver_bu::{self, solver::Checker};
+use crate::logic::{self, trans};
 use crate::syntax::{self, ast};
+use crate::utils::ident::Ident;
+use crate::{solver_bu, solver_td};
 use easy_smt::{Context, ContextBuilder};
 use std::{fs, path};
 
@@ -12,10 +13,19 @@ pub fn parse_program<S: AsRef<path::Path>>(path: S) -> Result<ast::Program, ()> 
     Ok(prog)
 }
 
-pub fn build_checker(prog: &ast::Program) -> Result<Checker, ()> {
+pub fn build_bu_checker(prog: &ast::Program) -> Result<solver_bu::solver::Checker, ()> {
     let dict = trans::prog_to_dict(prog);
     let dict = trans::dnf_pred_dict(&dict);
     let chk = solver_bu::solver::Checker::new(&dict);
+    Ok(chk)
+}
+
+pub fn build_td_solver(
+    prog: &ast::Program,
+    entry: logic::trans::PredIdent,
+) -> Result<solver_td::solver::Solver, ()> {
+    let dict = trans::prog_to_dict(prog);
+    let chk = solver_td::solver::Solver::new(&dict, entry);
     Ok(chk)
 }
 
@@ -28,11 +38,19 @@ pub fn build_smt_ctx() -> Result<Context, ()> {
     Ok(ctx)
 }
 
-pub fn check_good_prog(chk: &mut Checker, ctx: &mut Context, iter: usize) -> Result<(), ()> {
+pub fn test_bu_good_prog<S: AsRef<path::Path>>(prog_name: S, iter: usize) -> Result<(), ()> {
+    let mut path = path::PathBuf::new();
+    path.push("examples");
+    path.push(prog_name);
+    path.push("good_prog");
+    path.set_extension("nrm");
+    let prog = parse_program(path)?;
+    let mut chk = build_bu_checker(&prog)?;
+    let mut ctx = build_smt_ctx()?;
     // println!("{:#?}", chk);
     for _k in 0..iter {
         // println!("iter={}", k + 1);
-        chk.solve_step(ctx);
+        chk.solve_step(&mut ctx);
         // chk.print_stat();
         // chk.drop_sols(1000);
         // chk.print_stat();
@@ -44,11 +62,19 @@ pub fn check_good_prog(chk: &mut Checker, ctx: &mut Context, iter: usize) -> Res
     Ok(())
 }
 
-pub fn check_bad_prog(chk: &mut Checker, ctx: &mut Context, iter: usize) -> Result<(), ()> {
+pub fn test_bu_bad_prog<S: AsRef<path::Path>>(prog_name: S, iter: usize) -> Result<(), ()> {
+    let mut path = path::PathBuf::new();
+    path.push("examples");
+    path.push(prog_name);
+    path.push("bad_prog");
+    path.set_extension("nrm");
+    let prog = parse_program(path)?;
+    let mut chk = build_bu_checker(&prog)?;
+    let mut ctx = build_smt_ctx()?;
     // println!("{:#?}", chk);
     for _k in 0..iter {
         // println!("iter={}", k + 1);
-        chk.solve_step(ctx);
+        chk.solve_step(&mut ctx);
         // chk.print_stat();
         // chk.drop_sols(1000);
         // chk.print_stat();
@@ -60,26 +86,42 @@ pub fn check_bad_prog(chk: &mut Checker, ctx: &mut Context, iter: usize) -> Resu
     Err(())
 }
 
-pub fn test_example_good_prog<S: AsRef<path::Path>>(prog_name: S, iter: usize) -> Result<(), ()> {
+pub fn test_td_good_prog<S: AsRef<path::Path>>(
+    prog_name: S,
+    entry: &'static str,
+    iter: usize,
+) -> Result<(), ()> {
     let mut path = path::PathBuf::new();
     path.push("examples");
     path.push(prog_name);
     path.push("good_prog");
     path.set_extension("nrm");
     let prog = parse_program(path)?;
-    let mut chk = build_checker(&prog)?;
-    let mut ctx = build_smt_ctx()?;
-    check_good_prog(&mut chk, &mut ctx, iter)
+    let mut chk = build_td_solver(&prog, logic::trans::PredIdent::Check(Ident::dummy(&entry)))?;
+    // println!("{:#?}", chk);
+    if chk.run_loop(iter) {
+        Err(())
+    } else {
+        Ok(())
+    }
 }
 
-pub fn test_example_bad_prog<S: AsRef<path::Path>>(prog_name: S, iter: usize) -> Result<(), ()> {
+pub fn test_td_bad_prog<S: AsRef<path::Path>>(
+    prog_name: S,
+    entry: &'static str,
+    iter: usize,
+) -> Result<(), ()> {
     let mut path = path::PathBuf::new();
     path.push("examples");
     path.push(prog_name);
     path.push("bad_prog");
     path.set_extension("nrm");
     let prog = parse_program(path)?;
-    let mut chk = build_checker(&prog)?;
-    let mut ctx = build_smt_ctx()?;
-    check_bad_prog(&mut chk, &mut ctx, iter)
+    let mut chk = build_td_solver(&prog, logic::trans::PredIdent::Check(Ident::dummy(&entry)))?;
+    // println!("{:#?}", chk);
+    if chk.run_loop(iter) {
+        Ok(())
+    } else {
+        Err(())
+    }
 }
