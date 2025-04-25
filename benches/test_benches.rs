@@ -21,19 +21,19 @@ fn bench_bu_tree_insert_bad(c: &mut Criterion) {
 
 fn bench_td_append_bad(c: &mut Criterion) {
     c.bench_function("append_bad(td)", |b| {
-        b.iter(|| action::test_td_bad_prog("append", "is_elem_after_append", 20).unwrap())
+        b.iter(|| action::test_td_bad_prog("append", "is_elem_after_append", 5, 100, 5).unwrap())
     });
 }
 
 fn bench_td_reverse_bad(c: &mut Criterion) {
     c.bench_function("reverse_bad(td)", |b| {
-        b.iter(|| action::test_td_bad_prog("reverse", "twice_reverse", 20).unwrap())
+        b.iter(|| action::test_td_bad_prog("reverse", "twice_reverse", 5, 100, 5).unwrap())
     });
 }
 
 fn bench_td_tree_insert_bad(c: &mut Criterion) {
     c.bench_function("tree_insert_bad(td)", |b| {
-        b.iter(|| action::test_td_bad_prog("tree_insert", "always_sorted", 5).unwrap())
+        b.iter(|| action::test_td_bad_prog("tree_insert", "always_sorted", 5, 100, 5).unwrap())
     });
 }
 

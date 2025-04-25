@@ -32,30 +32,30 @@ fn test_bu_tree_insert_bad() -> Result<(), ()> {
 
 #[test]
 fn test_td_append_good() -> Result<(), ()> {
-    action::test_td_good_prog("append", "is_elem_after_append", 20)
+    action::test_td_good_prog("append", "is_elem_after_append", 5, 10, 1)
 }
 
 #[test]
 fn test_td_append_bad() -> Result<(), ()> {
-    action::test_td_bad_prog("append", "is_elem_after_append", 20)
+    action::test_td_bad_prog("append", "is_elem_after_append", 5, 100, 5)
 }
 
 #[test]
 fn test_td_reverse_good() -> Result<(), ()> {
-    action::test_td_good_prog("reverse", "twice_reverse", 20)
+    action::test_td_good_prog("reverse", "twice_reverse", 5, 10, 1)
 }
 
 #[test]
 fn test_td_reverse_bad() -> Result<(), ()> {
-    action::test_td_bad_prog("reverse", "twice_reverse", 20)
+    action::test_td_bad_prog("reverse", "twice_reverse", 5, 100, 5)
 }
 
 #[test]
 fn test_td_tree_insert_good() -> Result<(), ()> {
-    action::test_td_good_prog("tree_insert", "always_sorted", 5)
+    action::test_td_good_prog("tree_insert", "always_sorted", 3, 7, 1)
 }
 
 #[test]
 fn test_td_tree_insert_bad() -> Result<(), ()> {
-    action::test_td_bad_prog("tree_insert", "always_sorted", 5)
+    action::test_td_bad_prog("tree_insert", "always_sorted", 5, 100, 5)
 }

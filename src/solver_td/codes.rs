@@ -40,8 +40,9 @@ impl std::fmt::Display for ByteCode {
 pub struct CodeState {
     codes: Vec<ByteCode>,
     code_ptr: usize,
+    fuel: usize,
     stack: Vec<usize>,
-    save: Vec<Vec<usize>>,
+    save: Vec<(Vec<usize>, usize)>,
 }
 
 impl std::fmt::Display for CodeState {
@@ -54,10 +55,11 @@ impl std::fmt::Display for CodeState {
 }
 
 impl<'src> CodeState {
-    pub fn new(codes: Vec<ByteCode>, code_ptr: usize) -> CodeState {
+    pub fn new(codes: Vec<ByteCode>) -> CodeState {
         CodeState {
             codes,
-            code_ptr,
+            code_ptr: 0,
+            fuel: 0,
             stack: Vec::new(),
             save: Vec::new(),
         }
@@ -71,6 +73,17 @@ impl<'src> CodeState {
 
     pub fn get_cp(&self) -> usize {
         self.code_ptr
+    }
+
+    pub fn get_fuel(&self) -> usize {
+        self.fuel
+    }
+
+    pub fn reset(&mut self, entry: usize, fuel: usize) {
+        self.code_ptr = entry;
+        self.fuel = fuel;
+        self.stack.drain(..);
+        assert!(self.save.is_empty());
     }
 
     pub fn next(&'src mut self) -> &'src ByteCode {
@@ -88,25 +101,25 @@ impl<'src> CodeState {
     }
 
     pub fn call(&mut self, cp: usize) {
+        assert!(self.fuel > 0);
         self.stack.push(self.code_ptr);
         self.code_ptr = cp;
+        self.fuel -= 1;
     }
 
     pub fn ret(&mut self) {
         self.code_ptr = self.stack.pop().unwrap();
     }
 
-    pub fn get_level(&self) -> usize {
-        self.stack.len()
-    }
-
     pub fn savepoint(&mut self) {
-        self.save.push(self.stack.clone());
-        self.save.last_mut().unwrap().push(self.code_ptr);
+        self.save.push((self.stack.clone(), self.fuel));
+        self.save.last_mut().unwrap().0.push(self.code_ptr);
     }
 
     pub fn backtrack(&mut self) {
-        self.stack = self.save.pop().unwrap();
+        let res = self.save.pop().unwrap();
+        self.stack = res.0;
         self.code_ptr = self.stack.pop().unwrap();
+        self.fuel = res.1;
     }
 }

@@ -1,5 +1,5 @@
 use crate::logic::term::*;
-use crate::logic::trans::{PredIdent, Predicate};
+use crate::logic::trans::PredIdent;
 use crate::utils::ident::Ident;
 use crate::utils::lit::LitVal;
 use crate::utils::prim::{Compare, Prim};

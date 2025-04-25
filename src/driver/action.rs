@@ -1,8 +1,10 @@
+use crate::logic::trans::PredIdent;
 use crate::logic::{self, trans};
 use crate::syntax::{self, ast};
 use crate::utils::ident::Ident;
 use crate::{solver_bu, solver_td};
 use easy_smt::{Context, ContextBuilder};
+use std::collections::HashMap;
 use std::{fs, path};
 
 pub fn parse_program<S: AsRef<path::Path>>(path: S) -> Result<ast::Program, ()> {
@@ -20,13 +22,11 @@ pub fn build_bu_checker(prog: &ast::Program) -> Result<solver_bu::solver::Checke
     Ok(chk)
 }
 
-pub fn build_td_solver(
-    prog: &ast::Program,
-    entry: logic::trans::PredIdent,
-) -> Result<solver_td::solver::Solver, ()> {
+pub fn build_td_solver(prog: &ast::Program) -> Result<(solver_td::solver::Solver, HashMap<PredIdent, usize>), ()> {
     let dict = trans::prog_to_dict(prog);
-    let chk = solver_td::solver::Solver::new(&dict, entry);
-    Ok(chk)
+    let (codes, map) = solver_td::compile::compile_dict(&dict);
+    let chk = solver_td::solver::Solver::new(codes);
+    Ok((chk, map))
 }
 
 pub fn build_smt_ctx() -> Result<Context, ()> {
@@ -89,7 +89,9 @@ pub fn test_bu_bad_prog<S: AsRef<path::Path>>(prog_name: S, iter: usize) -> Resu
 pub fn test_td_good_prog<S: AsRef<path::Path>>(
     prog_name: S,
     entry: &'static str,
-    iter: usize,
+    start: usize,
+    end: usize,
+    step: usize,
 ) -> Result<(), ()> {
     let mut path = path::PathBuf::new();
     path.push("examples");
@@ -97,9 +99,10 @@ pub fn test_td_good_prog<S: AsRef<path::Path>>(
     path.push("good_prog");
     path.set_extension("nrm");
     let prog = parse_program(path)?;
-    let mut chk = build_td_solver(&prog, logic::trans::PredIdent::Check(Ident::dummy(&entry)))?;
+    let (mut chk, map) = build_td_solver(&prog)?;
+    let entry = map[&logic::trans::PredIdent::Check(Ident::dummy(&entry))];
     // println!("{:#?}", chk);
-    if chk.run_loop(iter) {
+    if chk.run_loop(entry, start, end, step) {
         Err(())
     } else {
         Ok(())
@@ -109,7 +112,9 @@ pub fn test_td_good_prog<S: AsRef<path::Path>>(
 pub fn test_td_bad_prog<S: AsRef<path::Path>>(
     prog_name: S,
     entry: &'static str,
-    iter: usize,
+    start: usize,
+    end: usize,
+    step: usize,
 ) -> Result<(), ()> {
     let mut path = path::PathBuf::new();
     path.push("examples");
@@ -117,9 +122,10 @@ pub fn test_td_bad_prog<S: AsRef<path::Path>>(
     path.push("bad_prog");
     path.set_extension("nrm");
     let prog = parse_program(path)?;
-    let mut chk = build_td_solver(&prog, logic::trans::PredIdent::Check(Ident::dummy(&entry)))?;
+    let (mut chk, map) = build_td_solver(&prog)?;
+    let entry = map[&logic::trans::PredIdent::Check(Ident::dummy(&entry))];
     // println!("{:#?}", chk);
-    if chk.run_loop(iter) {
+    if chk.run_loop(entry, start, end, step) {
         Ok(())
     } else {
         Err(())

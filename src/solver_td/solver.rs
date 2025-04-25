@@ -3,10 +3,6 @@ use super::subst::Subst;
 use super::term::CtxAlloc;
 use crate::solver_td::codes::*;
 
-use std::collections::HashMap;
-
-use super::*;
-
 #[derive(Debug)]
 pub struct Solver {
     saves: usize,
@@ -35,11 +31,10 @@ pub enum StateResult {
 }
 
 impl Solver {
-    pub fn new(dict: &HashMap<PredIdent, Predicate>, entry: PredIdent) -> Solver {
-        let (codes, map) = super::compile::compile_dict(dict);
+    pub fn new(codes: Vec<ByteCode>) -> Solver {
         Solver {
             saves: 0,
-            codes: CodeState::new(codes, map[&entry]),
+            codes: CodeState::new(codes),
             ctx: CtxAlloc::new(),
             subst: Subst::new(),
             constr: Constr::new(),
@@ -69,7 +64,7 @@ impl Solver {
         }
     }
 
-    pub fn run_step(&mut self, depth: usize) -> StateResult {
+    pub fn run_step(&mut self) -> StateResult {
         let code = self.codes.next().clone();
         match code {
             ByteCode::Unify(lhs, rhs) => {
@@ -117,10 +112,7 @@ impl Solver {
             }
             ByteCode::Label(_label) => {}
             ByteCode::Call(_func, cp) => {
-                let level = self.codes.get_level();
-                if level < depth {
-                    // println!("call!");
-                    // println!("{}", self);
+                if self.codes.get_fuel() > 0 {
                     self.ctx.push();
                     self.codes.call(cp);
                 } else {
@@ -141,38 +133,52 @@ impl Solver {
         StateResult::Running
     }
 
-    pub fn run_loop(&mut self, iter: usize) -> bool {
+    pub fn run_loop(&mut self, entry: usize, start: usize, end: usize, step: usize) -> bool {
         // use std::io::{self, Read, Write};
         // let mut stdin = io::stdin();
         // let mut stdout = io::stdout();
 
         // self.codes.print_code();
 
-        loop {
-            // println!("{}", self);
-            match self.run_step(iter) {
-                StateResult::Running => {
-                    // write!(stdout, "Press any key to continue...\n").unwrap();
-                    // stdout.flush().unwrap();
-                    // let _ = stdin.read(&mut [0u8]).unwrap();
-                }
-                StateResult::Succ => {
-                    // println!("successed to find solution!");
-                    // println!("{}", self);
-                    return true;
-                }
-                StateResult::Fail => {
-                    // println!("failed to find any solution!");
-                    // println!("{}", self);
-                    return false;
+        for fuel in (start..end).into_iter().step_by(step) {
+            // println!("try fuel = {fuel}");
+            assert_eq!(self.saves, 0);
+            self.codes.reset(entry, fuel);
+            self.ctx = CtxAlloc::new();
+            self.subst = Subst::new();
+            self.constr = Constr::new();
+            
+            loop {
+                // println!("{}", self);
+                match self.run_step() {
+                    StateResult::Running => {
+                        // write!(stdout, "Press any key to continue...\n").unwrap();
+                        // stdout.flush().unwrap();
+                        // let _ = stdin.read(&mut [0u8]).unwrap();
+                    }
+                    StateResult::Succ => {
+                        // println!("successed to find solution!");
+                        // println!("{}", self);
+                        return true;
+                    }
+                    StateResult::Fail => {
+                        // println!("failed to find any solution!");
+                        // println!("{}", self);
+                        break;
+                    }
                 }
             }
         }
+
+        false
     }
 }
 
 #[test]
 fn state_run_test() {
+    use crate::logic::trans::PredIdent;
+    use crate::utils::ident::Ident;
+
     let p1: &'static str = r#"
 datatype IntList where
 | Cons(Int, IntList)
@@ -205,15 +211,17 @@ end
         .parse(&p1)
         .unwrap();
     let dict = crate::logic::trans::prog_to_dict(&prog);
-    let mut state = Solver::new(
-        &dict,
-        PredIdent::Check(Ident::dummy(&"is_elem_after_append")),
-    );
-    state.run_loop(5);
+    let (codes, map) = super::compile::compile_dict(&dict);
+    let mut state = Solver::new(codes);
+    let entry = map[&PredIdent::Check(Ident::dummy(&"is_elem_after_append"))];
+    state.run_loop(entry, 5, 10, 1);
 }
 
 #[test]
 fn state_run_test2() {
+    use crate::logic::trans::PredIdent;
+    use crate::utils::ident::Ident;
+
     let p1: &'static str = r#"
 datatype IntTree where
 | Node(IntTree, Int, IntTree)
@@ -272,6 +280,8 @@ end
         .parse(&p1)
         .unwrap();
     let dict = crate::logic::trans::prog_to_dict(&prog);
-    let mut state = Solver::new(&dict, PredIdent::Check(Ident::dummy(&"always_sorted")));
-    state.run_loop(5);
+    let (codes, map) = super::compile::compile_dict(&dict);
+    let mut state = Solver::new(codes);
+    let entry = map[&PredIdent::Check(Ident::dummy(&"always_sorted"))];
+    state.run_loop(entry, 5, 10, 1);
 }
