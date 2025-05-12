@@ -5,7 +5,6 @@ use crate::utils::prim::Prim;
 use indexer::IdentIdx;
 use itertools::Itertools;
 
-// pub mod codes;
 pub mod compile;
 pub mod indexer;
 pub mod walker;

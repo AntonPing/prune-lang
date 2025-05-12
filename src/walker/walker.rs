@@ -47,7 +47,7 @@ pub struct Walker {
     codes: Vec<ByteCode>,
     state: State,
     saves: Vec<State>,
-    ctx: Indexer,
+    idx: Indexer,
     sol: Solver<IdentIdx>,
 }
 
@@ -57,11 +57,39 @@ impl Walker {
             codes,
             state: State::new(),
             saves: Vec::new(),
-            ctx: Indexer::new(),
+            idx: Indexer::new(),
             sol: Solver::new(),
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.saves.is_empty() && self.sol.is_empty() && self.idx.is_empty()
+    }
+
+    pub fn reset(&mut self, entry: usize, fuel: usize) {
+        self.state.reset(entry, fuel);
+        self.sol.reset();
+        self.idx.reset();
+    }
+
+    pub fn savepoint(&mut self) {
+        self.saves.push(self.state.clone());
+        self.idx.savepoint();
+        self.sol.savepoint();
+    }
+
+    pub fn backtrack(&mut self) -> StateResult {
+        if self.saves.is_empty() {
+            return StateResult::Fail;
+        }
+        self.state = self.saves.pop().unwrap();
+        self.idx.backtrack();
+        self.sol.backtrack();
+        StateResult::Running
+    }
+}
+
+impl Walker {
     pub fn write_code<W: io::Write>(&self, f: &mut W) -> io::Result<()> {
         for (i, code) in self.codes.iter().enumerate() {
             writeln!(f, "{:03}: {}", &i, &code)?;
@@ -128,20 +156,12 @@ impl Walker {
 }
 
 impl Walker {
-    pub fn reset(&mut self, entry: usize, fuel: usize) {
-        self.state.reset(entry, fuel);
-        assert!(self.saves.is_empty());
-        // todo: reset for CtxAlloc and Solver
-        self.ctx = Indexer::new();
-        self.sol = Solver::new();
-    }
-
     pub fn run_step(&mut self) -> StateResult {
         let code = &self.codes[self.state.code];
         match code {
             ByteCode::Unify(lhs, rhs) => {
-                let lhs = lhs.var_map_func(&|x| self.ctx.add_ctx(x));
-                let rhs = rhs.var_map_func(&|x| self.ctx.add_ctx(x));
+                let lhs = lhs.var_map_func(&|x| self.idx.add_idx(x));
+                let rhs = rhs.var_map_func(&|x| self.idx.add_idx(x));
                 if self.sol.unify(lhs, rhs).is_err() {
                     return self.backtrack();
                 }
@@ -149,7 +169,7 @@ impl Walker {
             ByteCode::Solve(prim, args) => {
                 let args = args
                     .iter()
-                    .map(|arg| arg.var_map_func(&|x| self.ctx.add_ctx(x)))
+                    .map(|arg| arg.var_map_func(&|x| self.idx.add_idx(x)))
                     .collect();
                 if self.sol.solve(*prim, args).is_err() {
                     return self.backtrack();
@@ -171,15 +191,15 @@ impl Walker {
                 return self.backtrack();
             }
             ByteCode::SetArg(x, term) => {
-                let lhs = Term::Var(self.ctx.add_next_ctx(&x));
-                let rhs = term.var_map_func(&|x| self.ctx.add_ctx(x));
+                let lhs = Term::Var(self.idx.add_next_idx(&x));
+                let rhs = term.var_map_func(&|x| self.idx.add_idx(x));
                 self.sol.unify(lhs, rhs).unwrap(); // SetArg cannot fail
             }
             ByteCode::Label(_label) => {}
             ByteCode::Call(_func, cp) => {
                 if self.state.fuel > 0 {
                     self.state.fuel -= 1;
-                    self.ctx.push();
+                    self.idx.push();
                     self.state.stack.push(self.state.code + 1);
                     self.state.code = *cp;
                     return StateResult::Running;
@@ -191,7 +211,7 @@ impl Walker {
                 if self.state.stack.is_empty() {
                     return StateResult::Succ;
                 } else {
-                    self.ctx.pop();
+                    self.idx.pop();
                     self.state.code = self.state.stack.pop().unwrap();
                     return StateResult::Running;
                 }
@@ -209,6 +229,7 @@ impl Walker {
 
         for fuel in (start..end).into_iter().step_by(step) {
             // println!("try fuel = {fuel}");
+            assert!(self.is_empty());
             self.reset(entry, fuel);
 
             loop {
@@ -238,22 +259,6 @@ impl Walker {
         }
 
         false
-    }
-
-    pub fn savepoint(&mut self) {
-        self.saves.push(self.state.clone());
-        self.ctx.savepoint();
-        self.sol.savepoint();
-    }
-
-    pub fn backtrack(&mut self) -> StateResult {
-        if self.saves.is_empty() {
-            return StateResult::Fail;
-        }
-        self.state = self.saves.pop().unwrap();
-        self.ctx.backtrack();
-        self.sol.backtrack();
-        StateResult::Running
     }
 }
 

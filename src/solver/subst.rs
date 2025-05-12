@@ -3,7 +3,7 @@ use super::*;
 #[derive(Debug)]
 pub struct Subst<V> {
     map: Vec<(V, Term<V>)>,
-    save: Vec<usize>,
+    saves: Vec<usize>,
     pub bridge: Vec<(V, Term<V>)>,
 }
 
@@ -12,8 +12,8 @@ impl<V: fmt::Display> std::fmt::Display for Subst<V> {
         for (x, term) in self.map.iter() {
             writeln!(f, "{x} = {term}")?;
         }
-        let save = self.save.iter().format(&", ");
-        writeln!(f, "subst save:[{save:?}]")?;
+        let saves = self.saves.iter().format(&", ");
+        writeln!(f, "subst save:[{saves:?}]")?;
         Ok(())
     }
 }
@@ -22,8 +22,29 @@ impl<V> Subst<V> {
     pub fn new() -> Subst<V> {
         Subst {
             map: Vec::new(),
-            save: Vec::new(),
+            saves: Vec::new(),
             bridge: Vec::new(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.saves.is_empty()
+    }
+
+    pub fn reset(&mut self) {
+        self.map.clear();
+        self.saves.clear();
+        self.bridge.clear();
+    }
+
+    pub fn savepoint(&mut self) {
+        self.saves.push(self.map.len())
+    }
+
+    pub fn backtrack(&mut self) {
+        let len = self.saves.pop().unwrap();
+        for _ in 0..(self.map.len() - len) {
+            self.map.pop().unwrap();
         }
     }
 }
@@ -87,17 +108,6 @@ impl<V: Eq + Copy> Subst<V> {
                 }
             }
             (_, _) => Err(()),
-        }
-    }
-
-    pub fn savepoint(&mut self) {
-        self.save.push(self.map.len())
-    }
-
-    pub fn backtrack(&mut self) {
-        let len = self.save.pop().unwrap();
-        for _ in 0..(self.map.len() - len) {
-            self.map.pop().unwrap();
         }
     }
 }

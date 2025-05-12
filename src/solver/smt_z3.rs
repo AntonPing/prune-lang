@@ -16,15 +16,44 @@ impl<V: fmt::Debug> fmt::Debug for Constr<V> {
 
 impl<V> Constr<V> {
     pub fn new() -> Constr<V> {
-        let ctx = ContextBuilder::new()
+        let mut ctx = ContextBuilder::new()
             .solver("z3")
             .solver_args(["-smt2", "-in"])
             .build()
             .unwrap();
+        // push an empty context for reset
+        ctx.push().unwrap();
         Constr {
             ctx,
             vars: Vec::new(),
             saves: Vec::new(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.saves.is_empty()
+    }
+
+    pub fn reset(&mut self) {
+        self.ctx.pop().unwrap();
+        assert!(self.ctx.pop().is_err());
+        // push an empty context for reset
+        self.ctx.push().unwrap();
+
+        self.vars.clear();
+        self.saves.clear();
+    }
+
+    pub fn savepoint(&mut self) {
+        self.ctx.push().unwrap();
+        self.saves.push(self.vars.len());
+    }
+
+    pub fn backtrack(&mut self) {
+        self.ctx.pop().unwrap();
+        let len = self.saves.pop().unwrap();
+        for _ in 0..(self.vars.len() - len) {
+            self.vars.pop().unwrap();
         }
     }
 }
@@ -173,20 +202,7 @@ impl<V: Eq + Copy + fmt::Display> Constr<V> {
         match result {
             Response::Sat => true,
             Response::Unsat => false,
-            Response::Unknown => true,
-        }
-    }
-
-    pub fn savepoint(&mut self) {
-        self.ctx.push().unwrap();
-        self.saves.push(self.vars.len());
-    }
-
-    pub fn backtrack(&mut self) {
-        self.ctx.pop().unwrap();
-        let len = self.saves.pop().unwrap();
-        for _ in 0..(self.vars.len() - len) {
-            self.vars.pop().unwrap();
+            Response::Unknown => panic!("smt solver returns unknown!"),
         }
     }
 }

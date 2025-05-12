@@ -43,6 +43,39 @@ impl<V> Solver<V> {
             saves: Vec::new(),
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.saves.is_empty() && self.subst.is_empty() && self.constr.is_empty()
+    }
+
+    pub fn reset(&mut self) {
+        self.subst.reset();
+        self.constr.reset();
+        self.unify_vec.clear();
+        self.solve_vec.clear();
+        self.saves.clear();
+    }
+
+    pub fn savepoint(&mut self) {
+        self.subst.savepoint();
+        self.constr.savepoint();
+        self.saves
+            .push((self.unify_vec.len(), self.solve_vec.len()));
+    }
+
+    pub fn backtrack(&mut self) {
+        assert!(!self.saves.is_empty());
+        self.subst.backtrack();
+        self.constr.backtrack();
+
+        let (len1, len2) = self.saves.pop().unwrap();
+        for _ in 0..(self.unify_vec.len() - len1) {
+            self.unify_vec.pop().unwrap();
+        }
+        for _ in 0..(self.solve_vec.len() - len2) {
+            self.solve_vec.pop().unwrap();
+        }
+    }
 }
 
 impl<V: Eq + Copy + fmt::Display> Solver<V> {
@@ -69,27 +102,6 @@ impl<V: Eq + Copy + fmt::Display> Solver<V> {
             return Err(());
         }
         Ok(())
-    }
-
-    pub fn savepoint(&mut self) {
-        self.subst.savepoint();
-        self.constr.savepoint();
-        self.saves
-            .push((self.unify_vec.len(), self.solve_vec.len()));
-    }
-
-    pub fn backtrack(&mut self) {
-        assert!(!self.saves.is_empty());
-        self.subst.backtrack();
-        self.constr.backtrack();
-
-        let (len1, len2) = self.saves.pop().unwrap();
-        for _ in 0..(self.unify_vec.len() - len1) {
-            self.unify_vec.pop().unwrap();
-        }
-        for _ in 0..(self.solve_vec.len() - len2) {
-            self.solve_vec.pop().unwrap();
-        }
     }
 }
 
