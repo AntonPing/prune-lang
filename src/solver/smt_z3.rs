@@ -1,40 +1,21 @@
-use easy_smt::{Context, ContextBuilder, Response, SExpr};
-
 use super::*;
 
-pub struct Constr {
+use easy_smt::{Context, ContextBuilder, Response, SExpr};
+
+pub struct Constr<V> {
     pub ctx: Context,
-    pub vars: Vec<(IdentCtx, SExpr)>,
-    pub prims: Vec<(Prim, Vec<TermCtx>)>,
-    pub save: Vec<(usize, usize)>,
+    pub vars: Vec<(V, SExpr)>,
+    pub saves: Vec<usize>,
 }
 
-impl std::fmt::Debug for Constr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (prim, args) in self.prims.iter() {
-            let args = args.iter().format(&", ");
-            writeln!(f, "{prim:?}({args:?})")?;
-        }
-        let save = self.save.iter().format(&", ");
-        writeln!(f, "constr save:[{save:?}]")?;
+impl<V: fmt::Debug> fmt::Debug for Constr<V> {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }
 }
 
-impl std::fmt::Display for Constr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (prim, args) in self.prims.iter() {
-            let args = args.iter().format(&", ");
-            writeln!(f, "{prim:?}({args})")?;
-        }
-        let save = self.save.iter().format(&", ");
-        writeln!(f, "constr save:[{save:?}]")?;
-        Ok(())
-    }
-}
-
-impl Constr {
-    pub fn new() -> Constr {
+impl<V> Constr<V> {
+    pub fn new() -> Constr<V> {
         let ctx = ContextBuilder::new()
             .solver("z3")
             .solver_args(["-smt2", "-in"])
@@ -43,12 +24,13 @@ impl Constr {
         Constr {
             ctx,
             vars: Vec::new(),
-            prims: Vec::new(),
-            save: Vec::new(),
+            saves: Vec::new(),
         }
     }
+}
 
-    pub fn get_int(&mut self, term: &TermCtx) -> Option<SExpr> {
+impl<V: Eq + Copy + fmt::Display> Constr<V> {
+    pub fn get_int(&mut self, term: &Term<V>) -> Option<SExpr> {
         match term {
             Term::Var(x) => {
                 if let Some(sexp) = self
@@ -71,7 +53,7 @@ impl Constr {
         }
     }
 
-    pub fn get_bool(&mut self, term: &TermCtx) -> Option<SExpr> {
+    pub fn get_bool(&mut self, term: &Term<V>) -> Option<SExpr> {
         match term {
             Term::Var(x) => {
                 if let Some(sexp) = self
@@ -95,7 +77,7 @@ impl Constr {
         }
     }
 
-    pub fn push_cons(&mut self, prim: Prim, args: Vec<TermCtx>) {
+    pub fn push_cons(&mut self, prim: Prim, args: Vec<Term<V>>) {
         match (prim, &args[..]) {
             (
                 Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem,
@@ -155,10 +137,9 @@ impl Constr {
                 panic!("wrong arity of primitives!");
             }
         }
-        self.prims.push((prim, args));
     }
 
-    pub fn push_eq(&mut self, x: IdentCtx, term: TermCtx) {
+    pub fn push_eq(&mut self, x: V, term: Term<V>) {
         match term {
             Term::Var(_) => {
                 let x = self.get_bool(&Term::Var(x)).unwrap();
@@ -198,56 +179,14 @@ impl Constr {
 
     pub fn savepoint(&mut self) {
         self.ctx.push().unwrap();
-        self.save.push((self.vars.len(), self.prims.len()))
+        self.saves.push(self.vars.len());
     }
 
     pub fn backtrack(&mut self) {
         self.ctx.pop().unwrap();
-        let (vars_len, prims_len) = self.save.pop().unwrap();
-        for _ in 0..(self.vars.len() - vars_len) {
+        let len = self.saves.pop().unwrap();
+        for _ in 0..(self.vars.len() - len) {
             self.vars.pop().unwrap();
-        }
-        for _ in 0..(self.prims.len() - prims_len) {
-            self.prims.pop().unwrap();
         }
     }
 }
-
-// #[test]
-// fn test_smt_z3() -> io::Result<()> {
-//     let mut ctx = ContextBuilder::new()
-//         .solver("z3")
-//         .solver_args(["-smt2", "-in"])
-//         .build()?;
-
-//     // Declare `x` and `y` variables that are bitvectors of width 32.
-//     let bv32 = ctx.bit_vec_sort(ctx.numeral(32));
-//     let x = ctx.declare_const("x", bv32)?;
-//     let y = ctx.declare_const("y", bv32)?;
-
-//     // Assert that `x * y = 18`.
-//     ctx.assert(ctx.eq(ctx.bvmul(x, y), ctx.binary(32, 18)))?;
-
-//     // And assert that neither `x` nor `y` is 1.
-//     ctx.assert(ctx.not(ctx.eq(x, ctx.binary(32, 1))))?;
-//     ctx.assert(ctx.not(ctx.eq(y, ctx.binary(32, 1))))?;
-
-//     // Check whether the assertions are satisfiable. They should be in this example.
-//     assert_eq!(ctx.check()?, Response::Sat);
-
-//     // Print the solution!
-//     let solution = ctx.get_value(vec![x, y])?;
-//     for (variable, value) in solution {
-//         println!("{} = {}", ctx.display(variable), ctx.display(value));
-//     }
-//     // There are many solutions, but the one I get from Z3 is:
-//     //
-//     //     x = #x10000012
-//     //     y = #x38000001
-//     //
-//     // Solvers are great at finding edge cases and surprising-to-humans results! In
-//     // this case, I would have naively expected something like `x = 2, y = 9` or
-//     // `x = 3, y = 6`, but the solver found a solution where the multiplication
-//     // wraps around. Neat!
-//     Ok(())
-// }

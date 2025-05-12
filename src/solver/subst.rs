@@ -1,13 +1,13 @@
 use super::*;
 
-#[derive(Clone, Debug)]
-pub struct Subst {
-    map: Vec<(IdentCtx, TermCtx)>,
+#[derive(Debug)]
+pub struct Subst<V> {
+    map: Vec<(V, Term<V>)>,
     save: Vec<usize>,
-    pub bridge: Vec<(IdentCtx, TermCtx)>,
+    pub bridge: Vec<(V, Term<V>)>,
 }
 
-impl std::fmt::Display for Subst {
+impl<V: fmt::Display> std::fmt::Display for Subst<V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (x, term) in self.map.iter() {
             writeln!(f, "{x} = {term}")?;
@@ -18,29 +18,31 @@ impl std::fmt::Display for Subst {
     }
 }
 
-impl Subst {
-    pub fn new() -> Subst {
+impl<V> Subst<V> {
+    pub fn new() -> Subst<V> {
         Subst {
             map: Vec::new(),
             save: Vec::new(),
             bridge: Vec::new(),
         }
     }
+}
 
-    pub fn walk(&self, var: &IdentCtx) -> TermCtx {
+impl<V: Eq + Copy> Subst<V> {
+    pub fn walk(&self, var: &V) -> Term<V> {
         for (k, v) in self.map.iter().rev() {
             if *k == *var {
-                if let TermCtx::Var(var2) = v {
+                if let Term::Var(var2) = v {
                     return self.walk(var2);
                 } else {
                     return v.clone();
                 }
             }
         }
-        TermCtx::Var(*var)
+        Term::Var(*var)
     }
 
-    pub fn bind(&mut self, x: IdentCtx, term: TermCtx) {
+    pub fn bind(&mut self, x: V, term: Term<V>) {
         match term {
             Term::Var(_) | Term::Lit(_) => {
                 self.bridge.push((x, term.clone()));
@@ -50,13 +52,13 @@ impl Subst {
         self.map.push((x, term));
     }
 
-    pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Result<(), ()> {
-        let lhs = if let TermCtx::Var(var) = lhs {
+    pub fn unify(&mut self, lhs: Term<V>, rhs: Term<V>) -> Result<(), ()> {
+        let lhs = if let Term::Var(var) = lhs {
             self.walk(&var)
         } else {
             lhs
         };
-        let rhs = if let TermCtx::Var(var) = rhs {
+        let rhs = if let Term::Var(var) = rhs {
             self.walk(&var)
         } else {
             rhs
@@ -93,8 +95,8 @@ impl Subst {
     }
 
     pub fn backtrack(&mut self) {
-        let subst_len = self.save.pop().unwrap();
-        for _ in 0..(self.map.len() - subst_len) {
+        let len = self.save.pop().unwrap();
+        for _ in 0..(self.map.len() - len) {
             self.map.pop().unwrap();
         }
     }

@@ -1,9 +1,43 @@
+use crate::logic::trans::*;
 use std::collections::HashMap;
 
-use super::codes::ByteCode;
-use crate::logic::trans::*;
-
 use super::*;
+
+#[derive(Clone, Debug)]
+pub enum ByteCode {
+    Unify(Term<Ident>, Term<Ident>),
+    Solve(Prim, Vec<Term<Ident>>),
+    CondStart,
+    BranchSave(usize),
+    BranchJump(usize),
+    CondEnd,
+    BranchFail,
+    Label(PredIdent),
+    SetArg(Ident, Term<Ident>),
+    Call(PredIdent, usize),
+    Ret,
+}
+
+impl std::fmt::Display for ByteCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ByteCode::Unify(lhs, rhs) => write!(f, "Unify({}, {})", lhs, rhs),
+            ByteCode::Solve(prim, args) => {
+                let args = args.iter().format(&", ");
+                write!(f, "Solve({:?}, {})", prim, args)
+            }
+            ByteCode::CondStart => write!(f, "CondStart"),
+            ByteCode::BranchSave(cp) => write!(f, "BranchSave({})", cp),
+            ByteCode::BranchJump(cp) => write!(f, "BranchJump({})", cp),
+            ByteCode::CondEnd => write!(f, "CondEnd"),
+            ByteCode::BranchFail => write!(f, "Fail"),
+            ByteCode::Label(label) => write!(f, "Label({})", label),
+            ByteCode::SetArg(x, term) => write!(f, "SetArg({}, {})", x, term),
+            ByteCode::Call(label, cp) => write!(f, "Call({}, {})", label, cp),
+            ByteCode::Ret => write!(f, "Ret"),
+        }
+    }
+}
 
 pub fn compile_dict(
     dict: &HashMap<PredIdent, Predicate>,

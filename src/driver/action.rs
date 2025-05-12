@@ -1,8 +1,9 @@
 use crate::logic::trans::PredIdent;
 use crate::logic::{self, trans};
+use crate::solver_bu;
 use crate::syntax::{self, ast};
 use crate::utils::ident::Ident;
-use crate::{solver_bu, solver_td};
+use crate::walker::walker::Walker;
 use easy_smt::{Context, ContextBuilder};
 use std::collections::HashMap;
 use std::{fs, path};
@@ -22,10 +23,10 @@ pub fn build_bu_checker(prog: &ast::Program) -> Result<solver_bu::solver::Checke
     Ok(chk)
 }
 
-pub fn build_td_solver(prog: &ast::Program) -> Result<(solver_td::solver::Solver, HashMap<PredIdent, usize>), ()> {
+pub fn build_td_solver(prog: &ast::Program) -> Result<(Walker, HashMap<PredIdent, usize>), ()> {
     let dict = trans::prog_to_dict(prog);
-    let (codes, map) = solver_td::compile::compile_dict(&dict);
-    let chk = solver_td::solver::Solver::new(codes);
+    let (codes, map) = crate::walker::compile::compile_dict(&dict);
+    let chk = Walker::new(codes);
     Ok((chk, map))
 }
 
