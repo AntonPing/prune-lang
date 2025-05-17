@@ -111,17 +111,17 @@ fn unify_decompose_help(vec: &mut Vec<Formula>, lhs: Term<Ident>, rhs: Term<Iden
         }
         (Term::Lit(lit1), Term::Lit(lit2)) => {
             if lit1 != lit2 {
-                vec.clear();
+                vec.push(Formula::Const(false));
             }
         }
         (Term::Cons(cons1, flds1), Term::Cons(cons2, flds2)) => {
             if cons1 == cons2 {
                 assert_eq!(flds1.len(), flds2.len());
                 for (fld1, fld2) in flds1.into_iter().zip(flds2.into_iter()) {
-                    unify_decompose_help(vec, fld1, fld2)
+                    unify_decompose_help(vec, fld1, fld2);
                 }
             } else {
-                vec.clear();
+                vec.push(Formula::Const(false));
             }
         }
         (_, _) => {
