@@ -1,9 +1,11 @@
 use super::*;
 
 use easy_smt::{Context, ContextBuilder, Response, SExpr};
+use std::collections::HashMap;
 
 pub struct Constr {
     pub ctx: Context,
+    pub map: HashMap<Ident, LitType>,
     pub vars: Vec<(IdentCtx, SExpr)>,
     pub saves: Vec<usize>,
 }
@@ -15,7 +17,7 @@ impl fmt::Debug for Constr {
 }
 
 impl Constr {
-    pub fn new() -> Constr {
+    pub fn new(map: HashMap<Ident, LitType>) -> Constr {
         let mut ctx = ContextBuilder::new()
             .solver("z3")
             .solver_args(["-smt2", "-in"])
@@ -25,6 +27,7 @@ impl Constr {
         ctx.push().unwrap();
         Constr {
             ctx,
+            map,
             vars: Vec::new(),
             saves: Vec::new(),
         }
@@ -169,30 +172,20 @@ impl Constr {
     }
 
     pub fn push_eq(&mut self, x: IdentCtx, term: Term<IdentCtx>) {
-        match term {
-            Term::Var(_) => {
-                let x = self.get_bool(&Term::Var(x)).unwrap();
-                let term = self.get_bool(&term).unwrap();
-                self.ctx.assert(self.ctx.eq(x, term)).unwrap();
-            }
-            Term::Lit(LitVal::Int(_)) => {
-                let x = self.get_int(&Term::Var(x)).unwrap();
-                let term = self.get_int(&term).unwrap();
-                self.ctx.assert(self.ctx.eq(x, term)).unwrap();
-            }
-            Term::Lit(LitVal::Bool(_)) => {
-                let x = self.get_bool(&Term::Var(x)).unwrap();
-                let term = self.get_bool(&term).unwrap();
-                self.ctx.assert(self.ctx.eq(x, term)).unwrap();
-            }
-            Term::Lit(LitVal::Float(_)) => {
-                todo!()
-            }
-            Term::Lit(LitVal::Char(_)) => {
-                todo!()
-            }
-            Term::Cons(_, _) => {
-                panic!("only atom terms for eq in Constr!")
+        if let Some(typ) = self.map.get(&x.ident) {
+            match *typ {
+                LitType::TyInt => {
+                    let x = self.get_int(&Term::Var(x)).unwrap();
+                    let term = self.get_int(&term).unwrap();
+                    self.ctx.assert(self.ctx.eq(x, term)).unwrap();
+                }
+                LitType::TyFloat => todo!(),
+                LitType::TyBool => {
+                    let x = self.get_bool(&Term::Var(x)).unwrap();
+                    let term = self.get_bool(&term).unwrap();
+                    self.ctx.assert(self.ctx.eq(x, term)).unwrap();
+                }
+                LitType::TyChar => todo!(),
             }
         }
     }

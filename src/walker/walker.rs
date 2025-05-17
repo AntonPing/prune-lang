@@ -1,9 +1,11 @@
 use super::*;
+use std::collections::HashMap;
 use std::{fmt, io};
 
 use super::compile::ByteCode;
 use super::indexer::Indexer;
 use crate::solver::solver::Solver;
+use crate::utils::lit::LitType;
 
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub enum StateResult {
@@ -52,13 +54,13 @@ pub struct Walker {
 }
 
 impl Walker {
-    pub fn new(codes: Vec<ByteCode>) -> Walker {
+    pub fn new(codes: Vec<ByteCode>, map: HashMap<Ident, LitType>) -> Walker {
         Walker {
             codes,
             state: State::new(),
             saves: Vec::new(),
             idx: Indexer::new(),
-            sol: Solver::new(),
+            sol: Solver::new(map),
         }
     }
 
@@ -302,8 +304,10 @@ end
         .parse(&p1)
         .unwrap();
     let dict = crate::logic::trans::prog_to_dict(&prog);
-    let (codes, map) = super::compile::compile_dict(&dict);
-    let mut wlk = Walker::new(codes);
-    let entry = map[&PredIdent::Check(Ident::dummy(&"is_elem_after_append"))];
+    let (codes, entrys) = super::compile::compile_dict(&dict);
+    let map = crate::logic::infer::infer_type_map(&dict);
+    println!("{:?}", map);
+    let mut wlk = Walker::new(codes, map);
+    let entry = entrys[&PredIdent::Check(Ident::dummy(&"is_elem_after_append"))];
     assert!(!wlk.run_loop(entry, 3, 10, 1))
 }

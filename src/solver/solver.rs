@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::*;
 
 use super::smt_z3::*;
@@ -32,9 +34,9 @@ impl fmt::Display for Solver {
 }
 
 impl Solver {
-    pub fn new() -> Solver {
+    pub fn new(map: HashMap<Ident, LitType>) -> Solver {
         let subst = Subst::new();
-        let constr = Constr::new();
+        let constr = Constr::new(map);
         Solver {
             subst,
             constr,
@@ -109,15 +111,21 @@ impl Solver {
 
 #[test]
 fn test_solver() {
-    use crate::utils::ident::Ident;
+    let x = Ident::dummy(&"x");
+    let y = Ident::dummy(&"y");
 
-    let mut sol = Solver::new();
+    let mut map = HashMap::new();
+
+    map.insert(x, LitType::TyInt);
+    map.insert(y, LitType::TyInt);
+
+    let mut sol = Solver::new(map);
 
     sol.solve(
         Prim::ICmp(Compare::Lt),
         vec![
-            Term::Var(Ident::dummy(&"x").tag_ctx(0)),
-            Term::Var(Ident::dummy(&"y").tag_ctx(0)),
+            Term::Var(x.tag_ctx(0)),
+            Term::Var(y.tag_ctx(0)),
             Term::Lit(LitVal::Bool(true)),
         ],
     )
@@ -125,11 +133,8 @@ fn test_solver() {
 
     sol.savepoint();
 
-    sol.unify(
-        Term::Var(Ident::dummy(&"x").tag_ctx(0)),
-        Term::Var(Ident::dummy(&"y").tag_ctx(0)),
-    )
-    .unwrap_err();
+    sol.unify(Term::Var(x.tag_ctx(0)), Term::Var(y.tag_ctx(0)))
+        .unwrap_err();
 
     sol.backtrack();
     sol.savepoint();
@@ -137,10 +142,7 @@ fn test_solver() {
     sol.unify(
         Term::Cons(
             Ident::dummy(&"Cons"),
-            vec![
-                Term::Var(Ident::dummy(&"x").tag_ctx(0)),
-                Term::Var(Ident::dummy(&"y").tag_ctx(0)),
-            ],
+            vec![Term::Var(x.tag_ctx(0)), Term::Var(y.tag_ctx(0))],
         ),
         Term::Cons(
             Ident::dummy(&"Cons"),
