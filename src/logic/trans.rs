@@ -7,7 +7,7 @@ use super::*;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Formula {
     Const(bool),
-    Eq(Term<Ident>, Term<Ident>),
+    Eq(Ident, Term<Ident>),
     And(Vec<Formula>),
     Or(Vec<Formula>),
     Prim(Prim, Vec<Term<Ident>>),
@@ -84,7 +84,7 @@ fn func_to_predicate(func: &FuncDecl) -> (Predicate, Predicate) {
     } else {
         let x = Ident::fresh(&"res");
         succ_pars.push(x);
-        let succ_form = Formula::And(vec![Formula::Eq(Term::Var(x), term), succ_form]);
+        let succ_form = Formula::And(vec![Formula::Eq(x, term), succ_form]);
         let succ_pred = Predicate {
             name: PredIdent::Succ(name),
             pars: succ_pars,
@@ -96,6 +96,39 @@ fn func_to_predicate(func: &FuncDecl) -> (Predicate, Predicate) {
             form: formula_flatten(fail_form),
         };
         (succ_pred, fail_pred)
+    }
+}
+
+fn unify_decompose(lhs: Term<Ident>, rhs: Term<Ident>) -> Formula {
+    let mut vec: Vec<Formula> = Vec::new();
+    unify_decompose_help(&mut vec, lhs, rhs);
+    Formula::And(vec)
+}
+
+fn unify_decompose_help(vec: &mut Vec<Formula>, lhs: Term<Ident>, rhs: Term<Ident>) {
+    match (lhs, rhs) {
+        (Term::Var(x1), Term::Var(x2)) if x1 == x2 => {}
+        (Term::Var(var), term) | (term, Term::Var(var)) => {
+            vec.push(Formula::Eq(var, term));
+        }
+        (Term::Lit(lit1), Term::Lit(lit2)) => {
+            if lit1 != lit2 {
+                vec.clear();
+            }
+        }
+        (Term::Cons(cons1, flds1), Term::Cons(cons2, flds2)) => {
+            if cons1 == cons2 {
+                assert_eq!(flds1.len(), flds2.len());
+                for (fld1, fld2) in flds1.into_iter().zip(flds2.into_iter()) {
+                    unify_decompose_help(vec, fld1, fld2)
+                }
+            } else {
+                vec.clear();
+            }
+        }
+        (_, _) => {
+            panic!("unify simple and complex type!")
+        }
     }
 }
 
@@ -122,7 +155,7 @@ fn expr_to_succ_form(expr: &Expr) -> (Term<Ident>, Formula) {
             let forms = brchs
                 .iter()
                 .map(|(patn, expr)| {
-                    let form1 = Formula::Eq(
+                    let form1 = unify_decompose(
                         Term::Cons(
                             patn.name,
                             patn.flds.iter().map(|fld| Term::Var(*fld)).collect(),
@@ -130,7 +163,7 @@ fn expr_to_succ_form(expr: &Expr) -> (Term<Ident>, Formula) {
                         term.clone(),
                     );
                     let (term2, form2) = expr_to_succ_form(expr);
-                    let form3 = Formula::Eq(Term::Var(x), term2);
+                    let form3 = Formula::Eq(x, term2);
                     Formula::And(vec![form1, form2, form3])
                 })
                 .collect();
@@ -139,7 +172,7 @@ fn expr_to_succ_form(expr: &Expr) -> (Term<Ident>, Formula) {
         Expr::Let { bind, expr, cont } => {
             let (term1, form1) = expr_to_succ_form(expr);
             let (term2, form2) = expr_to_succ_form(cont);
-            let form = Formula::And(vec![form1, Formula::Eq(Term::Var(*bind), term1), form2]);
+            let form = Formula::And(vec![form1, Formula::Eq(*bind, term1), form2]);
             (term2, form)
         }
         Expr::App { func, args } => {
@@ -159,14 +192,14 @@ fn expr_to_succ_form(expr: &Expr) -> (Term<Ident>, Formula) {
                 form0,
                 Formula::Or(vec![
                     Formula::And(vec![
-                        Formula::Eq(term0.clone(), Term::Lit(LitVal::Bool(true))),
+                        unify_decompose(term0.clone(), Term::Lit(LitVal::Bool(true))),
                         form1,
-                        Formula::Eq(Term::Var(x), term1),
+                        Formula::Eq(x, term1),
                     ]),
                     Formula::And(vec![
-                        Formula::Eq(term0, Term::Lit(LitVal::Bool(false))),
+                        unify_decompose(term0, Term::Lit(LitVal::Bool(false))),
                         form2,
-                        Formula::Eq(Term::Var(x), term2),
+                        Formula::Eq(x, term2),
                     ]),
                 ]),
             ]);
@@ -177,7 +210,7 @@ fn expr_to_succ_form(expr: &Expr) -> (Term<Ident>, Formula) {
             let (term2, form2) = expr_to_succ_form(cont);
             let form = Formula::And(vec![
                 form1,
-                Formula::Eq(term1, Term::Lit(LitVal::Bool(true))),
+                unify_decompose(term1, Term::Lit(LitVal::Bool(true))),
                 form2,
             ]);
             (term2, form)
@@ -203,7 +236,7 @@ fn expr_to_fail_form(expr: &Expr) -> Formula {
             let forms = brchs
                 .iter()
                 .map(|(patn, expr)| {
-                    let form1 = Formula::Eq(
+                    let form1 = unify_decompose(
                         Term::Cons(
                             patn.name,
                             patn.flds.iter().map(|fld| Term::Var(*fld)).collect(),
@@ -225,11 +258,7 @@ fn expr_to_fail_form(expr: &Expr) -> Formula {
             let fail_form2 = expr_to_fail_form(cont);
             Formula::Or(vec![
                 fail_form1,
-                Formula::And(vec![
-                    succ_form1,
-                    Formula::Eq(Term::Var(*bind), term1),
-                    fail_form2,
-                ]),
+                Formula::And(vec![succ_form1, Formula::Eq(*bind, term1), fail_form2]),
             ])
         }
         Expr::App { func, args } => {
@@ -255,12 +284,12 @@ fn expr_to_fail_form(expr: &Expr) -> Formula {
                 fail_form0,
                 Formula::And(vec![
                     succ_form0.clone(),
-                    Formula::Eq(term0.clone(), Term::Lit(LitVal::Bool(true))),
+                    unify_decompose(term0.clone(), Term::Lit(LitVal::Bool(true))),
                     fail_form1,
                 ]),
                 Formula::And(vec![
                     succ_form0,
-                    Formula::Eq(term0.clone(), Term::Lit(LitVal::Bool(false))),
+                    unify_decompose(term0.clone(), Term::Lit(LitVal::Bool(false))),
                     fail_form2,
                 ]),
             ])
@@ -274,11 +303,11 @@ fn expr_to_fail_form(expr: &Expr) -> Formula {
                 fail_form1,
                 Formula::And(vec![
                     succ_form1.clone(),
-                    Formula::Eq(term1.clone(), Term::Lit(LitVal::Bool(false))),
+                    unify_decompose(term1.clone(), Term::Lit(LitVal::Bool(false))),
                 ]),
                 Formula::And(vec![
                     succ_form1,
-                    Formula::Eq(term1, Term::Lit(LitVal::Bool(true))),
+                    unify_decompose(term1, Term::Lit(LitVal::Bool(true))),
                     fail_form2,
                 ]),
             ])
@@ -300,7 +329,7 @@ fn compile_form(form: &Form) -> Formula {
         Form::Eq(lhs, rhs) => {
             let (term1, form1) = expr_to_succ_form(lhs);
             let (term2, form2) = expr_to_succ_form(rhs);
-            Formula::And(vec![form1, form2, Formula::Eq(term1, term2)])
+            Formula::And(vec![form1, form2, unify_decompose(term1, term2)])
         }
         Form::Fail(expr) => expr_to_fail_form(expr),
         Form::And(forms) => {
@@ -424,7 +453,7 @@ fn dnf_trans_formula(vec: &mut Vec<DnfFormula>, form: &Formula) {
         }
         Formula::Eq(term1, term2) => {
             for form in vec.iter_mut() {
-                form.eqs.push((term1.clone(), term2.clone()));
+                form.eqs.push((Term::Var(*term1), term2.clone()));
             }
         }
         Formula::And(forms) => {

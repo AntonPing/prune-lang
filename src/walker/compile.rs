@@ -5,7 +5,7 @@ use super::*;
 
 #[derive(Clone, Debug)]
 pub enum ByteCode {
-    Unify(Term<Ident>, Term<Ident>),
+    Unify(Ident, Term<Ident>),
     Solve(Prim, Vec<Term<Ident>>),
     CondStart,
     BranchSave(usize),

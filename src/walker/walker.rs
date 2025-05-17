@@ -160,9 +160,9 @@ impl Walker {
         let code = &self.codes[self.state.code];
         match code {
             ByteCode::Unify(lhs, rhs) => {
-                let lhs = lhs.var_map_func(&|x| self.idx.add_idx(x));
+                let lhs = self.idx.add_idx(lhs);
                 let rhs = rhs.var_map_func(&|x| self.idx.add_idx(x));
-                if self.sol.unify(lhs, rhs).is_err() {
+                if self.sol.unify(Term::Var(lhs), rhs).is_err() {
                     return self.backtrack();
                 }
             }

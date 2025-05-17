@@ -98,7 +98,8 @@ impl<V: Eq + Copy> Subst<V> {
                 }
             }
             (Term::Cons(cons1, flds1), Term::Cons(cons2, flds2)) => {
-                if cons1 == cons2 && flds1.len() == flds2.len() {
+                if cons1 == cons2 {
+                    assert_eq!(flds1.len(), flds2.len());
                     for (fld1, fld2) in flds1.into_iter().zip(flds2.into_iter()) {
                         self.unify(fld1, fld2)?;
                     }
@@ -107,7 +108,7 @@ impl<V: Eq + Copy> Subst<V> {
                     Err(())
                 }
             }
-            (_, _) => Err(()),
+            (_, _) => panic!("unify simple and complex type!"),
         }
     }
 }
