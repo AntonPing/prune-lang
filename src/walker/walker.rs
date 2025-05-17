@@ -48,7 +48,7 @@ pub struct Walker {
     state: State,
     saves: Vec<State>,
     idx: Indexer,
-    sol: Solver<IdentIdx>,
+    sol: Solver,
 }
 
 impl Walker {

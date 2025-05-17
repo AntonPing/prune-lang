@@ -36,6 +36,10 @@ impl Ident {
     pub fn as_str(&self) -> &'static str {
         self.name.as_str()
     }
+
+    pub fn tag_ctx(self, ctx: usize) -> IdentCtx {
+        IdentCtx { ident: self, ctx }
+    }
 }
 
 impl fmt::Debug for Ident {
@@ -61,6 +65,18 @@ impl fmt::Display for Ident {
 impl AsRef<str> for Ident {
     fn as_ref(&self) -> &str {
         self.name.as_str()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct IdentCtx {
+    pub ident: Ident,
+    pub ctx: usize,
+}
+
+impl fmt::Display for IdentCtx {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}_ctx_{}", self.ident, self.ctx)
     }
 }
 

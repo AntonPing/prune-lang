@@ -2,20 +2,20 @@ use super::*;
 
 use easy_smt::{Context, ContextBuilder, Response, SExpr};
 
-pub struct Constr<V> {
+pub struct Constr {
     pub ctx: Context,
-    pub vars: Vec<(V, SExpr)>,
+    pub vars: Vec<(IdentCtx, SExpr)>,
     pub saves: Vec<usize>,
 }
 
-impl<V: fmt::Debug> fmt::Debug for Constr<V> {
+impl fmt::Debug for Constr {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }
 }
 
-impl<V> Constr<V> {
-    pub fn new() -> Constr<V> {
+impl Constr {
+    pub fn new() -> Constr {
         let mut ctx = ContextBuilder::new()
             .solver("z3")
             .solver_args(["-smt2", "-in"])
@@ -58,8 +58,8 @@ impl<V> Constr<V> {
     }
 }
 
-impl<V: Eq + Copy + fmt::Display> Constr<V> {
-    pub fn get_int(&mut self, term: &Term<V>) -> Option<SExpr> {
+impl Constr {
+    pub fn get_int(&mut self, term: &Term<IdentCtx>) -> Option<SExpr> {
         match term {
             Term::Var(x) => {
                 if let Some(sexp) = self
@@ -82,7 +82,7 @@ impl<V: Eq + Copy + fmt::Display> Constr<V> {
         }
     }
 
-    pub fn get_bool(&mut self, term: &Term<V>) -> Option<SExpr> {
+    pub fn get_bool(&mut self, term: &Term<IdentCtx>) -> Option<SExpr> {
         match term {
             Term::Var(x) => {
                 if let Some(sexp) = self
@@ -106,7 +106,7 @@ impl<V: Eq + Copy + fmt::Display> Constr<V> {
         }
     }
 
-    pub fn push_cons(&mut self, prim: Prim, args: Vec<Term<V>>) {
+    pub fn push_cons(&mut self, prim: Prim, args: Vec<Term<IdentCtx>>) {
         match (prim, &args[..]) {
             (
                 Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem,
@@ -168,7 +168,7 @@ impl<V: Eq + Copy + fmt::Display> Constr<V> {
         }
     }
 
-    pub fn push_eq(&mut self, x: V, term: Term<V>) {
+    pub fn push_eq(&mut self, x: IdentCtx, term: Term<IdentCtx>) {
         match term {
             Term::Var(_) => {
                 let x = self.get_bool(&Term::Var(x)).unwrap();

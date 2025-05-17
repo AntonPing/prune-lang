@@ -1,4 +1,5 @@
 use crate::logic::term::*;
+use crate::utils::ident::IdentCtx;
 use crate::utils::lit::LitVal;
 use crate::utils::prim::{Compare, Prim};
 

@@ -1,13 +1,13 @@
 use super::*;
 
 #[derive(Debug)]
-pub struct Subst<V> {
-    map: Vec<(V, Term<V>)>,
+pub struct Subst {
+    map: Vec<(IdentCtx, Term<IdentCtx>)>,
     saves: Vec<usize>,
-    pub bridge: Vec<(V, Term<V>)>,
+    pub bridge: Vec<(IdentCtx, Term<IdentCtx>)>,
 }
 
-impl<V: fmt::Display> std::fmt::Display for Subst<V> {
+impl std::fmt::Display for Subst {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (x, term) in self.map.iter() {
             writeln!(f, "{x} = {term}")?;
@@ -18,8 +18,8 @@ impl<V: fmt::Display> std::fmt::Display for Subst<V> {
     }
 }
 
-impl<V> Subst<V> {
-    pub fn new() -> Subst<V> {
+impl Subst {
+    pub fn new() -> Subst {
         Subst {
             map: Vec::new(),
             saves: Vec::new(),
@@ -49,8 +49,8 @@ impl<V> Subst<V> {
     }
 }
 
-impl<V: Eq + Copy> Subst<V> {
-    pub fn walk(&self, var: &V) -> Term<V> {
+impl Subst {
+    pub fn walk(&self, var: &IdentCtx) -> Term<IdentCtx> {
         for (k, v) in self.map.iter().rev() {
             if *k == *var {
                 if let Term::Var(var2) = v {
@@ -63,7 +63,7 @@ impl<V: Eq + Copy> Subst<V> {
         Term::Var(*var)
     }
 
-    pub fn bind(&mut self, x: V, term: Term<V>) {
+    pub fn bind(&mut self, x: IdentCtx, term: Term<IdentCtx>) {
         match term {
             Term::Var(_) | Term::Lit(_) => {
                 self.bridge.push((x, term.clone()));
@@ -73,7 +73,7 @@ impl<V: Eq + Copy> Subst<V> {
         self.map.push((x, term));
     }
 
-    pub fn unify(&mut self, lhs: Term<V>, rhs: Term<V>) -> Result<(), ()> {
+    pub fn unify(&mut self, lhs: Term<IdentCtx>, rhs: Term<IdentCtx>) -> Result<(), ()> {
         let lhs = if let Term::Var(var) = lhs {
             self.walk(&var)
         } else {

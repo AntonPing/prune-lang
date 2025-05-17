@@ -4,15 +4,15 @@ use super::smt_z3::*;
 use super::subst::*;
 
 #[derive(Debug)]
-pub struct Solver<V> {
-    subst: Subst<V>,
-    constr: Constr<V>,
-    unify_vec: Vec<(Term<V>, Term<V>)>,
-    solve_vec: Vec<(Prim, Vec<Term<V>>)>,
+pub struct Solver {
+    subst: Subst,
+    constr: Constr,
+    unify_vec: Vec<(Term<IdentCtx>, Term<IdentCtx>)>,
+    solve_vec: Vec<(Prim, Vec<Term<IdentCtx>>)>,
     saves: Vec<(usize, usize)>,
 }
 
-impl<V: fmt::Display> fmt::Display for Solver<V> {
+impl fmt::Display for Solver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let unify_vec = self
             .unify_vec
@@ -31,8 +31,8 @@ impl<V: fmt::Display> fmt::Display for Solver<V> {
     }
 }
 
-impl<V> Solver<V> {
-    pub fn new() -> Solver<V> {
+impl Solver {
+    pub fn new() -> Solver {
         let subst = Subst::new();
         let constr = Constr::new();
         Solver {
@@ -78,8 +78,8 @@ impl<V> Solver<V> {
     }
 }
 
-impl<V: Eq + Copy + fmt::Display> Solver<V> {
-    pub fn unify(&mut self, lhs: Term<V>, rhs: Term<V>) -> Result<(), ()> {
+impl Solver {
+    pub fn unify(&mut self, lhs: Term<IdentCtx>, rhs: Term<IdentCtx>) -> Result<(), ()> {
         self.unify_vec.push((lhs.clone(), rhs.clone()));
 
         if self.subst.unify(lhs, rhs).is_err() {
@@ -94,7 +94,9 @@ impl<V: Eq + Copy + fmt::Display> Solver<V> {
         Ok(())
     }
 
-    pub fn solve(&mut self, prim: Prim, args: Vec<Term<V>>) -> Result<(), ()> {
+    pub fn solve(&mut self, prim: Prim, args: Vec<Term<IdentCtx>>) -> Result<(), ()> {
+        // let args: Vec<_> = args.into_iter().map(|arg| self.subst.subst(&arg)).collect();
+
         self.solve_vec.push((prim.clone(), args.clone()));
 
         self.constr.push_cons(prim, args);
@@ -106,17 +108,16 @@ impl<V: Eq + Copy + fmt::Display> Solver<V> {
 }
 
 #[test]
-
 fn test_solver() {
     use crate::utils::ident::Ident;
 
-    let mut sol: Solver<Ident> = Solver::new();
+    let mut sol = Solver::new();
 
     sol.solve(
         Prim::ICmp(Compare::Lt),
         vec![
-            Term::Var(Ident::dummy(&"x")),
-            Term::Var(Ident::dummy(&"y")),
+            Term::Var(Ident::dummy(&"x").tag_ctx(0)),
+            Term::Var(Ident::dummy(&"y").tag_ctx(0)),
             Term::Lit(LitVal::Bool(true)),
         ],
     )
@@ -125,14 +126,8 @@ fn test_solver() {
     sol.savepoint();
 
     sol.unify(
-        Term::Cons(
-            Ident::dummy(&"Cons"),
-            vec![Term::Var(Ident::dummy(&"x")), Term::Var(Ident::dummy(&"y"))],
-        ),
-        Term::Cons(
-            Ident::dummy(&"Cons"),
-            vec![Term::Var(Ident::dummy(&"y")), Term::Var(Ident::dummy(&"x"))],
-        ),
+        Term::Var(Ident::dummy(&"x").tag_ctx(0)),
+        Term::Var(Ident::dummy(&"y").tag_ctx(0)),
     )
     .unwrap_err();
 
@@ -142,7 +137,10 @@ fn test_solver() {
     sol.unify(
         Term::Cons(
             Ident::dummy(&"Cons"),
-            vec![Term::Var(Ident::dummy(&"x")), Term::Var(Ident::dummy(&"y"))],
+            vec![
+                Term::Var(Ident::dummy(&"x").tag_ctx(0)),
+                Term::Var(Ident::dummy(&"y").tag_ctx(0)),
+            ],
         ),
         Term::Cons(
             Ident::dummy(&"Cons"),

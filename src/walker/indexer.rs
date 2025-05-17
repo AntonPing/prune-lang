@@ -1,17 +1,5 @@
 use super::*;
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct IdentIdx {
-    ident: Ident,
-    idx: usize,
-}
-
-impl std::fmt::Display for IdentIdx {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}_idx{}", self.ident, self.idx)
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct Indexer {
     counter: usize,
@@ -52,18 +40,12 @@ impl Indexer {
 }
 
 impl Indexer {
-    pub fn add_idx(&self, ident: &Ident) -> IdentIdx {
-        IdentIdx {
-            ident: *ident,
-            idx: self.idx,
-        }
+    pub fn add_idx(&self, ident: &Ident) -> IdentCtx {
+        ident.tag_ctx(self.idx)
     }
 
-    pub fn add_next_idx(&self, ident: &Ident) -> IdentIdx {
-        IdentIdx {
-            ident: *ident,
-            idx: self.counter + 1,
-        }
+    pub fn add_next_idx(&self, ident: &Ident) -> IdentCtx {
+        ident.tag_ctx(self.counter + 1)
     }
 
     pub fn push(&mut self) {

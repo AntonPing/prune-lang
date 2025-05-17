@@ -1,8 +1,7 @@
 use crate::logic::term::*;
-use crate::utils::ident::Ident;
+use crate::utils::ident::{Ident, IdentCtx};
 use crate::utils::prim::Prim;
 
-use indexer::IdentIdx;
 use itertools::Itertools;
 
 pub mod compile;
