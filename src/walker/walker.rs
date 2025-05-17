@@ -14,11 +14,18 @@ pub enum StateResult {
     Fail,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PathOp {
+    Push(usize),
+    Pop(usize),
+}
+
 #[derive(Clone, Debug)]
 pub struct State {
-    pub code: usize,
-    pub stack: Vec<usize>,
-    pub fuel: usize,
+    code: usize,
+    fuel: usize,
+    stack: Vec<usize>,
+    path: Vec<PathOp>,
 }
 
 impl State {
@@ -26,6 +33,7 @@ impl State {
         State {
             code: 0,
             stack: Vec::new(),
+            path: Vec::new(),
             fuel: 0,
         }
     }
@@ -33,6 +41,7 @@ impl State {
     fn reset(&mut self, entry: usize, fuel: usize) {
         self.code = entry;
         self.stack.drain(..);
+        self.path.drain(..);
         self.fuel = fuel;
     }
 }
@@ -40,7 +49,14 @@ impl State {
 impl fmt::Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let stack = self.stack.iter().format(&",");
-        writeln!(f, "code = {}, [{}], fuel = {}", self.code, stack, self.fuel)
+        let path = self.path.iter().format(&",");
+        writeln!(
+            f,
+            "code = {}, fuel = {}, stack = [{:?}]",
+            self.code, self.fuel, stack
+        )?;
+        writeln!(f, "path = [{:?}]", path)?;
+        Ok(())
     }
 }
 
@@ -115,9 +131,8 @@ impl Walker {
         Ok(())
     }
 
-    pub fn write_state<W: io::Write>(&self, f: &mut W) -> io::Result<()> {
-        let stack = self
-            .state
+    pub fn write_state<W: io::Write>(&self, state: &State, f: &mut W) -> io::Result<()> {
+        let stack = state
             .stack
             .iter()
             .map(|cp| match self.codes[*cp - 1] {
@@ -125,28 +140,40 @@ impl Walker {
                 _ => panic!("code pointer in stack should refer to a call instruction!"),
             })
             .format(&", ");
+
+        let path = state
+            .path
+            .iter()
+            .map(|op| match op {
+                PathOp::Push(cp) => match self.codes[*cp - 1] {
+                    ByteCode::Call(func, _) => format!("Push({})", func),
+                    _ => panic!("code pointer in stack should refer to a call instruction!"),
+                },
+                PathOp::Pop(cp) => match self.codes[*cp - 1] {
+                    ByteCode::Call(func, _) => format!("Pop({})", func),
+                    _ => panic!("code pointer in stack should refer to a call instruction!"),
+                },
+            })
+            .format(&", ");
+
         writeln!(
             f,
-            "code = {}, [{}], fuel = {}",
-            self.state.code, stack, self.state.fuel,
-        )
+            "code = {}, fuel = {}, stack = [{}]",
+            state.code, state.fuel, stack
+        )?;
+
+        writeln!(f, "path = [{}]", path)?;
+
+        Ok(())
     }
 
-    pub fn write_saves<W: io::Write>(&self, f: &mut W) -> io::Result<()> {
+    pub fn write_solver_state<W: io::Write>(&self, f: &mut W) -> io::Result<()> {
+        self.write_state(&self.state, f)
+    }
+
+    pub fn write_solver_saves<W: io::Write>(&self, f: &mut W) -> io::Result<()> {
         for state in self.saves.iter().rev() {
-            let stack = state
-                .stack
-                .iter()
-                .map(|cp| match self.codes[*cp - 1] {
-                    ByteCode::Call(func, _) => func,
-                    _ => panic!("code pointer in stack should refer to a call instruction!"),
-                })
-                .format(&", ");
-            writeln!(
-                f,
-                "code = {}, [{}], fuel = {}",
-                state.code, stack, state.fuel,
-            )?;
+            self.write_state(state, f)?;
         }
 
         Ok(())
@@ -200,12 +227,19 @@ impl Walker {
             ByteCode::Label(_label) => {}
             ByteCode::Call(_func, cp) => {
                 let push_code = self.state.code + 1;
-                let cost = self.state.stack.iter().filter(|x| **x == push_code).count();
-                let cost = cost * cost * cost;
+                let stack_repeat = self.state.stack.iter().filter(|x| **x == push_code).count();
+                let path_repeat = self
+                    .state
+                    .path
+                    .iter()
+                    .filter(|x| **x == PathOp::Push(push_code))
+                    .count();
+                let cost = stack_repeat * stack_repeat + path_repeat + 1;
                 if self.state.fuel >= cost {
                     self.state.fuel -= cost;
                     self.idx.push();
                     self.state.stack.push(push_code);
+                    self.state.path.push(PathOp::Push(push_code));
                     self.state.code = *cp;
                     return StateResult::Running;
                 } else {
@@ -217,7 +251,9 @@ impl Walker {
                     return StateResult::Succ;
                 } else {
                     self.idx.pop();
-                    self.state.code = self.state.stack.pop().unwrap();
+                    let pop_code = self.state.stack.pop().unwrap();
+                    self.state.code = pop_code;
+                    self.state.path.push(PathOp::Pop(pop_code));
                     return StateResult::Running;
                 }
             }
@@ -242,9 +278,8 @@ impl Walker {
                 match self.run_step() {
                     StateResult::Running => {
                         // self.write_code_window(&mut stdout).unwrap();
-                        // self.write_state(&mut stdout).unwrap();
-                        // self.write_saves(&mut stdout).unwrap();
-                        // self.write_solver(&mut stdout).unwrap();
+                        // self.write_solver_state(&mut stdout).unwrap();
+                        // self.write_solver_saves(&mut stdout).unwrap();
                         // write!(stdout, "Press any key to continue...\n\n").unwrap();
                         // stdout.flush().unwrap();
                         // let _ = stdin.read(&mut [0u8]).unwrap();
