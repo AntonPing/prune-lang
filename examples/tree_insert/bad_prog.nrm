@@ -1,9 +1,9 @@
-datatype IntTree where
-| Node(IntTree, Int, IntTree)
+datatype Tree where
+| Node(Tree, Int, Tree)
 | Empty
 end
 
-function insert(tree: IntTree, x: Int) -> IntTree
+function insert(tree: Tree, x: Int) -> Tree
 begin
     match tree with
     | Node(left, y, right) =>
@@ -16,36 +16,37 @@ begin
     end
 end
 
-datatype CheckSort where
-| Left(Int)
-| Right(Int)
-| Root
-end
-
-function is_sorted(tree: AVLTree) -> Bool
-begin
-    is_sorted_help(tree, Root)
-end
-
-function is_sorted_help(tree: AVLTree, chk: CheckSort) -> Bool
+function is_sorted(tree: Tree) -> Bool
 begin
     match tree with
     | Node(left, y, right) =>
-        let p = match chk with
-            | Left(x1) => @icmplt(y, x1)
-            | Right(x2) => @icmplt(x2, y)
-            | Root => true
-            end;
-        if p then @band(is_sorted_help(left, Left(y)), is_sorted_help(right, Right(y)))
-        else false
+        @band(is_sorted_left(left, y), is_sorted_right(right, y))
     | Empty => true
     end
 end
 
-predicate always_sorted(xs: IntList, x: Int)
+function is_sorted_left(tree: Tree, x: Int) -> Bool
+begin
+    match tree with
+    | Node(left, y, right) =>
+        @band(@icmplt(y, x), @band(is_sorted_left(left, y), is_sorted_right(right, y)))
+    | Empty => true
+    end
+end
+
+function is_sorted_right(tree: Tree, x: Int) -> Bool
+begin
+    match tree with
+    | Node(left, y, right) =>
+        @band(@icmpgt(y, x), @band(is_sorted_left(left, y), is_sorted_right(right, y)))
+    | Empty => true
+    end
+end
+
+predicate always_sorted(tree: Tree, x: Int)
 begin
     and(
-        is_sorted(xs) = true,
-        is_sorted(insert(xs, x)) = false,
+        is_sorted(tree) = true,
+        is_sorted(insert(tree, x)) = false,
     )
 end
