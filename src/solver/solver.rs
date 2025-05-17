@@ -97,8 +97,6 @@ impl Solver {
     }
 
     pub fn solve(&mut self, prim: Prim, args: Vec<Term<IdentCtx>>) -> Result<(), ()> {
-        // let args: Vec<_> = args.into_iter().map(|arg| self.subst.subst(&arg)).collect();
-
         self.solve_vec.push((prim.clone(), args.clone()));
 
         self.constr.push_cons(prim, args);

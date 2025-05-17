@@ -51,10 +51,14 @@ impl Subst {
 
 impl Subst {
     pub fn walk(&self, var: &IdentCtx) -> Term<IdentCtx> {
+        self.walk_safe(var, 0)
+    }
+    pub fn walk_safe(&self, var: &IdentCtx, iter: usize) -> Term<IdentCtx> {
+        assert!(iter < 1000);
         for (k, v) in self.map.iter().rev() {
             if *k == *var {
                 if let Term::Var(var2) = v {
-                    return self.walk(var2);
+                    return self.walk_safe(var2, iter + 1);
                 } else {
                     return v.clone();
                 }

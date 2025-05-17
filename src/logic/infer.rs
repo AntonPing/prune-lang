@@ -20,10 +20,16 @@ impl TypeInfer {
             map: HashMap::new(),
         }
     }
+
     fn walk(&self, var: Ident) -> InferCell {
+        self.walk_safe(var, 0)
+    }
+
+    fn walk_safe(&self, var: Ident, iter: usize) -> InferCell {
+        assert!(iter < 1000);
         if let Some(cell) = self.map.get(&var) {
             match cell {
-                InferCell::Var(var2) => self.walk(*var2),
+                InferCell::Var(var2) => self.walk_safe(*var2, iter + 1),
                 InferCell::Lit(lit) => InferCell::Lit(*lit),
                 InferCell::Cons(cons) => InferCell::Cons(*cons),
             }
