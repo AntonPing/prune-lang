@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::syntax::ast::*;
 
 use super::*;
