@@ -6,8 +6,9 @@ use std::collections::HashMap;
 pub struct Constr {
     pub ctx: Context,
     pub map: HashMap<Ident, LitType>,
-    pub vars: Vec<(IdentCtx, SExpr)>,
-    pub saves: Vec<usize>,
+    pub int_vars: Vec<(IdentCtx, SExpr)>,
+    pub bool_vars: Vec<(IdentCtx, SExpr)>,
+    pub saves: Vec<(usize, usize)>,
 }
 
 impl fmt::Debug for Constr {
@@ -28,7 +29,8 @@ impl Constr {
         Constr {
             ctx,
             map,
-            vars: Vec::new(),
+            int_vars: Vec::new(),
+            bool_vars: Vec::new(),
             saves: Vec::new(),
         }
     }
@@ -43,20 +45,24 @@ impl Constr {
         // push an empty context for reset
         self.ctx.push().unwrap();
 
-        self.vars.clear();
+        self.int_vars.clear();
+        self.bool_vars.clear();
         self.saves.clear();
     }
 
     pub fn savepoint(&mut self) {
         self.ctx.push().unwrap();
-        self.saves.push(self.vars.len());
+        self.saves.push((self.int_vars.len(), self.bool_vars.len()));
     }
 
     pub fn backtrack(&mut self) {
         self.ctx.pop().unwrap();
-        let len = self.saves.pop().unwrap();
-        for _ in 0..(self.vars.len() - len) {
-            self.vars.pop().unwrap();
+        let (int_len, bool_len) = self.saves.pop().unwrap();
+        for _ in 0..(self.int_vars.len() - int_len) {
+            self.int_vars.pop().unwrap();
+        }
+        for _ in 0..(self.bool_vars.len() - bool_len) {
+            self.bool_vars.pop().unwrap();
         }
     }
 }
@@ -65,18 +71,18 @@ impl Constr {
     pub fn get_int(&mut self, term: &Term<IdentCtx>) -> Option<SExpr> {
         match term {
             Term::Var(x) => {
-                if let Some(sexp) = self
-                    .vars
-                    .iter()
-                    .find_map(|(k, v)| if k == x { Some(v) } else { None })
+                if let Some(sexp) =
+                    self.int_vars
+                        .iter()
+                        .find_map(|(k, v)| if k == x { Some(v) } else { None })
                 {
                     Some(*sexp)
                 } else {
                     let sexp = self
                         .ctx
-                        .declare_const(format!("{}", x).as_str(), self.ctx.int_sort())
+                        .declare_const(format!("{}_i", x).as_str(), self.ctx.int_sort())
                         .unwrap();
-                    self.vars.push((*x, sexp));
+                    self.int_vars.push((*x, sexp));
                     Some(sexp)
                 }
             }
@@ -88,18 +94,18 @@ impl Constr {
     pub fn get_bool(&mut self, term: &Term<IdentCtx>) -> Option<SExpr> {
         match term {
             Term::Var(x) => {
-                if let Some(sexp) = self
-                    .vars
-                    .iter()
-                    .find_map(|(k, v)| if k == x { Some(v) } else { None })
+                if let Some(sexp) =
+                    self.bool_vars
+                        .iter()
+                        .find_map(|(k, v)| if k == x { Some(v) } else { None })
                 {
                     Some(*sexp)
                 } else {
                     let sexp = self
                         .ctx
-                        .declare_const(format!("{}", x).as_str(), self.ctx.bool_sort())
+                        .declare_const(format!("{}_b", x).as_str(), self.ctx.bool_sort())
                         .unwrap();
-                    self.vars.push((*x, sexp));
+                    self.bool_vars.push((*x, sexp));
                     Some(sexp)
                 }
             }
@@ -172,22 +178,53 @@ impl Constr {
     }
 
     pub fn push_eq(&mut self, x: IdentCtx, term: Term<IdentCtx>) {
-        if let Some(typ) = self.map.get(&x.ident) {
-            match *typ {
-                LitType::TyInt => {
-                    let x = self.get_int(&Term::Var(x)).unwrap();
-                    let term = self.get_int(&term).unwrap();
-                    self.ctx.assert(self.ctx.eq(x, term)).unwrap();
-                }
-                LitType::TyFloat => todo!(),
-                LitType::TyBool => {
-                    let x = self.get_bool(&Term::Var(x)).unwrap();
-                    let term = self.get_bool(&term).unwrap();
-                    self.ctx.assert(self.ctx.eq(x, term)).unwrap();
-                }
-                LitType::TyChar => todo!(),
+        match term {
+            Term::Var(_) => {
+                let x2 = self.get_int(&Term::Var(x)).unwrap();
+                let term2 = self.get_int(&term).unwrap();
+                self.ctx.assert(self.ctx.eq(x2, term2)).unwrap();
+
+                let x2 = self.get_bool(&Term::Var(x)).unwrap();
+                let term2 = self.get_bool(&term).unwrap();
+                self.ctx.assert(self.ctx.eq(x2, term2)).unwrap();
+            }
+            Term::Lit(LitVal::Int(_)) => {
+                let x = self.get_int(&Term::Var(x)).unwrap();
+                let term = self.get_int(&term).unwrap();
+                self.ctx.assert(self.ctx.eq(x, term)).unwrap();
+            }
+            Term::Lit(LitVal::Bool(_)) => {
+                let x = self.get_bool(&Term::Var(x)).unwrap();
+                let term = self.get_bool(&term).unwrap();
+                self.ctx.assert(self.ctx.eq(x, term)).unwrap();
+            }
+            Term::Lit(LitVal::Float(_)) => {
+                todo!()
+            }
+            Term::Lit(LitVal::Char(_)) => {
+                todo!()
+            }
+            Term::Cons(_, _) => {
+                panic!("only atom terms for eq in Constr!")
             }
         }
+
+        // if let Some(typ) = self.map.get(&x.ident) {
+        //     match *typ {
+        //         LitType::TyInt => {
+        //             let x = self.get_int(&Term::Var(x)).unwrap();
+        //             let term = self.get_int(&term).unwrap();
+        //             self.ctx.assert(self.ctx.eq(x, term)).unwrap();
+        //         }
+        //         LitType::TyFloat => todo!(),
+        //         LitType::TyBool => {
+        //             let x = self.get_bool(&Term::Var(x)).unwrap();
+        //             let term = self.get_bool(&term).unwrap();
+        //             self.ctx.assert(self.ctx.eq(x, term)).unwrap();
+        //         }
+        //         LitType::TyChar => todo!(),
+        //     }
+        // }
     }
 
     pub fn solve(&mut self) -> bool {
