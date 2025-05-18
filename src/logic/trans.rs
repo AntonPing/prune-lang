@@ -6,9 +6,9 @@ use super::*;
 pub enum Formula {
     Const(bool),
     Eq(Ident, Term<Ident>),
+    Prim(Prim, Vec<Term<Ident>>),
     And(Vec<Formula>),
     Or(Vec<Formula>),
-    Prim(Prim, Vec<Term<Ident>>),
     PredCall(PredIdent, Vec<Term<Ident>>),
 }
 
@@ -59,6 +59,43 @@ pub fn formula_flatten(form: Formula) -> Formula {
     }
 }
 
+pub fn formula_reorder(form: Formula) -> Formula {
+    formula_reorder_help(form).0
+}
+
+fn formula_reorder_help(form: Formula) -> (Formula, usize) {
+    match form {
+        Formula::Const(_) => (form, 0),
+        Formula::Eq(_, _) => (form, 100),
+        Formula::Prim(_, _) => (form, 500),
+        Formula::And(forms) => {
+            let (forms, priors): (Vec<Formula>, Vec<usize>) = forms
+                .into_iter()
+                .map(|form| formula_reorder_help(form))
+                .sorted_by(|x, y| Ord::cmp(&x.1, &y.1))
+                .unzip();
+
+            (Formula::And(forms), priors.iter().sum())
+        }
+        Formula::Or(forms) => {
+            let (forms, priors): (Vec<Formula>, Vec<usize>) = forms
+                .into_iter()
+                .map(|form| formula_reorder_help(form))
+                .sorted_by(|x, y| Ord::cmp(&x.1, &y.1))
+                .unzip();
+
+            (Formula::Or(forms), priors.iter().max().unwrap_or(&0) + 1000)
+        }
+        Formula::PredCall(_, _) => (form, 10000),
+    }
+}
+
+pub fn formula_optimize(form: Formula) -> Formula {
+    let form = formula_flatten(form);
+    let form = formula_reorder(form);
+    form
+}
+
 fn func_to_predicate(func: &FuncDecl) -> (Predicate, Predicate) {
     let name = func.name;
     let fail_pars: Vec<Ident> = func.pars.iter().map(|(id, _typ)| *id).collect();
@@ -71,12 +108,12 @@ fn func_to_predicate(func: &FuncDecl) -> (Predicate, Predicate) {
         let succ_pred = Predicate {
             name: PredIdent::Succ(name),
             pars: succ_pars,
-            form: formula_flatten(succ_form),
+            form: formula_optimize(succ_form),
         };
         let fail_pred = Predicate {
             name: PredIdent::Fail(name),
             pars: fail_pars,
-            form: formula_flatten(fail_form),
+            form: formula_optimize(fail_form),
         };
         (succ_pred, fail_pred)
     } else {
@@ -86,12 +123,12 @@ fn func_to_predicate(func: &FuncDecl) -> (Predicate, Predicate) {
         let succ_pred = Predicate {
             name: PredIdent::Succ(name),
             pars: succ_pars,
-            form: formula_flatten(succ_form),
+            form: formula_optimize(succ_form),
         };
         let fail_pred = Predicate {
             name: PredIdent::Fail(name),
             pars: fail_pars,
-            form: formula_flatten(fail_form),
+            form: formula_optimize(fail_form),
         };
         (succ_pred, fail_pred)
     }
@@ -318,7 +355,7 @@ fn compile_pred(pred: &PredDecl) -> Predicate {
     Predicate {
         name: PredIdent::Check(pred.name),
         pars,
-        form: formula_flatten(compile_form(&pred.body)),
+        form: formula_optimize(compile_form(&pred.body)),
     }
 }
 
@@ -454,6 +491,11 @@ fn dnf_trans_formula(vec: &mut Vec<DnfFormula>, form: &Formula) {
                 form.eqs.push((Term::Var(*term1), term2.clone()));
             }
         }
+        Formula::Prim(prim, args) => {
+            for form in vec.iter_mut() {
+                form.prims.push((*prim, args.clone()));
+            }
+        }
         Formula::And(forms) => {
             for form in forms {
                 dnf_trans_formula(vec, form);
@@ -466,11 +508,6 @@ fn dnf_trans_formula(vec: &mut Vec<DnfFormula>, form: &Formula) {
                 let mut new_vec = save.clone();
                 dnf_trans_formula(&mut new_vec, form);
                 vec.append(&mut new_vec);
-            }
-        }
-        Formula::Prim(prim, args) => {
-            for form in vec.iter_mut() {
-                form.prims.push((*prim, args.clone()));
             }
         }
         Formula::PredCall(name, args) => {
