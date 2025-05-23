@@ -227,14 +227,7 @@ impl Walker {
             ByteCode::Label(_label) => {}
             ByteCode::Call(_func, cp) => {
                 let push_code = self.state.code + 1;
-                let stack_repeat = self.state.stack.iter().filter(|x| **x == push_code).count();
-                let path_repeat = self
-                    .state
-                    .path
-                    .iter()
-                    .filter(|x| **x == PathOp::Push(push_code))
-                    .count();
-                let cost = stack_repeat * stack_repeat + path_repeat + 1;
+                let cost = self.state.stack.len();
                 if self.state.fuel >= cost {
                     self.state.fuel -= cost;
                     self.idx.push();
