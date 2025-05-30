@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::{fmt, io};
 
 use super::compile::ByteCode;
-use super::indexer::Indexer;
 use crate::solver::solver::Solver;
 use crate::utils::lit::LitType;
 
@@ -23,8 +22,9 @@ enum PathOp {
 #[derive(Clone, Debug)]
 pub struct State {
     code: usize,
+    idx: usize,
     fuel: usize,
-    stack: Vec<usize>,
+    stack: Vec<(usize, usize)>,
     path: Vec<PathOp>,
 }
 
@@ -32,6 +32,7 @@ impl State {
     fn new() -> State {
         State {
             code: 0,
+            idx: 0,
             stack: Vec::new(),
             path: Vec::new(),
             fuel: 0,
@@ -40,6 +41,7 @@ impl State {
 
     fn reset(&mut self, entry: usize, fuel: usize) {
         self.code = entry;
+        self.idx = 0;
         self.stack.drain(..);
         self.path.drain(..);
         self.fuel = fuel;
@@ -63,9 +65,9 @@ impl fmt::Display for State {
 #[derive(Debug)]
 pub struct Walker {
     codes: Vec<ByteCode>,
+    counter: usize,
     state: State,
     saves: Vec<State>,
-    idx: Indexer,
     sol: Solver,
 }
 
@@ -73,26 +75,25 @@ impl Walker {
     pub fn new(codes: Vec<ByteCode>, map: HashMap<Ident, LitType>) -> Walker {
         Walker {
             codes,
+            counter: 0,
             state: State::new(),
             saves: Vec::new(),
-            idx: Indexer::new(),
             sol: Solver::new(map),
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.saves.is_empty() && self.sol.is_empty() && self.idx.is_empty()
+        self.saves.is_empty() && self.sol.is_empty()
     }
 
     pub fn reset(&mut self, entry: usize, fuel: usize) {
+        self.counter = 0;
         self.state.reset(entry, fuel);
         self.sol.reset();
-        self.idx.reset();
     }
 
     pub fn savepoint(&mut self) {
         self.saves.push(self.state.clone());
-        self.idx.savepoint();
         self.sol.savepoint();
     }
 
@@ -101,7 +102,6 @@ impl Walker {
             return StateResult::Fail;
         }
         self.state = self.saves.pop().unwrap();
-        self.idx.backtrack();
         self.sol.backtrack();
         StateResult::Running
     }
@@ -135,7 +135,7 @@ impl Walker {
         let stack = state
             .stack
             .iter()
-            .map(|cp| match self.codes[*cp - 1] {
+            .map(|cp| match self.codes[cp.0 - 1] {
                 ByteCode::Call(func, _) => func,
                 _ => panic!("code pointer in stack should refer to a call instruction!"),
             })
@@ -189,8 +189,8 @@ impl Walker {
         let code = &self.codes[self.state.code];
         match code {
             ByteCode::Unify(lhs, rhs) => {
-                let lhs = self.idx.add_idx(lhs);
-                let rhs = rhs.var_map_func(&|x| self.idx.add_idx(x));
+                let lhs = lhs.tag_ctx(self.state.idx);
+                let rhs = rhs.var_map_func(&|x| x.tag_ctx(self.state.idx));
                 if self.sol.unify(Term::Var(lhs), rhs).is_err() {
                     return self.backtrack();
                 }
@@ -198,7 +198,7 @@ impl Walker {
             ByteCode::Solve(prim, args) => {
                 let args = args
                     .iter()
-                    .map(|arg| arg.var_map_func(&|x| self.idx.add_idx(x)))
+                    .map(|arg| arg.var_map_func(&|x| x.tag_ctx(self.state.idx)))
                     .collect();
                 if self.sol.solve(*prim, args).is_err() {
                     return self.backtrack();
@@ -220,8 +220,8 @@ impl Walker {
                 return self.backtrack();
             }
             ByteCode::SetArg(x, term) => {
-                let lhs = Term::Var(self.idx.add_next_idx(&x));
-                let rhs = term.var_map_func(&|x| self.idx.add_idx(x));
+                let lhs = Term::Var(x.tag_ctx(self.counter + 1));
+                let rhs = term.var_map_func(&|x| x.tag_ctx(self.state.idx));
                 self.sol.unify(lhs, rhs).unwrap(); // SetArg cannot fail
             }
             ByteCode::Label(_label) => {}
@@ -230,8 +230,9 @@ impl Walker {
                 let cost = self.state.stack.len();
                 if self.state.fuel >= cost {
                     self.state.fuel -= cost;
-                    self.idx.push();
-                    self.state.stack.push(push_code);
+                    self.state.stack.push((push_code, self.state.idx));
+                    self.counter += 1;
+                    self.state.idx = self.counter;
                     self.state.path.push(PathOp::Push(push_code));
                     self.state.code = *cp;
                     return StateResult::Running;
@@ -243,9 +244,9 @@ impl Walker {
                 if self.state.stack.is_empty() {
                     return StateResult::Succ;
                 } else {
-                    self.idx.pop();
-                    let pop_code = self.state.stack.pop().unwrap();
+                    let (pop_code, idx) = self.state.stack.pop().unwrap();
                     self.state.code = pop_code;
+                    self.state.idx = idx;
                     self.state.path.push(PathOp::Pop(pop_code));
                     return StateResult::Running;
                 }
