@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use super::term::Term;
-use super::trans::{Formula, PredIdent, Predicate};
+use super::trans::{Goal, PredIdent, Predicate};
 
 use super::*;
 
@@ -82,21 +82,21 @@ impl TypeInfer {
         }
     }
 
-    fn infer_form(&mut self, dict: &HashMap<PredIdent, Predicate>, form: &Formula) {
-        match form {
-            Formula::Const(_) => {}
-            Formula::Eq(var, term) => {
+    fn infer_goal(&mut self, dict: &HashMap<PredIdent, Predicate>, goal: &Goal) {
+        match goal {
+            Goal::Const(_) => {}
+            Goal::Eq(var, term) => {
                 self.set.insert(*var);
                 self.touch(term);
                 self.unify(InferCell::Var(*var), InferCell::get_infer_cell(term));
             }
-            Formula::And(forms) => {
-                forms.iter().for_each(|form| self.infer_form(dict, form));
+            Goal::And(goals) => {
+                goals.iter().for_each(|goal| self.infer_goal(dict, goal));
             }
-            Formula::Or(forms) => {
-                forms.iter().for_each(|form| self.infer_form(dict, form));
+            Goal::Or(goals) => {
+                goals.iter().for_each(|goal| self.infer_goal(dict, goal));
             }
-            Formula::Prim(prim, args) => {
+            Goal::Prim(prim, args) => {
                 let typs = prim.get_typ();
                 assert_eq!(args.len(), typs.len());
                 args.iter().zip(typs.iter()).for_each(|(arg, typ)| {
@@ -104,7 +104,7 @@ impl TypeInfer {
                     self.unify(InferCell::get_infer_cell(arg), InferCell::Lit(*typ));
                 });
             }
-            Formula::PredCall(pred, args) => {
+            Goal::PredCall(pred, args) => {
                 let pars = dict[pred].pars.clone();
                 assert_eq!(pars.len(), args.len());
                 pars.iter().zip(args.iter()).for_each(|(par, arg)| {
@@ -118,7 +118,7 @@ impl TypeInfer {
 
     pub fn infer_dict(&mut self, dict: &HashMap<PredIdent, Predicate>) {
         for (_, pred) in dict.iter() {
-            self.infer_form(dict, &pred.form);
+            self.infer_goal(dict, &pred.goal);
         }
     }
 }

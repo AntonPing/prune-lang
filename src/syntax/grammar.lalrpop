@@ -100,7 +100,7 @@ pub DataDecl: DataDecl = {
 
 pub PredDecl: PredDecl = {
     "predicate" <name: LId> "(" <pars: Comma<(<LId> ":" <Type>)>> ")" 
-        "begin" <body: Form> "end" =>
+        "begin" <body: Goal> "end" =>
             PredDecl { name, pars, body },
 }
 
@@ -146,15 +146,15 @@ pub Expr: Expr = {
         expr,
 }
 
-pub Form: Form = {
+pub Goal: Goal = {
     <lhs: Expr> "=" <rhs: Expr> =>
-        Form::Eq(lhs, rhs),
+        Goal::Eq(lhs, rhs),
     "fail" <expr: Expr> => 
-        Form::Fail(expr),
-    "and" "(" <forms: Comma<Form>> ")" =>
-        Form::And(forms),
-    "or" "(" <forms: Comma<Form>> ")" =>
-        Form::Or(forms),
-    "(" <form: Form> ")" =>
-        form,
+        Goal::Fail(expr),
+    "and" "(" <goals: Comma<Goal>> ")" =>
+        Goal::And(goals),
+    "or" "(" <goals: Comma<Goal>> ")" =>
+        Goal::Or(goals),
+    "(" <goal: Goal> ")" =>
+        goal,
 }

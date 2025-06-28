@@ -90,13 +90,13 @@ pub enum Expr {
 pub struct PredDecl {
     pub name: Ident,
     pub pars: Vec<(Ident, Type)>,
-    pub body: Form,
+    pub body: Goal,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub enum Form {
+pub enum Goal {
     Eq(Expr, Expr),
     Fail(Expr),
-    And(Vec<Form>),
-    Or(Vec<Form>),
+    And(Vec<Goal>),
+    Or(Vec<Goal>),
 }

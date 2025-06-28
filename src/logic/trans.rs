@@ -1,14 +1,14 @@
-use crate::syntax::ast::*;
+use crate::syntax::ast::{self, Expr};
 
 use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Formula {
+pub enum Goal {
     Const(bool),
     Eq(Ident, Term<Ident>),
     Prim(Prim, Vec<Term<Ident>>),
-    And(Vec<Formula>),
-    Or(Vec<Formula>),
+    And(Vec<Goal>),
+    Or(Vec<Goal>),
     PredCall(PredIdent, Vec<Term<Ident>>),
 }
 
@@ -16,139 +16,139 @@ pub enum Formula {
 pub struct Predicate {
     pub name: PredIdent,
     pub pars: Vec<Ident>,
-    pub form: Formula,
+    pub goal: Goal,
 }
 
-pub fn formula_flatten(form: Formula) -> Formula {
-    match form {
-        Formula::And(forms) => {
+pub fn goal_flatten(goal: Goal) -> Goal {
+    match goal {
+        Goal::And(goals) => {
             let mut vec = Vec::new();
-            for form in forms {
-                let form = formula_flatten(form);
-                match form {
-                    Formula::Const(true) => {}
-                    Formula::Const(false) => return Formula::Const(false),
-                    Formula::And(mut forms) => vec.append(&mut forms),
-                    form => vec.push(form),
+            for goal in goals {
+                let goal = goal_flatten(goal);
+                match goal {
+                    Goal::Const(true) => {}
+                    Goal::Const(false) => return Goal::Const(false),
+                    Goal::And(mut goals) => vec.append(&mut goals),
+                    goal => vec.push(goal),
                 }
             }
             match vec.len() {
-                0 => Formula::Const(true),
+                0 => Goal::Const(true),
                 1 => vec.into_iter().next().unwrap(),
-                _ => Formula::And(vec),
+                _ => Goal::And(vec),
             }
         }
-        Formula::Or(forms) => {
+        Goal::Or(goals) => {
             let mut vec = Vec::new();
-            for form in forms {
-                let form = formula_flatten(form);
-                match form {
-                    Formula::Const(false) => {}
-                    Formula::Const(true) => return Formula::Const(true),
-                    Formula::Or(mut forms) => vec.append(&mut forms),
-                    form => vec.push(form),
+            for goal in goals {
+                let goal = goal_flatten(goal);
+                match goal {
+                    Goal::Const(false) => {}
+                    Goal::Const(true) => return Goal::Const(true),
+                    Goal::Or(mut goals) => vec.append(&mut goals),
+                    goal => vec.push(goal),
                 }
             }
             match vec.len() {
-                0 => Formula::Const(false),
+                0 => Goal::Const(false),
                 1 => vec.into_iter().next().unwrap(),
-                _ => Formula::Or(vec),
+                _ => Goal::Or(vec),
             }
         }
-        form => form,
+        goal => goal,
     }
 }
 
-pub fn formula_reorder(form: Formula) -> Formula {
-    formula_reorder_help(form).0
+pub fn goal_reorder(goal: Goal) -> Goal {
+    goal_reorder_help(goal).0
 }
 
-fn formula_reorder_help(form: Formula) -> (Formula, usize) {
-    match form {
-        Formula::Const(_) => (form, 0),
-        Formula::Eq(_, _) => (form, 100),
-        Formula::Prim(_, _) => (form, 500),
-        Formula::And(forms) => {
-            let (forms, priors): (Vec<Formula>, Vec<usize>) = forms
+fn goal_reorder_help(goal: Goal) -> (Goal, usize) {
+    match goal {
+        Goal::Const(_) => (goal, 0),
+        Goal::Eq(_, _) => (goal, 100),
+        Goal::Prim(_, _) => (goal, 500),
+        Goal::And(goals) => {
+            let (goals, priors): (Vec<Goal>, Vec<usize>) = goals
                 .into_iter()
-                .map(|form| formula_reorder_help(form))
+                .map(|goal| goal_reorder_help(goal))
                 .sorted_by(|x, y| Ord::cmp(&x.1, &y.1))
                 .unzip();
 
-            (Formula::And(forms), priors.iter().sum())
+            (Goal::And(goals), priors.iter().sum())
         }
-        Formula::Or(forms) => {
-            let (forms, priors): (Vec<Formula>, Vec<usize>) = forms
+        Goal::Or(goals) => {
+            let (goals, priors): (Vec<Goal>, Vec<usize>) = goals
                 .into_iter()
-                .map(|form| formula_reorder_help(form))
+                .map(|goal| goal_reorder_help(goal))
                 .sorted_by(|x, y| Ord::cmp(&x.1, &y.1))
                 .unzip();
 
-            (Formula::Or(forms), priors.iter().max().unwrap_or(&0) + 1000)
+            (Goal::Or(goals), priors.iter().max().unwrap_or(&0) + 1000)
         }
-        Formula::PredCall(_, _) => (form, 10000),
+        Goal::PredCall(_, _) => (goal, 10000),
     }
 }
 
-pub fn formula_optimize(form: Formula) -> Formula {
-    let form = formula_flatten(form);
-    let form = formula_reorder(form);
-    form
+pub fn goal_optimize(goal: Goal) -> Goal {
+    let goal = goal_flatten(goal);
+    let goal = goal_reorder(goal);
+    goal
 }
 
-fn func_to_predicate(func: &FuncDecl) -> (Predicate, Predicate) {
+fn func_to_predicate(func: &ast::FuncDecl) -> (Predicate, Predicate) {
     let name = func.name;
     let fail_pars: Vec<Ident> = func.pars.iter().map(|(id, _typ)| *id).collect();
     let mut succ_pars = fail_pars.clone();
-    let (term, succ_form) = expr_to_succ_form(&func.body);
-    let fail_form = expr_to_fail_form(&func.body);
+    let (term, succ_goal) = expr_to_succ_goal(&func.body);
+    let fail_goal = expr_to_fail_goal(&func.body);
 
     if let Term::Var(x) = term {
         succ_pars.push(x);
         let succ_pred = Predicate {
             name: PredIdent::Succ(name),
             pars: succ_pars,
-            form: formula_optimize(succ_form),
+            goal: goal_optimize(succ_goal),
         };
         let fail_pred = Predicate {
             name: PredIdent::Fail(name),
             pars: fail_pars,
-            form: formula_optimize(fail_form),
+            goal: goal_optimize(fail_goal),
         };
         (succ_pred, fail_pred)
     } else {
         let x = Ident::fresh(&"res");
         succ_pars.push(x);
-        let succ_form = Formula::And(vec![Formula::Eq(x, term), succ_form]);
+        let succ_goal = Goal::And(vec![Goal::Eq(x, term), succ_goal]);
         let succ_pred = Predicate {
             name: PredIdent::Succ(name),
             pars: succ_pars,
-            form: formula_optimize(succ_form),
+            goal: goal_optimize(succ_goal),
         };
         let fail_pred = Predicate {
             name: PredIdent::Fail(name),
             pars: fail_pars,
-            form: formula_optimize(fail_form),
+            goal: goal_optimize(fail_goal),
         };
         (succ_pred, fail_pred)
     }
 }
 
-fn unify_decompose(lhs: Term<Ident>, rhs: Term<Ident>) -> Formula {
-    let mut vec: Vec<Formula> = Vec::new();
+fn unify_decompose(lhs: Term<Ident>, rhs: Term<Ident>) -> Goal {
+    let mut vec: Vec<Goal> = Vec::new();
     unify_decompose_help(&mut vec, lhs, rhs);
-    Formula::And(vec)
+    Goal::And(vec)
 }
 
-fn unify_decompose_help(vec: &mut Vec<Formula>, lhs: Term<Ident>, rhs: Term<Ident>) {
+fn unify_decompose_help(vec: &mut Vec<Goal>, lhs: Term<Ident>, rhs: Term<Ident>) {
     match (lhs, rhs) {
         (Term::Var(x1), Term::Var(x2)) if x1 == x2 => {}
         (Term::Var(var), term) | (term, Term::Var(var)) => {
-            vec.push(Formula::Eq(var, term));
+            vec.push(Goal::Eq(var, term));
         }
         (Term::Lit(lit1), Term::Lit(lit2)) => {
             if lit1 != lit2 {
-                vec.push(Formula::Const(false));
+                vec.push(Goal::Const(false));
             }
         }
         (Term::Cons(cons1, flds1), Term::Cons(cons2, flds2)) => {
@@ -158,7 +158,7 @@ fn unify_decompose_help(vec: &mut Vec<Formula>, lhs: Term<Ident>, rhs: Term<Iden
                     unify_decompose_help(vec, fld1, fld2);
                 }
             } else {
-                vec.push(Formula::Const(false));
+                vec.push(Goal::Const(false));
             }
         }
         (_, _) => {
@@ -167,213 +167,210 @@ fn unify_decompose_help(vec: &mut Vec<Formula>, lhs: Term<Ident>, rhs: Term<Iden
     }
 }
 
-fn expr_to_succ_form(expr: &Expr) -> (Term<Ident>, Formula) {
+fn expr_to_succ_goal(expr: &Expr) -> (Term<Ident>, Goal) {
     match expr {
-        Expr::Lit { lit } => (Term::Lit(*lit), Formula::Const(true)),
-        Expr::Var { var } => (Term::Var(*var), Formula::Const(true)),
+        Expr::Lit { lit } => (Term::Lit(*lit), Goal::Const(true)),
+        Expr::Var { var } => (Term::Var(*var), Goal::Const(true)),
         Expr::Prim { prim, args } => {
             let x = Ident::fresh(&"res");
-            let (mut terms, mut forms): (Vec<Term<Ident>>, Vec<Formula>) =
-                args.iter().map(|arg| expr_to_succ_form(arg)).unzip();
+            let (mut terms, mut goals): (Vec<Term<Ident>>, Vec<Goal>) =
+                args.iter().map(|arg| expr_to_succ_goal(arg)).unzip();
             terms.push(Term::Var(x));
-            forms.push(Formula::Prim(*prim, terms));
-            (Term::Var(x), Formula::And(forms))
+            goals.push(Goal::Prim(*prim, terms));
+            (Term::Var(x), Goal::And(goals))
         }
         Expr::Cons { name, flds } => {
-            let (terms, forms): (Vec<Term<Ident>>, Vec<Formula>) =
-                flds.iter().map(|fld| expr_to_succ_form(fld)).unzip();
-            (Term::Cons(*name, terms), Formula::And(forms))
+            let (terms, goals): (Vec<Term<Ident>>, Vec<Goal>) =
+                flds.iter().map(|fld| expr_to_succ_goal(fld)).unzip();
+            (Term::Cons(*name, terms), Goal::And(goals))
         }
         Expr::Match { expr, brchs } => {
             let x = Ident::fresh(&"res");
-            let (term, form) = expr_to_succ_form(expr);
-            let forms = brchs
+            let (term, goal) = expr_to_succ_goal(expr);
+            let goals = brchs
                 .iter()
                 .map(|(patn, expr)| {
-                    let form1 = unify_decompose(
+                    let goal1 = unify_decompose(
                         Term::Cons(
                             patn.name,
                             patn.flds.iter().map(|fld| Term::Var(*fld)).collect(),
                         ),
                         term.clone(),
                     );
-                    let (term2, form2) = expr_to_succ_form(expr);
-                    let form3 = Formula::Eq(x, term2);
-                    Formula::And(vec![form1, form2, form3])
+                    let (term2, goal2) = expr_to_succ_goal(expr);
+                    let goal3 = Goal::Eq(x, term2);
+                    Goal::And(vec![goal1, goal2, goal3])
                 })
                 .collect();
-            (Term::Var(x), Formula::And(vec![form, Formula::Or(forms)]))
+            (Term::Var(x), Goal::And(vec![goal, Goal::Or(goals)]))
         }
         Expr::Let { bind, expr, cont } => {
-            let (term1, form1) = expr_to_succ_form(expr);
-            let (term2, form2) = expr_to_succ_form(cont);
-            let form = Formula::And(vec![form1, Formula::Eq(*bind, term1), form2]);
-            (term2, form)
+            let (term1, goal1) = expr_to_succ_goal(expr);
+            let (term2, goal2) = expr_to_succ_goal(cont);
+            let goal = Goal::And(vec![goal1, Goal::Eq(*bind, term1), goal2]);
+            (term2, goal)
         }
         Expr::App { func, args } => {
             let x = Ident::fresh(&"res");
-            let (mut terms, mut forms): (Vec<Term<Ident>>, Vec<Formula>) =
-                args.iter().map(|arg| expr_to_succ_form(arg)).unzip();
+            let (mut terms, mut goals): (Vec<Term<Ident>>, Vec<Goal>) =
+                args.iter().map(|arg| expr_to_succ_goal(arg)).unzip();
             terms.push(Term::Var(x));
-            forms.push(Formula::PredCall(PredIdent::Succ(*func), terms));
-            (Term::Var(x), Formula::And(forms))
+            goals.push(Goal::PredCall(PredIdent::Succ(*func), terms));
+            (Term::Var(x), Goal::And(goals))
         }
         Expr::Ifte { cond, then, els } => {
             let x = Ident::fresh(&"res");
-            let (term0, form0) = expr_to_succ_form(cond);
-            let (term1, form1) = expr_to_succ_form(then);
-            let (term2, form2) = expr_to_succ_form(els);
-            let form = Formula::And(vec![
-                form0,
-                Formula::Or(vec![
-                    Formula::And(vec![
+            let (term0, goal0) = expr_to_succ_goal(cond);
+            let (term1, goal1) = expr_to_succ_goal(then);
+            let (term2, goal2) = expr_to_succ_goal(els);
+            let goal = Goal::And(vec![
+                goal0,
+                Goal::Or(vec![
+                    Goal::And(vec![
                         unify_decompose(term0.clone(), Term::Lit(LitVal::Bool(true))),
-                        form1,
-                        Formula::Eq(x, term1),
+                        goal1,
+                        Goal::Eq(x, term1),
                     ]),
-                    Formula::And(vec![
+                    Goal::And(vec![
                         unify_decompose(term0, Term::Lit(LitVal::Bool(false))),
-                        form2,
-                        Formula::Eq(x, term2),
+                        goal2,
+                        Goal::Eq(x, term2),
                     ]),
                 ]),
             ]);
-            (Term::Var(x), form)
+            (Term::Var(x), goal)
         }
         Expr::Assert { expr, cont } => {
-            let (term1, form1) = expr_to_succ_form(expr);
-            let (term2, form2) = expr_to_succ_form(cont);
-            let form = Formula::And(vec![
-                form1,
+            let (term1, goal1) = expr_to_succ_goal(expr);
+            let (term2, goal2) = expr_to_succ_goal(cont);
+            let goal = Goal::And(vec![
+                goal1,
                 unify_decompose(term1, Term::Lit(LitVal::Bool(true))),
-                form2,
+                goal2,
             ]);
-            (term2, form)
+            (term2, goal)
         }
     }
 }
 
-fn expr_to_fail_form(expr: &Expr) -> Formula {
+fn expr_to_fail_goal(expr: &Expr) -> Goal {
     match expr {
-        Expr::Lit { lit: _ } => Formula::Const(false),
-        Expr::Var { var: _ } => Formula::Const(false),
+        Expr::Lit { lit: _ } => Goal::Const(false),
+        Expr::Var { var: _ } => Goal::Const(false),
         Expr::Prim { prim: _, args } => {
-            let forms = args.iter().map(|expr| expr_to_fail_form(expr)).collect();
-            Formula::Or(forms)
+            let goals = args.iter().map(|expr| expr_to_fail_goal(expr)).collect();
+            Goal::Or(goals)
         }
         Expr::Cons { name: _, flds } => {
-            let forms = flds.iter().map(|expr| expr_to_fail_form(expr)).collect();
-            Formula::Or(forms)
+            let goals = flds.iter().map(|expr| expr_to_fail_goal(expr)).collect();
+            Goal::Or(goals)
         }
         Expr::Match { expr, brchs } => {
-            let fail_form = expr_to_fail_form(expr);
-            let (term, succ_form) = expr_to_succ_form(expr);
-            let forms = brchs
+            let fail_goal = expr_to_fail_goal(expr);
+            let (term, succ_goal) = expr_to_succ_goal(expr);
+            let goals = brchs
                 .iter()
                 .map(|(patn, expr)| {
-                    let form1 = unify_decompose(
+                    let goal1 = unify_decompose(
                         Term::Cons(
                             patn.name,
                             patn.flds.iter().map(|fld| Term::Var(*fld)).collect(),
                         ),
                         term.clone(),
                     );
-                    let form2 = expr_to_fail_form(expr);
-                    Formula::And(vec![form1, form2])
+                    let goal2 = expr_to_fail_goal(expr);
+                    Goal::And(vec![goal1, goal2])
                 })
                 .collect();
-            Formula::Or(vec![
-                fail_form,
-                Formula::And(vec![succ_form, Formula::Or(forms)]),
-            ])
+            Goal::Or(vec![fail_goal, Goal::And(vec![succ_goal, Goal::Or(goals)])])
         }
         Expr::Let { bind, expr, cont } => {
-            let fail_form1 = expr_to_fail_form(expr);
-            let (term1, succ_form1) = expr_to_succ_form(expr);
-            let fail_form2 = expr_to_fail_form(cont);
-            Formula::Or(vec![
-                fail_form1,
-                Formula::And(vec![succ_form1, Formula::Eq(*bind, term1), fail_form2]),
+            let fail_goal1 = expr_to_fail_goal(expr);
+            let (term1, succ_goal1) = expr_to_succ_goal(expr);
+            let fail_goal2 = expr_to_fail_goal(cont);
+            Goal::Or(vec![
+                fail_goal1,
+                Goal::And(vec![succ_goal1, Goal::Eq(*bind, term1), fail_goal2]),
             ])
         }
         Expr::App { func, args } => {
-            let fail_forms = args.iter().map(|arg| expr_to_fail_form(arg)).collect();
+            let fail_goals = args.iter().map(|arg| expr_to_fail_goal(arg)).collect();
 
-            let (terms, forms): (Vec<Term<Ident>>, Vec<Formula>) =
-                args.iter().map(|arg| expr_to_succ_form(arg)).unzip();
+            let (terms, goals): (Vec<Term<Ident>>, Vec<Goal>) =
+                args.iter().map(|arg| expr_to_succ_goal(arg)).unzip();
 
-            Formula::Or(vec![
-                Formula::Or(fail_forms),
-                Formula::And(vec![
-                    Formula::And(forms),
-                    Formula::PredCall(PredIdent::Fail(*func), terms),
+            Goal::Or(vec![
+                Goal::Or(fail_goals),
+                Goal::And(vec![
+                    Goal::And(goals),
+                    Goal::PredCall(PredIdent::Fail(*func), terms),
                 ]),
             ])
         }
         Expr::Ifte { cond, then, els } => {
-            let fail_form0 = expr_to_fail_form(cond);
-            let (term0, succ_form0) = expr_to_succ_form(cond);
-            let fail_form1 = expr_to_fail_form(then);
-            let fail_form2 = expr_to_fail_form(els);
-            Formula::Or(vec![
-                fail_form0,
-                Formula::And(vec![
-                    succ_form0.clone(),
+            let fail_goal0 = expr_to_fail_goal(cond);
+            let (term0, succ_goal0) = expr_to_succ_goal(cond);
+            let fail_goal1 = expr_to_fail_goal(then);
+            let fail_goal2 = expr_to_fail_goal(els);
+            Goal::Or(vec![
+                fail_goal0,
+                Goal::And(vec![
+                    succ_goal0.clone(),
                     unify_decompose(term0.clone(), Term::Lit(LitVal::Bool(true))),
-                    fail_form1,
+                    fail_goal1,
                 ]),
-                Formula::And(vec![
-                    succ_form0,
+                Goal::And(vec![
+                    succ_goal0,
                     unify_decompose(term0.clone(), Term::Lit(LitVal::Bool(false))),
-                    fail_form2,
+                    fail_goal2,
                 ]),
             ])
         }
         Expr::Assert { expr, cont } => {
-            let fail_form1 = expr_to_fail_form(expr);
-            let (term1, succ_form1) = expr_to_succ_form(expr);
-            let fail_form2 = expr_to_fail_form(cont);
+            let fail_goal1 = expr_to_fail_goal(expr);
+            let (term1, succ_goal1) = expr_to_succ_goal(expr);
+            let fail_goal2 = expr_to_fail_goal(cont);
 
-            Formula::Or(vec![
-                fail_form1,
-                Formula::And(vec![
-                    succ_form1.clone(),
+            Goal::Or(vec![
+                fail_goal1,
+                Goal::And(vec![
+                    succ_goal1.clone(),
                     unify_decompose(term1.clone(), Term::Lit(LitVal::Bool(false))),
                 ]),
-                Formula::And(vec![
-                    succ_form1,
+                Goal::And(vec![
+                    succ_goal1,
                     unify_decompose(term1, Term::Lit(LitVal::Bool(true))),
-                    fail_form2,
+                    fail_goal2,
                 ]),
             ])
         }
     }
 }
 
-fn compile_pred(pred: &PredDecl) -> Predicate {
+fn compile_pred(pred: &ast::PredDecl) -> Predicate {
     let pars: Vec<Ident> = pred.pars.iter().map(|(id, _typ)| *id).collect();
     Predicate {
         name: PredIdent::Check(pred.name),
         pars,
-        form: formula_optimize(compile_form(&pred.body)),
+        goal: goal_optimize(compile_goal(&pred.body)),
     }
 }
 
-fn compile_form(form: &Form) -> Formula {
-    match form {
-        Form::Eq(lhs, rhs) => {
-            let (term1, form1) = expr_to_succ_form(lhs);
-            let (term2, form2) = expr_to_succ_form(rhs);
-            Formula::And(vec![form1, form2, unify_decompose(term1, term2)])
+fn compile_goal(goal: &ast::Goal) -> Goal {
+    match goal {
+        ast::Goal::Eq(lhs, rhs) => {
+            let (term1, goal1) = expr_to_succ_goal(lhs);
+            let (term2, goal2) = expr_to_succ_goal(rhs);
+            Goal::And(vec![goal1, goal2, unify_decompose(term1, term2)])
         }
-        Form::Fail(expr) => expr_to_fail_form(expr),
-        Form::And(forms) => {
-            let forms = forms.iter().map(|form| compile_form(form)).collect();
-            Formula::And(forms)
+        ast::Goal::Fail(expr) => expr_to_fail_goal(expr),
+        ast::Goal::And(goals) => {
+            let goals = goals.iter().map(|goal| compile_goal(goal)).collect();
+            Goal::And(goals)
         }
-        Form::Or(forms) => {
-            let forms = forms.iter().map(|form| compile_form(form)).collect();
-            Formula::Or(forms)
+        ast::Goal::Or(goals) => {
+            let goals = goals.iter().map(|goal| compile_goal(goal)).collect();
+            Goal::Or(goals)
         }
     }
 }
@@ -410,15 +407,15 @@ impl std::fmt::Display for PredIdent {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct DnfFormula {
+pub struct DnfGoal {
     pub eqs: Vec<(Term<Ident>, Term<Ident>)>,
     pub prims: Vec<(Prim, Vec<Term<Ident>>)>,
     pub preds: Vec<(PredIdent, Vec<Term<Ident>>)>,
 }
 
-impl DnfFormula {
-    pub fn new() -> DnfFormula {
-        DnfFormula {
+impl DnfGoal {
+    pub fn new() -> DnfGoal {
+        DnfGoal {
             eqs: Vec::new(),
             prims: Vec::new(),
             preds: Vec::new(),
@@ -445,7 +442,7 @@ impl DnfFormula {
 pub struct DnfPredicate {
     pub name: PredIdent,
     pub pars: Vec<Ident>,
-    pub forms: Vec<DnfFormula>,
+    pub goals: Vec<DnfGoal>,
 }
 
 impl DnfPredicate {
@@ -454,8 +451,8 @@ impl DnfPredicate {
         for par in &self.pars {
             vars.push(*par);
         }
-        for form in &self.forms {
-            form.free_vars(vars);
+        for goal in &self.goals {
+            goal.free_vars(vars);
         }
     }
 }
@@ -470,55 +467,55 @@ pub fn dnf_pred_dict(dict: &HashMap<PredIdent, Predicate>) -> HashMap<PredIdent,
 }
 
 fn dnf_trans_predicate(pred: &Predicate) -> DnfPredicate {
-    let mut forms = Vec::new();
-    forms.push(DnfFormula::new());
-    dnf_trans_formula(&mut forms, &pred.form);
+    let mut goals = Vec::new();
+    goals.push(DnfGoal::new());
+    dnf_trans_goal(&mut goals, &pred.goal);
     DnfPredicate {
         name: pred.name,
         pars: pred.pars.clone(),
-        forms,
+        goals,
     }
 }
 
-fn dnf_trans_formula(vec: &mut Vec<DnfFormula>, form: &Formula) {
-    match form {
-        Formula::Const(true) => {}
-        Formula::Const(false) => {
+fn dnf_trans_goal(vec: &mut Vec<DnfGoal>, goal: &Goal) {
+    match goal {
+        Goal::Const(true) => {}
+        Goal::Const(false) => {
             vec.clear();
         }
-        Formula::Eq(term1, term2) => {
-            for form in vec.iter_mut() {
-                form.eqs.push((Term::Var(*term1), term2.clone()));
+        Goal::Eq(term1, term2) => {
+            for goal in vec.iter_mut() {
+                goal.eqs.push((Term::Var(*term1), term2.clone()));
             }
         }
-        Formula::Prim(prim, args) => {
-            for form in vec.iter_mut() {
-                form.prims.push((*prim, args.clone()));
+        Goal::Prim(prim, args) => {
+            for goal in vec.iter_mut() {
+                goal.prims.push((*prim, args.clone()));
             }
         }
-        Formula::And(forms) => {
-            for form in forms {
-                dnf_trans_formula(vec, form);
+        Goal::And(goals) => {
+            for goal in goals {
+                dnf_trans_goal(vec, goal);
             }
         }
-        Formula::Or(forms) => {
+        Goal::Or(goals) => {
             let mut save = Vec::new();
             std::mem::swap(vec, &mut save);
-            for form in forms {
+            for goal in goals {
                 let mut new_vec = save.clone();
-                dnf_trans_formula(&mut new_vec, form);
+                dnf_trans_goal(&mut new_vec, goal);
                 vec.append(&mut new_vec);
             }
         }
-        Formula::PredCall(name, args) => {
-            for form in vec.iter_mut() {
-                form.preds.push((*name, args.clone()));
+        Goal::PredCall(name, args) => {
+            for goal in vec.iter_mut() {
+                goal.preds.push((*name, args.clone()));
             }
         }
     }
 }
 
-pub fn prog_to_dict(prog: &Program) -> HashMap<PredIdent, Predicate> {
+pub fn prog_to_dict(prog: &ast::Program) -> HashMap<PredIdent, Predicate> {
     let mut dict = HashMap::new();
 
     for func in &prog.funcs {

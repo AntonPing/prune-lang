@@ -54,42 +54,42 @@ pub fn compile_dict(
 
 pub fn compile_pred(pred: &Predicate, codes: &mut Vec<ByteCode>) {
     codes.push(ByteCode::Label(pred.name));
-    compile_form(&pred.form, codes);
+    compile_goal(&pred.goal, codes);
     codes.push(ByteCode::Ret);
 }
 
-pub fn compile_form(form: &Formula, codes: &mut Vec<ByteCode>) {
-    match form {
-        Formula::Const(true) => {}
-        Formula::Const(false) => {
+pub fn compile_goal(goal: &Goal, codes: &mut Vec<ByteCode>) {
+    match goal {
+        Goal::Const(true) => {}
+        Goal::Const(false) => {
             codes.push(ByteCode::BranchFail);
         }
-        Formula::Eq(lhs, rhs) => {
+        Goal::Eq(lhs, rhs) => {
             codes.push(ByteCode::Unify(lhs.clone(), rhs.clone()));
         }
-        Formula::And(forms) => {
-            for form in forms {
-                compile_form(form, codes);
+        Goal::And(goals) => {
+            for goal in goals {
+                compile_goal(goal, codes);
             }
         }
-        Formula::Or(forms) => {
-            if forms.is_empty() {
+        Goal::Or(goals) => {
+            if goals.is_empty() {
                 codes.push(ByteCode::BranchFail);
             } else {
                 codes.push(ByteCode::CondStart);
-                for form in forms {
+                for goal in goals {
                     codes.push(ByteCode::BranchSave(0));
-                    compile_form(form, codes);
+                    compile_goal(goal, codes);
                     codes.push(ByteCode::BranchJump(0));
                 }
                 codes.push(ByteCode::BranchFail);
                 codes.push(ByteCode::CondEnd);
             }
         }
-        Formula::Prim(prim, args) => {
+        Goal::Prim(prim, args) => {
             codes.push(ByteCode::Solve(*prim, args.clone()));
         }
-        Formula::PredCall(func, args) => {
+        Goal::PredCall(func, args) => {
             for arg in args {
                 codes.push(ByteCode::SetArg(Ident::dummy(&"arg"), arg.clone()));
             }
