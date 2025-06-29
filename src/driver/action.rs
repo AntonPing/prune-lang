@@ -1,7 +1,7 @@
 use crate::logic::trans::{self, PredIdent};
 use crate::syntax::{self, ast};
 use crate::utils::ident::Ident;
-use crate::walker::walker::Walker;
+use crate::walker_new::{compile, walker::Walker};
 
 use easy_smt::{Context, ContextBuilder};
 use std::collections::HashMap;
@@ -17,7 +17,7 @@ pub fn parse_program<S: AsRef<path::Path>>(path: S) -> Result<ast::Program, Stri
 
 pub fn build_solver(prog: &ast::Program) -> Result<(Walker, HashMap<PredIdent, usize>), ()> {
     let dict = trans::prog_to_dict(prog);
-    let (codes, entrys) = crate::walker::compile::compile_dict(&dict);
+    let (codes, entrys) = compile::compile_dict(&dict);
     let map = crate::logic::infer::infer_type_map(&dict);
     let chk = Walker::new(codes, map);
     Ok((chk, entrys))
