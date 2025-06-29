@@ -133,6 +133,12 @@ impl Walker {
             return StateResult::Succ;
         }
 
+        if self.state.fuel == 0 {
+            return self.backtrack();
+        }
+
+        self.state.fuel -= 1;
+
         let (addr, idx) = self.state.stack.pop().unwrap();
         let code = &self.codes[addr];
         match code {
@@ -174,21 +180,14 @@ impl Walker {
             }
             LinearCode::Call(_pred, args, addr) => {
                 if let LinearCode::Label(_pred, pars) = &self.codes[*addr] {
-                    let cost = self.state.stack.len();
-                    if self.state.fuel >= cost {
-                        self.state.fuel -= cost;
-                        self.counter += 1;
-                        assert_eq!(pars.len(), args.len());
-                        for (par, arg) in pars.iter().zip(args.iter()) {
-                            let lhs = Term::Var(par.tag_ctx(self.counter));
-                            let rhs = arg.var_map_func(&|x| x.tag_ctx(idx));
-                            self.sol.unify(lhs, rhs).unwrap(); // unify with a fresh variable cannot fail
-                        }
-                        self.state.stack.push((addr + 1, self.counter));
-                        return StateResult::Running;
-                    } else {
-                        return self.backtrack();
+                    self.counter += 1;
+                    assert_eq!(pars.len(), args.len());
+                    for (par, arg) in pars.iter().zip(args.iter()) {
+                        let lhs = Term::Var(par.tag_ctx(self.counter));
+                        let rhs = arg.var_map_func(&|x| x.tag_ctx(idx));
+                        self.sol.unify(lhs, rhs).unwrap(); // unify with a fresh variable cannot fail
                     }
+                    self.state.stack.push((addr + 1, self.counter));
                 } else {
                     panic!("addr of call not reference to a label!");
                 }
