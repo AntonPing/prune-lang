@@ -39,3 +39,10 @@ fn test_avl_tree_good() -> Result<(), ()> {
 // fn test_avl_tree_bad() -> Result<(), ()> {
 //     action::test_bad_prog("avl_tree", "always_sorted_balanced", 5, 100, 5)
 // }
+
+#[test]
+fn test_long_fail() -> Result<(), String> {
+    let res = action::test_prog("long_fail", "long_fail", 5, 100, 5)?;
+    assert_eq!(res, false);
+    Ok(())
+}

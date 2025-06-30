@@ -65,6 +65,16 @@ Comma<T>: Vec<T> = {
     }
 };
 
+Semi<T>: Vec<T> = {
+    <mut xs: (<T> ";")*> <x: T?> => match x {
+        None => xs,
+        Some(x) => {
+            xs.push(x);
+            xs
+        }
+    }
+};
+
 pub Program: Program = {
     <decls: Declaration*> => {
         let mut datas = Vec::new();
@@ -100,7 +110,7 @@ pub DataDecl: DataDecl = {
 
 pub PredDecl: PredDecl = {
     "predicate" <name: LId> "(" <pars: Comma<(<LId> ":" <Type>)>> ")" 
-        "begin" <body: Goal> "end" =>
+        "begin" <body: GoalSeq> "end" =>
             PredDecl { name, pars, body },
 }
 
@@ -157,6 +167,24 @@ pub Goal: Goal = {
         Goal::Or(goals),
     "@" <var: LId> "(" <args: Comma<Expr>> ")" =>
         Goal::Pred(var, args),
-    "(" <goal: Goal> ")" =>
-        goal,
+    "cond" <goals: ("|" <GoalSeq>)+> "end" => {
+        if goals.len() == 1 {
+            goals.into_iter().nth(0).unwrap()
+        } else {
+            Goal::Or(goals)
+        }
+    },
+    "(" <goal: GoalSeq> ")" => {
+        goal
+    }
+}
+
+pub GoalSeq : Goal = {
+    <goals: Semi<Goal>> => {
+        if goals.len() == 1 {
+            goals.into_iter().nth(0).unwrap()
+        } else {
+            Goal::And(goals)
+        }
+    }
 }

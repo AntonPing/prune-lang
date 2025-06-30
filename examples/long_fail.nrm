@@ -1,0 +1,37 @@
+datatype List where
+| Cons(Int, List)
+| Nil
+end
+
+function length(xs: List) -> Int
+begin
+    match xs with
+    | Cons(head, tail) => @iadd(length(tail), 1)
+    | Nil => 0
+    end
+end
+
+
+predicate p1(x: Int, xs: Int)
+begin
+    and(
+        @icmpgt(x, 42) = true,
+        length(xs) = 100,
+    )
+end
+
+predicate p2(x: Int, xs: Int)
+begin
+    and(
+        length(xs) = 100,
+        @icmplt(x, 42) = true,
+    )
+end
+
+predicate long_fail(x: Int, xs: List, ys: List)
+begin
+	and(
+		@p1(x, xs),
+        @p2(x, ys),
+	)
+end

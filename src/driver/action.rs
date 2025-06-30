@@ -32,6 +32,25 @@ pub fn build_smt_ctx() -> Result<Context, ()> {
     Ok(ctx)
 }
 
+pub fn test_prog<S: AsRef<path::Path>>(
+    prog_name: S,
+    entry: &'static str,
+    start: usize,
+    end: usize,
+    step: usize,
+) -> Result<bool, String> {
+    let mut path = path::PathBuf::new();
+    path.push("examples");
+    path.push(prog_name);
+    path.set_extension("nrm");
+    let prog = parse_program(path)?;
+    let (mut chk, map) = build_solver(&prog).map_err(|_| "failed to build solver".to_string())?;
+    let entry = map[&PredIdent::Check(Ident::dummy(&entry))];
+    // println!("{:#?}", chk);
+    let res = chk.run_loop(entry, start, end, step);
+    Ok(res)
+}
+
 pub fn test_good_prog<S: AsRef<path::Path>>(
     prog_name: S,
     entry: &'static str,
