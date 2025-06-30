@@ -364,6 +364,16 @@ fn compile_goal(goal: &ast::Goal) -> Goal {
             Goal::And(vec![goal1, goal2, unify_decompose(term1, term2)])
         }
         ast::Goal::Fail(expr) => expr_to_fail_goal(expr),
+        ast::Goal::Pred(pred, args) => {
+            let (args, mut goals): (Vec<Term<Ident>>, Vec<Goal>) =
+                args.iter().map(|arg| expr_to_succ_goal(arg)).unzip();
+            if goals.is_empty() {
+                Goal::PredCall(PredIdent::Check(*pred), args)
+            } else {
+                goals.push(Goal::PredCall(PredIdent::Check(*pred), args));
+                Goal::And(goals)
+            }
+        }
         ast::Goal::And(goals) => {
             let goals = goals.iter().map(|goal| compile_goal(goal)).collect();
             Goal::And(goals)

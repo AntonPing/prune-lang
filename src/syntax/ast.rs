@@ -97,6 +97,7 @@ pub struct PredDecl {
 pub enum Goal {
     Eq(Expr, Expr),
     Fail(Expr),
+    Pred(Ident, Vec<Expr>),
     And(Vec<Goal>),
     Or(Vec<Goal>),
 }

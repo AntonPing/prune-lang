@@ -155,6 +155,8 @@ pub Goal: Goal = {
         Goal::And(goals),
     "or" "(" <goals: Comma<Goal>> ")" =>
         Goal::Or(goals),
+    "@" <var: LId> "(" <args: Comma<Expr>> ")" =>
+        Goal::Pred(var, args),
     "(" <goal: Goal> ")" =>
         goal,
 }
