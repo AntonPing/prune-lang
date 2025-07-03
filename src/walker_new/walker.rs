@@ -1,4 +1,6 @@
 use super::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::{fmt, io};
 
 use super::compile::LinearCode;
@@ -13,9 +15,48 @@ pub enum StateResult {
 }
 
 #[derive(Clone, Debug)]
-pub struct State {
+struct PointInfo {
+    addr: usize,
+    idx: usize,
+    prior: (usize, usize),
+    pred: Option<Point>,
+}
+
+#[derive(Clone, Debug)]
+struct Point(Rc<RefCell<PointInfo>>);
+
+impl Point {
+    fn get_addr_idx(&self) -> (usize, usize) {
+        let ptr = self.0.borrow();
+        (ptr.addr, ptr.idx)
+    }
+
+    fn get_prior(&self) -> (usize, usize) {
+        self.0.borrow().prior
+    }
+
+    fn update_prior(&self, time: usize) {
+        let mut ptr = self.0.borrow_mut();
+        ptr.prior.1 = time;
+        if let Some(pred) = ptr.pred.clone() {
+            pred.update_prior(time);
+        }
+    }
+}
+
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (addr, idx) = self.get_addr_idx();
+        let prior = self.get_prior();
+        write!(f, "({}, {}, {}, {})", addr, idx, prior.0, prior.1)?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+struct State {
     fuel: usize,
-    stack: Vec<(usize, usize)>,
+    stack: Vec<Point>,
 }
 
 impl State {
@@ -25,18 +66,12 @@ impl State {
             stack: Vec::new(),
         }
     }
-
-    fn reset(&mut self, entry: usize, fuel: usize) {
-        self.stack.drain(..);
-        self.stack.push((entry + 1, 0));
-        self.fuel = fuel;
-    }
 }
 
 impl fmt::Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let stack = self.stack.iter().format(&",");
-        writeln!(f, "fuel = {}, stack = [{:?}]", self.fuel, stack)?;
+        let stack = self.stack.iter().format(&", ");
+        writeln!(f, "fuel = {}, stack = [{}]", self.fuel, stack)?;
         Ok(())
     }
 }
@@ -44,7 +79,8 @@ impl fmt::Display for State {
 #[derive(Debug)]
 pub struct Walker {
     codes: Vec<LinearCode>,
-    counter: usize,
+    idx_cnt: usize,
+    prior_cnt: usize,
     state: State,
     saves: Vec<State>,
     sol: Solver,
@@ -54,7 +90,8 @@ impl Walker {
     pub fn new(codes: Vec<LinearCode>, map: HashMap<Ident, LitType>) -> Walker {
         Walker {
             codes,
-            counter: 0,
+            idx_cnt: 0,
+            prior_cnt: 0,
             state: State::new(),
             saves: Vec::new(),
             sol: Solver::new(map),
@@ -66,8 +103,12 @@ impl Walker {
     }
 
     pub fn reset(&mut self, entry: usize, fuel: usize) {
-        self.counter = 0;
-        self.state.reset(entry, fuel);
+        self.idx_cnt = 0;
+        self.prior_cnt = 0;
+        self.state.stack.drain(..);
+        let pnt = self.new_point(entry + 1, 0, None);
+        self.state.stack.push(pnt);
+        self.state.fuel = fuel;
         self.sol.reset();
     }
 
@@ -128,6 +169,52 @@ impl Walker {
 }
 
 impl Walker {
+    fn update_backtrack(&mut self, pnt: Point) -> StateResult {
+        if self.saves.is_empty() {
+            return StateResult::Fail;
+        }
+        self.prior_cnt += 1;
+        pnt.update_prior(self.prior_cnt);
+        self.state = self.saves.pop().unwrap();
+        self.state.stack.sort_by_key(|pnt| pnt.get_prior());
+        self.sol.backtrack();
+        StateResult::Running
+    }
+
+    fn new_point(&self, addr: usize, idx: usize, pred: Option<Point>) -> Point {
+        let prior_tag = match &self.codes[addr] {
+            LinearCode::Const(_) => 4,
+            LinearCode::Eq(_, _) => 4,
+            LinearCode::Prim(_, _) => 4,
+            LinearCode::Conj(_) => 3,
+            LinearCode::Disj(_) => 1,
+            LinearCode::Label(_, _) => {
+                panic!("the interpreter can not execute a label!")
+            }
+            LinearCode::Call(_, _, _) => 2,
+        };
+        let pnt = PointInfo {
+            addr,
+            idx,
+            prior: (prior_tag, 0),
+            pred,
+        };
+        Point(Rc::new(RefCell::new(pnt)))
+    }
+
+    fn push_point(&mut self, pnt: Point) {
+        let pos = self
+            .state
+            .stack
+            .binary_search_by_key(&pnt.get_prior(), |pnt| pnt.get_prior())
+            .unwrap_or_else(|e| e);
+        self.state.stack.insert(pos, pnt);
+    }
+
+    fn pop_point(&mut self) -> Point {
+        self.state.stack.pop().unwrap()
+    }
+
     pub fn run_step(&mut self) -> StateResult {
         if self.state.stack.is_empty() {
             return StateResult::Succ;
@@ -136,21 +223,21 @@ impl Walker {
         if self.state.fuel == 0 {
             return self.backtrack();
         }
-
         self.state.fuel -= 1;
 
-        let (addr, idx) = self.state.stack.pop().unwrap();
+        let curr_pnt = self.pop_point();
+        let (addr, idx) = curr_pnt.get_addr_idx();
         let code = &self.codes[addr];
         match code {
             LinearCode::Const(true) => {}
             LinearCode::Const(false) => {
-                return self.backtrack();
+                return self.update_backtrack(curr_pnt);
             }
             LinearCode::Eq(lhs, rhs) => {
                 let lhs = lhs.tag_ctx(idx);
                 let rhs = rhs.var_map_func(&|x| x.tag_ctx(idx));
                 if self.sol.unify(Term::Var(lhs), rhs).is_err() {
-                    return self.backtrack();
+                    return self.update_backtrack(curr_pnt);
                 }
             }
             LinearCode::Prim(prim, args) => {
@@ -159,17 +246,19 @@ impl Walker {
                     .map(|arg| arg.var_map_func(&|x| x.tag_ctx(idx)))
                     .collect();
                 if self.sol.solve(*prim, args).is_err() {
-                    return self.backtrack();
+                    return self.update_backtrack(curr_pnt);
                 }
             }
             LinearCode::Conj(addrs) => {
                 for addr in addrs.clone().into_iter().rev() {
-                    self.state.stack.push((addr, idx));
+                    let pnt = self.new_point(addr, idx, Some(curr_pnt.clone()));
+                    self.push_point(pnt);
                 }
             }
             LinearCode::Disj(addrs) => {
                 for addr in addrs.clone().into_iter().rev() {
-                    self.state.stack.push((addr, idx));
+                    let pnt = self.new_point(addr, idx, Some(curr_pnt.clone()));
+                    self.state.stack.push(pnt);
                     self.savepoint();
                     self.state.stack.pop();
                 }
@@ -180,14 +269,15 @@ impl Walker {
             }
             LinearCode::Call(_pred, args, addr) => {
                 if let LinearCode::Label(_pred, pars) = &self.codes[*addr] {
-                    self.counter += 1;
+                    self.idx_cnt += 1;
                     assert_eq!(pars.len(), args.len());
                     for (par, arg) in pars.iter().zip(args.iter()) {
-                        let lhs = Term::Var(par.tag_ctx(self.counter));
+                        let lhs = Term::Var(par.tag_ctx(self.idx_cnt));
                         let rhs = arg.var_map_func(&|x| x.tag_ctx(idx));
                         self.sol.unify(lhs, rhs).unwrap(); // unify with a fresh variable cannot fail
                     }
-                    self.state.stack.push((addr + 1, self.counter));
+                    let pnt = self.new_point(addr + 1, self.idx_cnt, Some(curr_pnt));
+                    self.push_point(pnt);
                 } else {
                     panic!("addr of call not reference to a label!");
                 }
@@ -211,7 +301,6 @@ impl Walker {
                 // println!("{}", self);
                 match self.run_step() {
                     StateResult::Running => {
-                        // self.write_code_window(&mut stdout).unwrap();
                         // self.write_state(&mut stdout).unwrap();
                         // self.write_saves(&mut stdout).unwrap();
                         // self.write_solver(&mut stdout).unwrap();
@@ -276,14 +365,10 @@ end
     let dict = crate::logic::trans::prog_to_dict(&prog);
     let (codes, map) = super::compile::compile_dict(&dict);
     let ty_map = crate::logic::infer::infer_type_map(&dict);
-    println!("{:?}", map);
-    println!("{:?}", ty_map);
-
-    let mut stdout = io::stdout();
+    // println!("{:?}", map);
+    // println!("{:?}", ty_map);
 
     let mut wlk = Walker::new(codes, ty_map);
-    wlk.write_code(&mut stdout).unwrap();
-
     let entry = map[&PredIdent::Check(Ident::dummy(&"is_elem_after_append"))];
     assert!(!wlk.run_loop(entry, 3, 10, 1))
 }
