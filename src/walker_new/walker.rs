@@ -55,14 +55,14 @@ impl fmt::Display for Point {
 
 #[derive(Clone, Debug)]
 struct State {
-    fuel: usize,
+    cost: usize,
     stack: Vec<Point>,
 }
 
 impl State {
     fn new() -> State {
         State {
-            fuel: 0,
+            cost: 0,
             stack: Vec::new(),
         }
     }
@@ -71,7 +71,7 @@ impl State {
 impl fmt::Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let stack = self.stack.iter().format(&", ");
-        writeln!(f, "fuel = {}, stack = [{}]", self.fuel, stack)?;
+        writeln!(f, "cost = {}, stack = [{}]", self.cost, stack)?;
         Ok(())
     }
 }
@@ -79,6 +79,7 @@ impl fmt::Display for State {
 #[derive(Debug)]
 pub struct Walker {
     codes: Vec<LinearCode>,
+    fuel: usize,
     idx_cnt: usize,
     prior_cnt: usize,
     state: State,
@@ -90,6 +91,7 @@ impl Walker {
     pub fn new(codes: Vec<LinearCode>, map: HashMap<Ident, LitType>) -> Walker {
         Walker {
             codes,
+            fuel: 0,
             idx_cnt: 0,
             prior_cnt: 0,
             state: State::new(),
@@ -103,12 +105,13 @@ impl Walker {
     }
 
     pub fn reset(&mut self, entry: usize, fuel: usize) {
+        self.fuel = fuel;
         self.idx_cnt = 0;
         self.prior_cnt = 0;
         self.state.stack.drain(..);
         let pnt = self.new_point(entry + 1, 0, None);
         self.state.stack.push(pnt);
-        self.state.fuel = fuel;
+        self.state.cost = 0;
         self.sol.reset();
     }
 
@@ -220,10 +223,10 @@ impl Walker {
             return StateResult::Succ;
         }
 
-        if self.state.fuel == 0 {
+        self.state.cost += 1;
+        if self.state.cost > self.fuel {
             return self.backtrack();
         }
-        self.state.fuel -= 1;
 
         let curr_pnt = self.pop_point();
         let (addr, idx) = curr_pnt.get_addr_idx();
