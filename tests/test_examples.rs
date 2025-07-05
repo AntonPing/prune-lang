@@ -11,13 +11,30 @@ fn test_append_bad() {
 }
 
 #[test]
-fn test_reverse() {
-    action::test_unsat_prog("reverse", "twice_reverse", 30, 31, 1).unwrap()
+fn test_double_reverse() {
+    action::test_unsat_prog("double_reverse", "double_reverse_same", 30, 31, 1).unwrap()
 }
 
 #[test]
-fn test_reverse_bad() {
-    action::test_sat_prog("reverse_bad", "twice_reverse", 10, 1000, 10).unwrap()
+fn test_double_reverse_bad() {
+    action::test_sat_prog("double_reverse_bad", "double_reverse_same", 10, 1000, 10).unwrap()
+}
+
+#[test]
+fn test_reverse_length() {
+    action::test_unsat_prog("reverse_length", "same_length_after_reverse", 30, 31, 1).unwrap()
+}
+
+#[test]
+fn test_reverse_length_bad() {
+    action::test_sat_prog(
+        "reverse_length_bad",
+        "same_length_after_reverse",
+        10,
+        1000,
+        10,
+    )
+    .unwrap()
 }
 
 #[test]

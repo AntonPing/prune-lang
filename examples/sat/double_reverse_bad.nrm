@@ -5,14 +5,9 @@ end
 
 function reverse(xs: IntList) -> IntList
 begin
-    reverse_help(xs, Nil)
-end
-
-function reverse_help(xs: IntList, ys: IntList) -> IntList
-begin
     match xs with
-    | Cons(head, tail) => reverse_help(tail, Cons(head, ys))
-    | Nil => ys
+    | Cons(head, tail) => Cons(42, reverse(tail))
+    | Nil => Nil
     end
 end
 
@@ -30,7 +25,7 @@ begin
     end
 end
 
-predicate twice_reverse(xs: IntList)
+predicate double_reverse_same(xs: IntList)
 begin
     intlist_eq(reverse(reverse(xs)), xs) = false
 end

@@ -1,0 +1,30 @@
+datatype IntList where
+| Cons(Int, IntList)
+| Nil
+end
+
+function reverse(xs: IntList) -> IntList
+begin
+    reverse_help(xs, Nil)
+end
+
+function reverse_help(xs: IntList, ys: IntList) -> IntList
+begin
+    match xs with
+    | Cons(head, tail) => reverse_help(tail, Cons(head, ys))
+    | Nil => ys
+    end
+end
+
+function length(xs: IntList) -> Int
+begin
+    match xs with
+    | Cons(head, tail) => @iadd(length(tail), 1)
+    | Nil => 0
+    end
+end
+
+predicate same_length_after_reverse(xs: IntList)
+begin
+    @icmpeq(length(reverse(xs)), length(xs)) = false
+end
