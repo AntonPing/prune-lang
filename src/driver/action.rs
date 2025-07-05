@@ -42,7 +42,7 @@ pub fn test_prog<P: AsRef<path::Path>, Log: io::Write>(
     Ok(res)
 }
 
-pub fn test_good_prog<P: AsRef<path::Path>>(
+pub fn test_unsat_prog<P: AsRef<path::Path>>(
     prog_name: P,
     entry: &'static str,
     start: usize,
@@ -51,8 +51,8 @@ pub fn test_good_prog<P: AsRef<path::Path>>(
 ) -> Result<(), String> {
     let mut path = PathBuf::new();
     path.push("examples");
+    path.push("unsat");
     path.push(prog_name);
-    path.push("good_prog");
     path.set_extension("nrm");
     let mut log = io::empty();
     let res = test_prog(path, entry, start, end, step, &mut log)?;
@@ -60,7 +60,7 @@ pub fn test_good_prog<P: AsRef<path::Path>>(
     Ok(())
 }
 
-pub fn test_bad_prog<P: AsRef<path::Path>>(
+pub fn test_sat_prog<P: AsRef<path::Path>>(
     prog_name: P,
     entry: &'static str,
     start: usize,
@@ -69,8 +69,8 @@ pub fn test_bad_prog<P: AsRef<path::Path>>(
 ) -> Result<(), String> {
     let mut path = PathBuf::new();
     path.push("examples");
+    path.push("sat");
     path.push(prog_name);
-    path.push("bad_prog");
     path.set_extension("nrm");
     let mut log = io::empty();
     let res = test_prog(path, entry, start, end, step, &mut log)?;
