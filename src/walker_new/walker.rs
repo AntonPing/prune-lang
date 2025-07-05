@@ -77,35 +77,85 @@ impl fmt::Display for State {
 }
 
 #[derive(Debug)]
-pub struct Walker {
+pub struct Walker<'log, Log: io::Write> {
     codes: Vec<LinearCode>,
     fuel: usize,
+    step: usize,
     idx_cnt: usize,
     prior_cnt: usize,
     state: State,
     saves: Vec<State>,
     sol: Solver,
+    log: &'log mut Log,
 }
 
-impl Walker {
-    pub fn new(codes: Vec<LinearCode>, map: HashMap<Ident, LitType>) -> Walker {
+impl<'log, Log: io::Write> Walker<'log, Log> {
+    pub fn write_code(&mut self) -> io::Result<()> {
+        for (i, code) in self.codes.iter().enumerate() {
+            writeln!(self.log, "{:03}: {}", &i, &code)?;
+        }
+        Ok(())
+    }
+
+    pub fn write_code_window(&mut self, addr: usize) -> io::Result<()> {
+        let start = std::cmp::max(addr, 2) - 2;
+        let end = std::cmp::min(addr, self.codes.len() - 3) + 3;
+
+        for (i, code) in self.codes[start..end].iter().enumerate() {
+            let i = i + start;
+
+            if i == addr {
+                writeln!(self.log, "{:03}: >>> {}", &i, &code)?;
+            } else {
+                writeln!(self.log, "{:03}: {}", &i, &code)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn write_state(&mut self) -> io::Result<()> {
+        writeln!(self.log, "{}", self.state)
+    }
+
+    pub fn write_saves(&mut self) -> io::Result<()> {
+        for state in self.saves.iter().rev() {
+            writeln!(self.log, "{}", state)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn write_solver(&mut self) -> io::Result<()> {
+        writeln!(self.log, "{}", self.sol)
+    }
+}
+
+impl<'log, Log: io::Write> Walker<'log, Log> {
+    pub fn new(
+        codes: Vec<LinearCode>,
+        map: HashMap<Ident, LitType>,
+        log: &'log mut Log,
+    ) -> Walker<'log, Log> {
         Walker {
             codes,
             fuel: 0,
+            step: 0,
             idx_cnt: 0,
             prior_cnt: 0,
             state: State::new(),
             saves: Vec::new(),
             sol: Solver::new(map),
+            log,
         }
     }
 
-    pub fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.saves.is_empty() && self.sol.is_empty()
     }
 
-    pub fn reset(&mut self, entry: usize, fuel: usize) {
+    fn reset(&mut self, entry: usize, fuel: usize) {
         self.fuel = fuel;
+        self.step = 0;
         self.idx_cnt = 0;
         self.prior_cnt = 0;
         self.state.stack.drain(..);
@@ -115,12 +165,12 @@ impl Walker {
         self.sol.reset();
     }
 
-    pub fn savepoint(&mut self) {
+    fn savepoint(&mut self) {
         self.saves.push(self.state.clone());
         self.sol.savepoint();
     }
 
-    pub fn backtrack(&mut self) -> StateResult {
+    fn backtrack(&mut self) -> StateResult {
         if self.saves.is_empty() {
             return StateResult::Fail;
         }
@@ -128,50 +178,7 @@ impl Walker {
         self.sol.backtrack();
         StateResult::Running
     }
-}
 
-impl Walker {
-    pub fn write_code<W: io::Write>(&self, f: &mut W) -> io::Result<()> {
-        for (i, code) in self.codes.iter().enumerate() {
-            writeln!(f, "{:03}: {}", &i, &code)?;
-        }
-        Ok(())
-    }
-
-    pub fn write_code_window<W: io::Write>(&self, f: &mut W, addr: usize) -> io::Result<()> {
-        let start = std::cmp::max(addr, 2) - 2;
-        let end = std::cmp::min(addr, self.codes.len() - 3) + 3;
-
-        for (i, code) in self.codes[start..end].iter().enumerate() {
-            let i = i + start;
-
-            if i == addr {
-                writeln!(f, "{:03}: >>> {}", &i, &code)?;
-            } else {
-                writeln!(f, "{:03}: {}", &i, &code)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn write_state<W: io::Write>(&self, f: &mut W) -> io::Result<()> {
-        writeln!(f, "{}", self.state)
-    }
-
-    pub fn write_saves<W: io::Write>(&self, f: &mut W) -> io::Result<()> {
-        for state in self.saves.iter().rev() {
-            writeln!(f, "{}", state)?;
-        }
-
-        Ok(())
-    }
-
-    pub fn write_solver<W: io::Write>(&self, f: &mut W) -> io::Result<()> {
-        writeln!(f, "{}", self.sol)
-    }
-}
-
-impl Walker {
     fn update_backtrack(&mut self, pnt: Point) -> StateResult {
         if self.saves.is_empty() {
             return StateResult::Fail;
@@ -227,6 +234,7 @@ impl Walker {
         if self.state.cost > self.fuel {
             return self.backtrack();
         }
+        self.step += 1;
 
         let curr_pnt = self.pop_point();
         let (addr, idx) = curr_pnt.get_addr_idx();
@@ -290,35 +298,31 @@ impl Walker {
     }
 
     pub fn run_loop(&mut self, entry: usize, start: usize, end: usize, step: usize) -> bool {
-        // use std::io::{self, Read, Write};
+        // use std::io::Read;
         // let mut stdin = io::stdin();
-        // let mut stdout = io::stdout();
-        // self.write_code(&mut stdout).unwrap();
+        // self.write_code().unwrap();
 
         for fuel in (start..end).into_iter().step_by(step) {
-            // println!("try fuel = {fuel}");
             assert!(self.is_empty());
             self.reset(entry, fuel);
 
             loop {
-                // println!("{}", self);
                 match self.run_step() {
                     StateResult::Running => {
-                        // self.write_state(&mut stdout).unwrap();
-                        // self.write_saves(&mut stdout).unwrap();
-                        // self.write_solver(&mut stdout).unwrap();
-                        // write!(stdout, "Press any key to continue...\n\n").unwrap();
-                        // stdout.flush().unwrap();
+                        // self.write_state().unwrap();
+                        // self.write_saves().unwrap();
+                        // self.write_solver().unwrap();
+                        // write!(self.log, "Press any key to continue...\n\n").unwrap();
+                        // self.log.flush().unwrap();
                         // let _ = stdin.read(&mut [0u8]).unwrap();
                     }
                     StateResult::Succ => {
-                        // println!("successed to find solution!");
-                        // println!("{}", self);
+                        writeln!(self.log, "success! fuel = {}, step = {}", fuel, self.step)
+                            .unwrap();
                         return true;
                     }
                     StateResult::Fail => {
-                        // println!("failed to find any solution!");
-                        // println!("{}", self);
+                        writeln!(self.log, "fail. fuel = {}, step = {}", fuel, self.step).unwrap();
                         break;
                     }
                 }
@@ -371,7 +375,8 @@ end
     // println!("{:?}", map);
     // println!("{:?}", ty_map);
 
-    let mut wlk = Walker::new(codes, ty_map);
+    let mut log = std::io::empty();
+    let mut wlk = Walker::new(codes, ty_map, &mut log);
     let entry = map[&PredIdent::Check(Ident::dummy(&"is_elem_after_append"))];
-    assert!(!wlk.run_loop(entry, 3, 10, 1))
+    assert!(!wlk.run_loop(entry, 10, 100, 10))
 }
