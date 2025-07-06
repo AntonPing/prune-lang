@@ -1,100 +1,7 @@
 use crate::syntax::ast::{self, Expr};
 
+use super::optimize::goal_optimize;
 use super::*;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Goal {
-    Const(bool),
-    Eq(Ident, Term<Ident>),
-    Prim(Prim, Vec<Term<Ident>>),
-    And(Vec<Goal>),
-    Or(Vec<Goal>),
-    PredCall(PredIdent, Vec<Term<Ident>>),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Predicate {
-    pub name: PredIdent,
-    pub pars: Vec<Ident>,
-    pub goal: Goal,
-}
-
-pub fn goal_flatten(goal: Goal) -> Goal {
-    match goal {
-        Goal::And(goals) => {
-            let mut vec = Vec::new();
-            for goal in goals {
-                let goal = goal_flatten(goal);
-                match goal {
-                    Goal::Const(true) => {}
-                    Goal::Const(false) => return Goal::Const(false),
-                    Goal::And(mut goals) => vec.append(&mut goals),
-                    goal => vec.push(goal),
-                }
-            }
-            match vec.len() {
-                0 => Goal::Const(true),
-                1 => vec.into_iter().next().unwrap(),
-                _ => Goal::And(vec),
-            }
-        }
-        Goal::Or(goals) => {
-            let mut vec = Vec::new();
-            for goal in goals {
-                let goal = goal_flatten(goal);
-                match goal {
-                    Goal::Const(false) => {}
-                    Goal::Const(true) => return Goal::Const(true),
-                    Goal::Or(mut goals) => vec.append(&mut goals),
-                    goal => vec.push(goal),
-                }
-            }
-            match vec.len() {
-                0 => Goal::Const(false),
-                1 => vec.into_iter().next().unwrap(),
-                _ => Goal::Or(vec),
-            }
-        }
-        goal => goal,
-    }
-}
-
-pub fn goal_reorder(goal: Goal) -> Goal {
-    goal_reorder_help(goal).0
-}
-
-fn goal_reorder_help(goal: Goal) -> (Goal, usize) {
-    match goal {
-        Goal::Const(_) => (goal, 0),
-        Goal::Eq(_, _) => (goal, 100),
-        Goal::Prim(_, _) => (goal, 500),
-        Goal::And(goals) => {
-            let (goals, priors): (Vec<Goal>, Vec<usize>) = goals
-                .into_iter()
-                .map(|goal| goal_reorder_help(goal))
-                .sorted_by(|x, y| Ord::cmp(&x.1, &y.1))
-                .unzip();
-
-            (Goal::And(goals), priors.iter().sum())
-        }
-        Goal::Or(goals) => {
-            let (goals, priors): (Vec<Goal>, Vec<usize>) = goals
-                .into_iter()
-                .map(|goal| goal_reorder_help(goal))
-                .sorted_by(|x, y| Ord::cmp(&x.1, &y.1))
-                .unzip();
-
-            (Goal::Or(goals), priors.iter().max().unwrap_or(&0) + 1000)
-        }
-        Goal::PredCall(_, _) => (goal, 10000),
-    }
-}
-
-pub fn goal_optimize(goal: Goal) -> Goal {
-    let goal = goal_flatten(goal);
-    let goal = goal_reorder(goal);
-    goal
-}
 
 fn func_to_predicate(func: &ast::FuncDecl) -> (Predicate, Predicate) {
     let name = func.name;
@@ -358,13 +265,13 @@ fn compile_pred(pred: &ast::PredDecl) -> Predicate {
 
 fn compile_goal(goal: &ast::Goal) -> Goal {
     match goal {
-        ast::Goal::Eq(lhs, rhs) => {
+        ast::Goal::Eq { lhs, rhs } => {
             let (term1, goal1) = expr_to_succ_goal(lhs);
             let (term2, goal2) = expr_to_succ_goal(rhs);
             Goal::And(vec![goal1, goal2, unify_decompose(term1, term2)])
         }
-        ast::Goal::Fail(expr) => expr_to_fail_goal(expr),
-        ast::Goal::Pred(pred, args) => {
+        ast::Goal::Fail { expr } => expr_to_fail_goal(expr),
+        ast::Goal::Pred { pred, args } => {
             let (args, mut goals): (Vec<Term<Ident>>, Vec<Goal>) =
                 args.iter().map(|arg| expr_to_succ_goal(arg)).unzip();
             if goals.is_empty() {
@@ -374,44 +281,13 @@ fn compile_goal(goal: &ast::Goal) -> Goal {
                 Goal::And(goals)
             }
         }
-        ast::Goal::And(goals) => {
+        ast::Goal::And { goals } => {
             let goals = goals.iter().map(|goal| compile_goal(goal)).collect();
             Goal::And(goals)
         }
-        ast::Goal::Or(goals) => {
+        ast::Goal::Or { goals } => {
             let goals = goals.iter().map(|goal| compile_goal(goal)).collect();
             Goal::Or(goals)
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
-pub enum PredIdent {
-    Succ(Ident),
-    Fail(Ident),
-    Check(Ident),
-}
-
-impl PredIdent {
-    pub fn is_succ(&self) -> bool {
-        matches!(self, PredIdent::Succ(_))
-    }
-
-    pub fn is_fail(&self) -> bool {
-        matches!(self, PredIdent::Fail(_))
-    }
-
-    pub fn is_check(&self) -> bool {
-        matches!(self, PredIdent::Check(_))
-    }
-}
-
-impl std::fmt::Display for PredIdent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PredIdent::Succ(ident) => write!(f, "(succ){}", ident),
-            PredIdent::Fail(ident) => write!(f, "(fail){}", ident),
-            PredIdent::Check(ident) => write!(f, "(check){}", ident),
         }
     }
 }

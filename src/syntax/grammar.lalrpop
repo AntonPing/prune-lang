@@ -146,8 +146,8 @@ pub Expr: Expr = {
         Expr::Match { expr: Box::new(expr), brchs },
     "let" <bind: LId> "=" <expr: Expr> ";" <cont: Expr> =>
         Expr::Let { bind, expr: Box::new(expr), cont: Box::new(cont)},
-    <var: LId> "(" <args: Comma<Expr>> ")" =>
-        Expr::App { func: var, args },
+    <func: LId> "(" <args: Comma<Expr>> ")" =>
+        Expr::App { func, args },
     "if" <cond: Expr> "then" <then: Expr> "else" <els: Expr> =>
         Expr::Ifte { cond: Box::new(cond), then: Box::new(then), els: Box::new(els) },
     "assert" <expr: Expr> ";" <cont: Expr> =>
@@ -158,20 +158,20 @@ pub Expr: Expr = {
 
 pub Goal: Goal = {
     <lhs: Expr> "=" <rhs: Expr> =>
-        Goal::Eq(lhs, rhs),
+        Goal::Eq { lhs, rhs },
     "fail" <expr: Expr> => 
-        Goal::Fail(expr),
+        Goal::Fail { expr },
     "and" "(" <goals: Comma<Goal>> ")" =>
-        Goal::And(goals),
+        Goal::And { goals },
     "or" "(" <goals: Comma<Goal>> ")" =>
-        Goal::Or(goals),
-    "@" <var: LId> "(" <args: Comma<Expr>> ")" =>
-        Goal::Pred(var, args),
+        Goal::Or { goals },
+    "@" <pred: LId> "(" <args: Comma<Expr>> ")" =>
+        Goal::Pred{ pred, args },
     "cond" <goals: ("|" <GoalSeq>)+> "end" => {
         if goals.len() == 1 {
             goals.into_iter().nth(0).unwrap()
         } else {
-            Goal::Or(goals)
+            Goal::Or { goals }
         }
     },
     "(" <goal: GoalSeq> ")" => {
@@ -184,7 +184,7 @@ pub GoalSeq : Goal = {
         if goals.len() == 1 {
             goals.into_iter().nth(0).unwrap()
         } else {
-            Goal::And(goals)
+            Goal::And { goals }
         }
     }
 }

@@ -1,8 +1,5 @@
 use std::collections::HashSet;
 
-use super::term::Term;
-use super::trans::{Goal, PredIdent, Predicate};
-
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -178,7 +175,7 @@ end
         .parse(p1)
         .unwrap();
 
-    let dict = super::trans::prog_to_dict(&prog);
+    let dict = super::transform::prog_to_dict(&prog);
     let ty_map = infer_type_map(&dict);
     assert!(!ty_map.is_empty())
 }

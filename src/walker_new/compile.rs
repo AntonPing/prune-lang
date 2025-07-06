@@ -1,5 +1,5 @@
 use super::*;
-use crate::logic::trans::*;
+use crate::logic::ast::*;
 
 #[derive(Clone, Debug)]
 pub enum LinearCode {
@@ -172,7 +172,7 @@ end
     let prog = syntax::parser::parser::ProgramParser::new()
         .parse(&p1)
         .unwrap();
-    let dict = prog_to_dict(&prog);
+    let dict = crate::logic::transform::prog_to_dict(&prog);
     let (codes, map) = compile_dict(&dict);
     for (i, code) in codes.iter().enumerate() {
         println!("{:03}: {}", &i, &code);

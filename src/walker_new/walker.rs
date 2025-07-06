@@ -335,7 +335,7 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
 
 #[test]
 fn test_walker() {
-    use crate::logic::trans::PredIdent;
+    use crate::logic::ast::*;
     use crate::utils::ident::Ident;
 
     let p1: &'static str = r#"
@@ -369,7 +369,7 @@ end
     let prog = crate::syntax::parser::parser::ProgramParser::new()
         .parse(&p1)
         .unwrap();
-    let dict = crate::logic::trans::prog_to_dict(&prog);
+    let dict = crate::logic::transform::prog_to_dict(&prog);
     let (codes, map) = super::compile::compile_dict(&dict);
     let ty_map = crate::logic::infer::infer_type_map(&dict);
     // println!("{:?}", map);

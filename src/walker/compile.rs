@@ -1,4 +1,4 @@
-use crate::logic::trans::*;
+use crate::logic::ast::*;
 use std::collections::HashMap;
 
 use super::*;
@@ -189,7 +189,7 @@ end
     let prog = syntax::parser::parser::ProgramParser::new()
         .parse(&p1)
         .unwrap();
-    let dict = prog_to_dict(&prog);
+    let dict = crate::logic::transform::prog_to_dict(&prog);
     let (codes, _map) = compile_dict(&dict);
     for (i, code) in codes.iter().enumerate() {
         println!("{:03}: {}", &i, &code);

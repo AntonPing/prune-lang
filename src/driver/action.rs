@@ -1,4 +1,4 @@
-use crate::logic::trans::{self, PredIdent};
+use crate::logic::ast::*;
 use crate::syntax::{self, ast};
 use crate::utils::ident::Ident;
 use crate::walker_new::{compile, walker::Walker};
@@ -33,7 +33,7 @@ pub fn test_prog<P: AsRef<path::Path>, Log: io::Write>(
     log: &mut Log,
 ) -> Result<bool, String> {
     let prog = parse_program(path)?;
-    let dict = trans::prog_to_dict(&prog);
+    let dict = crate::logic::transform::prog_to_dict(&prog);
     let (codes, entrys) = compile::compile_dict(&dict);
     let map = crate::logic::infer::infer_type_map(&dict);
     let mut wlk = Walker::new(codes, map, log);

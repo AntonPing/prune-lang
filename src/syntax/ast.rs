@@ -95,9 +95,9 @@ pub struct PredDecl {
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Goal {
-    Eq(Expr, Expr),
-    Fail(Expr),
-    Pred(Ident, Vec<Expr>),
-    And(Vec<Goal>),
-    Or(Vec<Goal>),
+    Eq { lhs: Expr, rhs: Expr },
+    Fail { expr: Expr },
+    Pred { pred: Ident, args: Vec<Expr> },
+    And { goals: Vec<Goal> },
+    Or { goals: Vec<Goal> },
 }
