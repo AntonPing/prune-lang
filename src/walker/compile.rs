@@ -1,159 +1,142 @@
-use crate::logic::ast::*;
-use std::collections::HashMap;
-
 use super::*;
+use crate::logic::ast::*;
 
 #[derive(Clone, Debug)]
-pub enum ByteCode {
-    Unify(Ident, Term<Ident>),
-    Solve(Prim, Vec<Term<Ident>>),
-    CondStart,
-    BranchSave(usize),
-    BranchJump(usize),
-    CondEnd,
-    BranchFail,
-    Label(PredIdent),
-    SetArg(Ident, Term<Ident>),
-    Call(PredIdent, usize),
-    Ret,
+pub enum LinearCode {
+    Const(bool),
+    Eq(Ident, Term<Ident>),
+    Prim(Prim, Vec<Term<Ident>>),
+    Conj(Vec<usize>),
+    Disj(Vec<usize>),
+    Label(PredIdent, Vec<Ident>),
+    Call(PredIdent, Vec<Term<Ident>>, usize),
 }
 
-impl std::fmt::Display for ByteCode {
+impl std::fmt::Display for LinearCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ByteCode::Unify(lhs, rhs) => write!(f, "Unify({}, {})", lhs, rhs),
-            ByteCode::Solve(prim, args) => {
+            LinearCode::Const(p) => write!(f, "Const({})", p),
+            LinearCode::Eq(lhs, rhs) => write!(f, "Eq({}, {})", lhs, rhs),
+            LinearCode::Prim(prim, args) => {
                 let args = args.iter().format(&", ");
-                write!(f, "Solve({:?}, {})", prim, args)
+                write!(f, "Prim({:?}, {})", prim, args)
             }
-            ByteCode::CondStart => write!(f, "CondStart"),
-            ByteCode::BranchSave(cp) => write!(f, "BranchSave({})", cp),
-            ByteCode::BranchJump(cp) => write!(f, "BranchJump({})", cp),
-            ByteCode::CondEnd => write!(f, "CondEnd"),
-            ByteCode::BranchFail => write!(f, "Fail"),
-            ByteCode::Label(label) => write!(f, "Label({})", label),
-            ByteCode::SetArg(x, term) => write!(f, "SetArg({}, {})", x, term),
-            ByteCode::Call(label, cp) => write!(f, "Call({}, {})", label, cp),
-            ByteCode::Ret => write!(f, "Ret"),
+            LinearCode::Conj(addrs) => write!(f, "Conj([{}])", addrs.iter().format(&",")),
+            LinearCode::Disj(addrs) => write!(f, "Disj([{}])", addrs.iter().format(&",")),
+            LinearCode::Label(label, pars) => {
+                write!(f, "Label({}, [{}])", label, pars.iter().format(&","),)
+            }
+            LinearCode::Call(label, args, addr) => {
+                write!(
+                    f,
+                    "Call({}, [{}], {})",
+                    label,
+                    args.iter().format(&","),
+                    addr
+                )
+            }
+        }
+    }
+}
+
+struct CompileState {
+    dict: HashMap<PredIdent, usize>,
+    map: HashMap<usize, usize>,
+    counter: usize,
+    codes: Vec<LinearCode>,
+}
+
+impl CompileState {
+    fn new() -> CompileState {
+        CompileState {
+            dict: HashMap::new(),
+            map: HashMap::new(),
+            counter: 1,
+            codes: Vec::new(),
+        }
+    }
+
+    fn compile_pred(&mut self, pred: &Predicate) {
+        self.dict.insert(pred.name, self.codes.len());
+        self.codes
+            .push(LinearCode::Label(pred.name, pred.pars.clone()));
+        self.compile_goal(&pred.goal);
+    }
+
+    fn compile_goal(&mut self, goal: &Goal) {
+        match goal {
+            Goal::Const(p) => {
+                self.codes.push(LinearCode::Const(*p));
+            }
+            Goal::Eq(lhs, rhs) => {
+                self.codes.push(LinearCode::Eq(lhs.clone(), rhs.clone()));
+            }
+            Goal::And(goals) => {
+                if goals.is_empty() {
+                    self.codes.push(LinearCode::Const(true));
+                } else {
+                    let base: usize = self.counter;
+                    self.counter += goals.len();
+                    self.codes
+                        .push(LinearCode::Conj((base..self.counter).collect()));
+                    for (offset, goal) in goals.iter().enumerate() {
+                        self.map.insert(base + offset, self.codes.len());
+                        // self.codes.push(LinearCode::Label(base + offset));
+                        self.compile_goal(goal);
+                    }
+                }
+            }
+            Goal::Or(goals) => {
+                if goals.is_empty() {
+                    self.codes.push(LinearCode::Const(false));
+                } else {
+                    let base = self.counter;
+                    self.counter += goals.len();
+                    self.codes
+                        .push(LinearCode::Disj((base..self.counter).collect()));
+                    for (offset, goal) in goals.iter().enumerate() {
+                        self.map.insert(base + offset, self.codes.len());
+                        // self.codes.push(LinearCode::Label(base + offset));
+                        self.compile_goal(goal);
+                    }
+                }
+            }
+            Goal::Prim(prim, args) => {
+                self.codes.push(LinearCode::Prim(*prim, args.clone()));
+            }
+            Goal::PredCall(pred, args) => {
+                self.codes.push(LinearCode::Call(*pred, args.clone(), 0));
+            }
+        }
+    }
+
+    fn remap_addr(&mut self) {
+        for code in self.codes.iter_mut() {
+            match code {
+                LinearCode::Conj(addrs) => {
+                    addrs.iter_mut().for_each(|addr| *addr = self.map[addr]);
+                }
+                LinearCode::Disj(addrs) => {
+                    addrs.iter_mut().for_each(|addr| *addr = self.map[addr]);
+                }
+                LinearCode::Call(pred, _args, addr) => {
+                    *addr = self.dict[pred];
+                }
+                _ => {}
+            }
         }
     }
 }
 
 pub fn compile_dict(
     dict: &HashMap<PredIdent, Predicate>,
-) -> (Vec<ByteCode>, HashMap<PredIdent, usize>) {
-    let mut codes = Vec::new();
+) -> (Vec<LinearCode>, HashMap<PredIdent, usize>) {
+    let mut st = CompileState::new();
     for pred in dict.values() {
-        compile_pred(pred, &mut codes);
+        st.compile_pred(pred);
     }
-    link_branch_addr(&mut codes);
-    let map = link_call_addr(&mut codes);
-    link_args(&mut codes, dict);
-    (codes, map)
-}
-
-pub fn compile_pred(pred: &Predicate, codes: &mut Vec<ByteCode>) {
-    codes.push(ByteCode::Label(pred.name));
-    compile_goal(&pred.goal, codes);
-    codes.push(ByteCode::Ret);
-}
-
-pub fn compile_goal(goal: &Goal, codes: &mut Vec<ByteCode>) {
-    match goal {
-        Goal::Const(true) => {}
-        Goal::Const(false) => {
-            codes.push(ByteCode::BranchFail);
-        }
-        Goal::Eq(lhs, rhs) => {
-            codes.push(ByteCode::Unify(lhs.clone(), rhs.clone()));
-        }
-        Goal::And(goals) => {
-            for goal in goals {
-                compile_goal(goal, codes);
-            }
-        }
-        Goal::Or(goals) => {
-            if goals.is_empty() {
-                codes.push(ByteCode::BranchFail);
-            } else {
-                codes.push(ByteCode::CondStart);
-                for goal in goals {
-                    codes.push(ByteCode::BranchSave(0));
-                    compile_goal(goal, codes);
-                    codes.push(ByteCode::BranchJump(0));
-                }
-                codes.push(ByteCode::BranchFail);
-                codes.push(ByteCode::CondEnd);
-            }
-        }
-        Goal::Prim(prim, args) => {
-            codes.push(ByteCode::Solve(*prim, args.clone()));
-        }
-        Goal::PredCall(func, args) => {
-            for arg in args {
-                codes.push(ByteCode::SetArg(Ident::dummy(&"arg"), arg.clone()));
-            }
-            codes.push(ByteCode::Call(*func, 0));
-        }
-    }
-}
-
-pub fn link_branch_addr(codes: &mut Vec<ByteCode>) {
-    let mut last_branch = Vec::new();
-    let mut end_points = Vec::new();
-    for (i, code) in codes.iter_mut().enumerate().rev() {
-        match code {
-            ByteCode::CondStart => {
-                end_points.pop().unwrap();
-                last_branch.pop().unwrap();
-            }
-            ByteCode::BranchSave(cp) => {
-                *cp = *last_branch.last().unwrap();
-                *last_branch.last_mut().unwrap() = i;
-            }
-            ByteCode::BranchJump(cp) => {
-                *cp = *end_points.last().unwrap();
-            }
-            ByteCode::BranchFail => {
-                last_branch.push(i);
-            }
-            ByteCode::CondEnd => {
-                end_points.push(i);
-            }
-            _ => {}
-        }
-    }
-}
-
-pub fn link_call_addr(codes: &mut Vec<ByteCode>) -> HashMap<PredIdent, usize> {
-    let mut label_map = HashMap::new();
-    for (i, code) in codes.iter().enumerate() {
-        if let ByteCode::Label(label) = code {
-            label_map.insert(*label, i);
-        }
-    }
-    for code in codes.iter_mut() {
-        if let ByteCode::Call(label, cp) = code {
-            *cp = label_map[label];
-        }
-    }
-    label_map
-}
-
-pub fn link_args(codes: &mut Vec<ByteCode>, dict: &HashMap<PredIdent, Predicate>) {
-    let mut pars_vec = Vec::new();
-    for code in codes.iter_mut().rev() {
-        match code {
-            ByteCode::SetArg(x, _term) => {
-                *x = pars_vec.pop().unwrap();
-            }
-            ByteCode::Call(label, _cp) => {
-                assert!(pars_vec.is_empty());
-                pars_vec = dict[label].pars.clone();
-            }
-            _ => {}
-        }
-    }
+    st.remap_addr();
+    (st.codes, st.dict)
 }
 
 #[test]
@@ -190,8 +173,9 @@ end
         .parse(&p1)
         .unwrap();
     let dict = crate::logic::transform::prog_to_dict(&prog);
-    let (codes, _map) = compile_dict(&dict);
+    let (codes, map) = compile_dict(&dict);
     for (i, code) in codes.iter().enumerate() {
         println!("{:03}: {}", &i, &code);
     }
+    println!("{:?}", map);
 }

@@ -1,7 +1,7 @@
 use crate::logic::ast::*;
 use crate::syntax::{self, ast};
 use crate::utils::ident::Ident;
-use crate::walker_new::{compile, walker::Walker};
+use crate::walker::{compile, walker::Walker};
 
 use easy_smt::{Context, ContextBuilder};
 use std::path::{self, PathBuf};
