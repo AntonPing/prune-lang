@@ -1,56 +1,17 @@
 use super::*;
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::{fmt, io};
 
 use super::compile::LinearCode;
 use crate::solver::solver::Solver;
 use crate::utils::lit::LitType;
 
+use super::vsids::*;
+
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub enum StateResult {
     Running,
     Succ,
     Fail,
-}
-
-#[derive(Clone, Debug)]
-struct PointInfo {
-    addr: usize,
-    idx: usize,
-    prior: (usize, usize),
-    pred: Option<Point>,
-}
-
-#[derive(Clone, Debug)]
-struct Point(Rc<RefCell<PointInfo>>);
-
-impl Point {
-    fn get_addr_idx(&self) -> (usize, usize) {
-        let ptr = self.0.borrow();
-        (ptr.addr, ptr.idx)
-    }
-
-    fn get_prior(&self) -> (usize, usize) {
-        self.0.borrow().prior
-    }
-
-    fn update_prior(&self, time: usize) {
-        let mut ptr = self.0.borrow_mut();
-        ptr.prior.1 = time;
-        if let Some(pred) = ptr.pred.clone() {
-            pred.update_prior(time);
-        }
-    }
-}
-
-impl fmt::Display for Point {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (addr, idx) = self.get_addr_idx();
-        let prior = self.get_prior();
-        write!(f, "({}, {}, {}, {})", addr, idx, prior.0, prior.1)?;
-        Ok(())
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -82,7 +43,7 @@ pub struct Walker<'log, Log: io::Write> {
     fuel: usize,
     step: usize,
     idx_cnt: usize,
-    prior_cnt: usize,
+    tmsp_cnt: usize,
     state: State,
     saves: Vec<State>,
     sol: Solver,
@@ -141,7 +102,7 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
             fuel: 0,
             step: 0,
             idx_cnt: 0,
-            prior_cnt: 0,
+            tmsp_cnt: 0,
             state: State::new(),
             saves: Vec::new(),
             sol: Solver::new(map),
@@ -157,7 +118,7 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
         self.fuel = fuel;
         self.step = 0;
         self.idx_cnt = 0;
-        self.prior_cnt = 0;
+        self.tmsp_cnt = 0;
         self.state.stack.drain(..);
         let pnt = self.new_point(entry + 1, 0, None);
         self.state.stack.push(pnt);
@@ -175,24 +136,23 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
             return StateResult::Fail;
         }
         self.state = self.saves.pop().unwrap();
-        self.sol.backtrack();
-        StateResult::Running
-    }
-
-    fn update_backtrack(&mut self, pnt: Point) -> StateResult {
-        if self.saves.is_empty() {
-            return StateResult::Fail;
-        }
-        self.prior_cnt += 1;
-        pnt.update_prior(self.prior_cnt);
-        self.state = self.saves.pop().unwrap();
+        self.state
+            .stack
+            .iter()
+            .for_each(|pnt| pnt.update_decay(self.tmsp_cnt));
         self.state.stack.sort_by_key(|pnt| pnt.get_prior());
         self.sol.backtrack();
         StateResult::Running
     }
 
+    fn update_backtrack(&mut self, pnt: Point) -> StateResult {
+        pnt.update_bump_upward(self.tmsp_cnt);
+        self.tmsp_cnt += 1;
+        self.backtrack()
+    }
+
     fn new_point(&self, addr: usize, idx: usize, pred: Option<Point>) -> Point {
-        let prior_tag = match &self.codes[addr] {
+        let tag = match &self.codes[addr] {
             LinearCode::Const(_) => 4,
             LinearCode::Eq(_, _) => 4,
             LinearCode::Prim(_, _) => 4,
@@ -203,13 +163,7 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
             }
             LinearCode::Call(_, _, _) => 2,
         };
-        let pnt = PointInfo {
-            addr,
-            idx,
-            prior: (prior_tag, 0),
-            pred,
-        };
-        Point(Rc::new(RefCell::new(pnt)))
+        Point::new(addr, idx, Priority::new(tag, self.tmsp_cnt), pred)
     }
 
     fn push_point(&mut self, pnt: Point) {
