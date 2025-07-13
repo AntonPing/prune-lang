@@ -3,25 +3,65 @@ use crate::syntax::{self, ast};
 use crate::utils::ident::Ident;
 use crate::walker::{compile, walker::Walker};
 
-use easy_smt::{Context, ContextBuilder};
+use std::collections::HashMap;
 use std::path::{self, PathBuf};
 use std::{fs, io};
 
-pub fn parse_program<S: AsRef<path::Path>>(path: S) -> Result<ast::Program, String> {
-    let src = fs::read_to_string(path).unwrap();
-    let prog = syntax::parser::parser::ProgramParser::new()
-        .parse(&src.as_str())
-        .map_err(|err| format!("{}", err));
-    prog
+use crate::tych::rename;
+
+pub enum PipeError {
+    FileNotExist(String),
+    ParseError(String),
+    RenameError(rename::RenameError),
 }
 
-pub fn build_smt_ctx() -> Result<Context, ()> {
-    let ctx = ContextBuilder::new()
-        .solver("z3")
-        .solver_args(["-smt2", "-in"])
-        .build()
-        .map_err(|_err| ())?;
-    Ok(ctx)
+pub struct Pipeline<'log, Log: io::Write> {
+    error: Vec<PipeError>,
+    log: &'log mut Log,
+}
+
+impl<'log, Log: io::Write> Pipeline<'log, Log> {
+    pub fn new(log: &'log mut Log) -> Pipeline<'log, Log> {
+        Pipeline {
+            error: Vec::new(),
+            log,
+        }
+    }
+    pub fn parse_program<S: AsRef<path::Path>>(&mut self, path: S) -> Result<ast::Program, ()> {
+        let src = fs::read_to_string(path).map_err(|err| {
+            let s = err.to_string();
+            self.error.push(PipeError::FileNotExist(s));
+            ()
+        })?;
+        let prog = syntax::parser::parser::ProgramParser::new()
+            .parse(&src.as_str())
+            .map_err(|err| {
+                let s = err.to_string();
+                self.error.push(PipeError::ParseError(s));
+                ()
+            })?;
+        Ok(prog)
+    }
+
+    pub fn rename_pass(&mut self, prog: &mut ast::Program) -> Result<HashMap<Ident, Ident>, ()> {
+        let map = rename::rename_pass(prog).map_err(|errs| {
+            errs.into_iter().for_each(|err| {
+                self.error.push(PipeError::RenameError(err));
+            });
+        })?;
+        Ok(map)
+    }
+
+    pub fn create_walker(
+        &'log mut self,
+        prog: &ast::Program,
+    ) -> Result<(Walker<'log, Log>, HashMap<PredIdent, usize>), ()> {
+        let dict = crate::logic::transform::prog_to_dict(&prog);
+        let (codes, entrys) = compile::compile_dict(&dict);
+        let map = crate::logic::infer::infer_type_map(&dict);
+        let wlk = Walker::new(codes, map, self.log);
+        Ok((wlk, entrys))
+    }
 }
 
 pub fn test_prog<P: AsRef<path::Path>, Log: io::Write>(
@@ -31,13 +71,12 @@ pub fn test_prog<P: AsRef<path::Path>, Log: io::Write>(
     end: usize,
     step: usize,
     log: &mut Log,
-) -> Result<bool, String> {
-    let prog = parse_program(path)?;
-    let dict = crate::logic::transform::prog_to_dict(&prog);
-    let (codes, entrys) = compile::compile_dict(&dict);
-    let map = crate::logic::infer::infer_type_map(&dict);
-    let mut wlk = Walker::new(codes, map, log);
-    let entry = entrys[&PredIdent::Check(Ident::dummy(&entry))];
+) -> Result<bool, ()> {
+    let mut pipe = Pipeline::new(log);
+    let mut prog = pipe.parse_program(path)?;
+    let map = pipe.rename_pass(&mut prog)?;
+    let (mut wlk, entrys) = pipe.create_walker(&prog)?;
+    let entry = entrys[&PredIdent::Check(map[&Ident::dummy(&entry)])];
     let res = wlk.run_loop(entry, start, end, step);
     Ok(res)
 }
@@ -48,7 +87,7 @@ pub fn test_unsat_prog<P: AsRef<path::Path>>(
     start: usize,
     end: usize,
     step: usize,
-) -> Result<(), String> {
+) -> Result<(), ()> {
     let mut path = PathBuf::new();
     path.push("examples");
     path.push("unsat");
@@ -66,7 +105,7 @@ pub fn test_sat_prog<P: AsRef<path::Path>>(
     start: usize,
     end: usize,
     step: usize,
-) -> Result<(), String> {
+) -> Result<(), ()> {
     let mut path = PathBuf::new();
     path.push("examples");
     path.push("sat");

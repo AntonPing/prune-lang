@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use super::*;
 
 use crate::syntax::ast::*;
 use crate::utils::env_map::EnvMap;
 
-pub struct Renamer {
+struct Renamer {
     /// map a dummy identifier to an unique Identifier
     val_map: EnvMap<Ident, Ident>,
     typ_map: EnvMap<Ident, Ident>,
@@ -22,7 +24,7 @@ pub enum RenameError {
 }
 
 impl Renamer {
-    pub fn new() -> Renamer {
+    fn new() -> Renamer {
         Renamer {
             val_map: EnvMap::new(),
             typ_map: EnvMap::new(),
@@ -99,14 +101,14 @@ impl Renamer {
         *var = new_var;
     }
 
-    pub fn visit_type(&mut self, typ: &mut Type) {
+    fn visit_type(&mut self, typ: &mut Type) {
         match typ {
             Type::Lit(_) => {}
             Type::Data(var) => self.update_typ_var(var),
         }
     }
 
-    pub fn visit_expr(&mut self, expr: &mut Expr) {
+    fn visit_expr(&mut self, expr: &mut Expr) {
         match expr {
             Expr::Lit { lit: _ } => {}
             Expr::Var { var } => {
@@ -152,7 +154,7 @@ impl Renamer {
         }
     }
 
-    pub fn visit_goal(&mut self, goal: &mut Goal) {
+    fn visit_goal(&mut self, goal: &mut Goal) {
         match goal {
             Goal::Fresh { vars, body } => {
                 self.enter_scope();
@@ -180,11 +182,11 @@ impl Renamer {
         }
     }
 
-    pub fn visit_func_decl_head(&mut self, func_decl: &mut FuncDecl) {
+    fn visit_func_decl_head(&mut self, func_decl: &mut FuncDecl) {
         self.intro_val_var(&mut func_decl.name);
     }
 
-    pub fn visit_func_decl(&mut self, func_decl: &mut FuncDecl) {
+    fn visit_func_decl(&mut self, func_decl: &mut FuncDecl) {
         self.enter_scope();
         func_decl.pars.iter_mut().for_each(|(par, typ)| {
             self.intro_val_var(par);
@@ -194,11 +196,11 @@ impl Renamer {
         self.leave_scope();
     }
 
-    pub fn visit_pred_decl_head(&mut self, pred_decl: &mut PredDecl) {
+    fn visit_pred_decl_head(&mut self, pred_decl: &mut PredDecl) {
         self.intro_val_var(&mut pred_decl.name);
     }
 
-    pub fn visit_pred_decl(&mut self, pred_decl: &mut PredDecl) {
+    fn visit_pred_decl(&mut self, pred_decl: &mut PredDecl) {
         self.enter_scope();
         pred_decl.pars.iter_mut().for_each(|(par, typ)| {
             self.intro_val_var(par);
@@ -208,14 +210,14 @@ impl Renamer {
         self.leave_scope();
     }
 
-    pub fn visit_data_decl_head(&mut self, data_decl: &mut DataDecl) {
+    fn visit_data_decl_head(&mut self, data_decl: &mut DataDecl) {
         self.intro_typ_var(&mut data_decl.name);
         data_decl.cons.iter_mut().for_each(|cons| {
             self.intro_cons_var(&mut cons.name);
         });
     }
 
-    pub fn visit_data_decl(&mut self, data_decl: &mut DataDecl) {
+    fn visit_data_decl(&mut self, data_decl: &mut DataDecl) {
         self.enter_scope();
         data_decl.cons.iter_mut().for_each(|cons| {
             cons.flds.iter_mut().for_each(|fld| self.visit_type(fld));
@@ -223,7 +225,7 @@ impl Renamer {
         self.leave_scope();
     }
 
-    pub fn visit_prog(&mut self, prog: &mut Program) {
+    fn visit_prog(&mut self, prog: &mut Program) {
         // first iteration: visit heads
         prog.datas
             .iter_mut()
@@ -245,6 +247,16 @@ impl Renamer {
         prog.preds
             .iter_mut()
             .for_each(|pred_decl| self.visit_pred_decl(pred_decl));
+    }
+}
+
+pub fn rename_pass(prog: &mut Program) -> Result<HashMap<Ident, Ident>, Vec<RenameError>> {
+    let mut pass = Renamer::new();
+    pass.visit_prog(prog);
+    if pass.error.is_empty() {
+        Ok(pass.val_map.iter().map(|x| (*x.0, *x.1)).collect())
+    } else {
+        Err(pass.error)
     }
 }
 
@@ -286,11 +298,8 @@ end
 
     // println!("{:#?}", prog);
 
-    let mut pass = Renamer::new();
-    pass.visit_prog(&mut prog);
-
-    assert!(pass.error.is_empty());
+    rename_pass(&mut prog).unwrap();
 
     // println!("{:#?}", prog);
-    // println!("{:#?}", pass.error);
+    // println!("{:#?}", errs);
 }

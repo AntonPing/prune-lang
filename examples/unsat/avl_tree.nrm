@@ -100,15 +100,17 @@ end
 
 predicate always_sorted_balanced(tree: AVLTree, x: Int)
 begin
-    and(
-        is_sorted(tree) = true,
-		is_balanced(tree) = true,
-		res = insert(tree, x),
-		or(
-			is_sorted(res) = false,
-			is_balanced(res) = false,
-		),
-    )
+	fresh(res) (
+		and(
+			is_sorted(tree) = true,
+			is_balanced(tree) = true,
+			res = insert(tree, x),
+			or(
+				is_sorted(res) = false,
+				is_balanced(res) = false,
+			),
+		)
+	)
 end
 
 predicate always_sorted(tree: AVLTree)

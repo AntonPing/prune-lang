@@ -31,8 +31,8 @@ function rotate(tree: AVLTree) -> AVLTree
 begin
 	match tree with
 	| Node(left, x, right) => 
-		let left2 = rotate(left);
-		let right2 = rotate(right);
+		let left2 = left;
+		let right2 = right;
 		let l_d = depth(left2);
 		let r_d = depth(right2);
 		let diff = @isub(l_d, r_d);
@@ -44,7 +44,7 @@ begin
 				Node(Node(left2, r_x, r_left), x, r_right)
 			| Empty => assert(false); tree
 			end
-		else if @icmpeq(diff, 3) then
+		else if @icmpeq(diff, 2) then
 			match left2 with
 			| Node(l_left, l_x, l_right) =>
 				Node(l_left, l_x, Node(l_right, x, right2))
@@ -100,28 +100,23 @@ end
 
 predicate always_sorted_balanced(tree: AVLTree, x: Int)
 begin
-    and(
-        is_sorted(tree) = true,
-		is_balanced(tree) = true,
-		res = insert(tree, x),
-		or(
-			is_sorted(res) = false,
-			is_balanced(res) = false,
-		),
-    )
+	fresh(res) (
+		and(
+			is_sorted(tree) = true,
+			is_balanced(tree) = true,
+			res = insert(tree, x),
+			or(
+				is_sorted(res) = false,
+				is_balanced(res) = false,
+			),
+		)
+	)
 end
 
 predicate always_sorted(tree: AVLTree)
 begin
     and(
         is_sorted(tree) = true,
-		res = rotate(tree),
-		is_sorted(res) = false,
+		is_sorted(rotate(tree)) = false,
     )
-end
-
-
-predicate rotate_never_fail(tree: AVLTree)
-begin
-    fail rotate(tree)
 end
