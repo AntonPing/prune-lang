@@ -95,6 +95,7 @@ pub struct PredDecl {
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Goal {
+    Fresh { vars: Vec<Ident>, body: Box<Goal> },
     Eq { lhs: Expr, rhs: Expr },
     Fail { expr: Expr },
     Pred { pred: Ident, args: Vec<Expr> },

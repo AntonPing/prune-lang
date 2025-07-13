@@ -157,6 +157,8 @@ pub Expr: Expr = {
 }
 
 pub Goal: Goal = {
+    "fresh" "(" <vars: Comma<LId>> ")" "(" <body: GoalSeq> ")" =>
+        Goal::Fresh { vars, body: Box::new(body) },
     <lhs: Expr> "=" <rhs: Expr> =>
         Goal::Eq { lhs, rhs },
     "fail" <expr: Expr> => 

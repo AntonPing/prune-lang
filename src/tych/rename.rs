@@ -135,8 +135,10 @@ impl Renamer {
             }
             Expr::Let { bind, expr, cont } => {
                 self.visit_expr(expr);
+                self.enter_scope();
                 self.intro_val_var(bind);
                 self.visit_expr(cont);
+                self.leave_scope();
             }
             Expr::Ifte { cond, then, els } => {
                 self.visit_expr(cond);
@@ -152,6 +154,12 @@ impl Renamer {
 
     pub fn visit_goal(&mut self, goal: &mut Goal) {
         match goal {
+            Goal::Fresh { vars, body } => {
+                self.enter_scope();
+                vars.iter_mut().for_each(|var| self.intro_val_var(var));
+                self.visit_goal(body);
+                self.leave_scope();
+            }
             Goal::Eq { lhs, rhs } => {
                 self.visit_expr(lhs);
                 self.visit_expr(rhs);
@@ -243,32 +251,32 @@ impl Renamer {
 #[test]
 fn renamer_test() {
     let p1: &'static str = r#"
-datatype AVLTree where
-| Node(AVLTree, Int, AVLTree)
-| Empty
+datatype IntList where
+| Cons(Int, IntList)
+| Nil
 end
 
-function insert(tree: AVLTree, x: Int) -> AVLTree
+function append(xs: IntList, x: Int) -> Int
 begin
-    match tree with
-    | Node(left, y, right) => 
-        if @icmplt(x, y) then
-            Node(insert(left, x), y, right)
-        else if @icmpgt(x, y) then
-            Node(left, y, insert(right, x))
-        else tree
-    | Empty => Node(Empty, x, Empty)
+    match xs with
+    | Cons(head, tail) => Cons(head, append(tail, x))
+    | Nil => Cons(x, Nil)
     end
 end
 
-predicate contains_after_insert(tree: AVLTree, x: Int)
+function is_elem(xs: IntList, x: Int) -> Bool
 begin
-    or(
-        and(
-            new_tree = insert(tree, x),
-            contains(new_tree, x) = false,
-        ),
-        fail insert(tree, x),
+    match xs with
+    | Cons(head, tail) => if @icmpeq(head, x) then true else is_elem(tail, x) 
+    | Nil => false
+    end
+end
+
+predicate is_elem_after_append(xs: IntList, x: Int)
+begin
+    fresh(ys) (
+        ys = append(xs, x);
+        is_elem(ys, x) = false;
     )
 end
 "#;
@@ -280,6 +288,8 @@ end
 
     let mut pass = Renamer::new();
     pass.visit_prog(&mut prog);
+
+    assert!(pass.error.is_empty());
 
     // println!("{:#?}", prog);
     // println!("{:#?}", pass.error);

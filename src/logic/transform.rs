@@ -265,6 +265,7 @@ fn compile_pred(pred: &ast::PredDecl) -> Predicate {
 
 fn compile_goal(goal: &ast::Goal) -> Goal {
     match goal {
+        ast::Goal::Fresh { vars: _, body } => compile_goal(body),
         ast::Goal::Eq { lhs, rhs } => {
             let (term1, goal1) = expr_to_succ_goal(lhs);
             let (term2, goal2) = expr_to_succ_goal(rhs);
