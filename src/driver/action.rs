@@ -58,8 +58,7 @@ impl<'log, Log: io::Write> Pipeline<'log, Log> {
     ) -> Result<(Walker<'log, Log>, HashMap<PredIdent, usize>), ()> {
         let dict = crate::logic::transform::prog_to_dict(&prog);
         let (codes, entrys) = compile::compile_dict(&dict);
-        let map = crate::logic::infer::infer_type_map(&dict);
-        let wlk = Walker::new(codes, map, self.log);
+        let wlk = Walker::new(codes, self.log);
         Ok((wlk, entrys))
     }
 }

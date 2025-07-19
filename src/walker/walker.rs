@@ -3,7 +3,6 @@ use std::{fmt, io};
 
 use super::compile::LinearCode;
 use crate::solver::solver::Solver;
-use crate::utils::lit::LitType;
 
 use super::vsids::*;
 
@@ -92,11 +91,7 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
 }
 
 impl<'log, Log: io::Write> Walker<'log, Log> {
-    pub fn new(
-        codes: Vec<LinearCode>,
-        map: HashMap<Ident, LitType>,
-        log: &'log mut Log,
-    ) -> Walker<'log, Log> {
+    pub fn new(codes: Vec<LinearCode>, log: &'log mut Log) -> Walker<'log, Log> {
         Walker {
             codes,
             fuel: 0,
@@ -105,7 +100,7 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
             tmsp_cnt: 0,
             state: State::new(),
             saves: Vec::new(),
-            sol: Solver::new(map),
+            sol: Solver::new(),
             log,
         }
     }
@@ -325,12 +320,10 @@ end
         .unwrap();
     let dict = crate::logic::transform::prog_to_dict(&prog);
     let (codes, map) = super::compile::compile_dict(&dict);
-    let ty_map = crate::logic::infer::infer_type_map(&dict);
     // println!("{:?}", map);
-    // println!("{:?}", ty_map);
 
     let mut log = std::io::empty();
-    let mut wlk = Walker::new(codes, ty_map, &mut log);
+    let mut wlk = Walker::new(codes, &mut log);
     let entry = map[&PredIdent::Check(Ident::dummy(&"is_elem_after_append"))];
     assert!(!wlk.run_loop(entry, 10, 100, 10))
 }

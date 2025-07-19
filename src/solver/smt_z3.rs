@@ -1,11 +1,9 @@
 use super::*;
 
 use easy_smt::{Context, ContextBuilder, Response, SExpr};
-use std::collections::HashMap;
 
 pub struct Constr {
     pub ctx: Context,
-    pub map: HashMap<Ident, LitType>,
     pub int_vars: Vec<(IdentCtx, SExpr)>,
     pub bool_vars: Vec<(IdentCtx, SExpr)>,
     pub saves: Vec<(usize, usize)>,
@@ -18,7 +16,7 @@ impl fmt::Debug for Constr {
 }
 
 impl Constr {
-    pub fn new(map: HashMap<Ident, LitType>) -> Constr {
+    pub fn new() -> Constr {
         let mut ctx = ContextBuilder::new()
             .solver("z3")
             .solver_args(["-smt2", "-in"])
@@ -28,7 +26,6 @@ impl Constr {
         ctx.push().unwrap();
         Constr {
             ctx,
-            map,
             int_vars: Vec::new(),
             bool_vars: Vec::new(),
             saves: Vec::new(),

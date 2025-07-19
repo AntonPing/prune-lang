@@ -1,7 +1,7 @@
 use crate::logic::term::*;
-use crate::utils::ident::{Ident, IdentCtx};
-use crate::utils::lit::{LitType, LitVal};
-use crate::utils::prim::{Compare, Prim};
+use crate::utils::ident::*;
+use crate::utils::lit::*;
+use crate::utils::prim::*;
 
 use itertools::Itertools;
 

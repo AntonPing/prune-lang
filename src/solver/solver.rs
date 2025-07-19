@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::*;
 
 use super::smt_z3::*;
@@ -34,9 +32,9 @@ impl fmt::Display for Solver {
 }
 
 impl Solver {
-    pub fn new(map: HashMap<Ident, LitType>) -> Solver {
+    pub fn new() -> Solver {
         let subst = Subst::new();
-        let constr = Constr::new(map);
+        let constr = Constr::new();
         Solver {
             subst,
             constr,
@@ -112,12 +110,7 @@ fn test_solver() {
     let x = Ident::dummy(&"x");
     let y = Ident::dummy(&"y");
 
-    let mut map = HashMap::new();
-
-    map.insert(x, LitType::TyInt);
-    map.insert(y, LitType::TyInt);
-
-    let mut sol = Solver::new(map);
+    let mut sol = Solver::new();
 
     sol.solve(
         Prim::ICmp(Compare::Lt),
