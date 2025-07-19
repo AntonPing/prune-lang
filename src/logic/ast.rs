@@ -52,5 +52,6 @@ pub enum Goal {
 pub struct Predicate {
     pub name: PredIdent,
     pub pars: Vec<Ident>,
+    pub vars: Vec<Ident>,
     pub goal: Goal,
 }

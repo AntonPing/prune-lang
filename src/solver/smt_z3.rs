@@ -65,50 +65,55 @@ impl Constr {
 }
 
 impl Constr {
-    pub fn get_int(&mut self, term: &Term<IdentCtx>) -> Option<SExpr> {
+    pub fn declare_int(&mut self, var: &IdentCtx) {
+        let sexp = self
+            .ctx
+            .declare_const(format!("{}_i", var).as_str(), self.ctx.int_sort())
+            .unwrap();
+        self.int_vars.push((*var, sexp));
+    }
+
+    pub fn declare_bool(&mut self, var: &IdentCtx) {
+        let sexp = self
+            .ctx
+            .declare_const(format!("{}_b", var).as_str(), self.ctx.bool_sort())
+            .unwrap();
+        self.bool_vars.push((*var, sexp));
+    }
+
+    pub fn declare_var(&mut self, var: &IdentCtx) {
+        self.declare_int(var);
+        self.declare_bool(var);
+    }
+
+    pub fn get_int(&mut self, term: &Term<IdentCtx>) -> SExpr {
         match term {
             Term::Var(x) => {
-                if let Some(sexp) =
-                    self.int_vars
-                        .iter()
-                        .find_map(|(k, v)| if k == x { Some(v) } else { None })
-                {
-                    Some(*sexp)
-                } else {
-                    let sexp = self
-                        .ctx
-                        .declare_const(format!("{}_i", x).as_str(), self.ctx.int_sort())
-                        .unwrap();
-                    self.int_vars.push((*x, sexp));
-                    Some(sexp)
-                }
+                let res = self
+                    .int_vars
+                    .iter()
+                    .find_map(|(k, v)| if k == x { Some(*v) } else { None })
+                    .expect(format!("integer variable {} not declared!", x).as_str());
+                res
             }
-            Term::Lit(LitVal::Int(x)) => Some(self.ctx.numeral(*x)),
-            _ => None,
+            Term::Lit(LitVal::Int(x)) => self.ctx.numeral(*x),
+            _ => panic!("term is not an integer!"),
         }
     }
 
-    pub fn get_bool(&mut self, term: &Term<IdentCtx>) -> Option<SExpr> {
+    pub fn get_bool(&mut self, term: &Term<IdentCtx>) -> SExpr {
         match term {
             Term::Var(x) => {
-                if let Some(sexp) =
-                    self.bool_vars
-                        .iter()
-                        .find_map(|(k, v)| if k == x { Some(v) } else { None })
-                {
-                    Some(*sexp)
-                } else {
-                    let sexp = self
-                        .ctx
-                        .declare_const(format!("{}_b", x).as_str(), self.ctx.bool_sort())
-                        .unwrap();
-                    self.bool_vars.push((*x, sexp));
-                    Some(sexp)
-                }
+                let res = self
+                    .bool_vars
+                    .iter()
+                    .find_map(|(k, v)| if k == x { Some(*v) } else { None })
+                    .expect(format!("boolean variable {} not declared!", x).as_str());
+                res
             }
-            Term::Lit(LitVal::Bool(true)) => Some(self.ctx.true_()),
-            Term::Lit(LitVal::Bool(false)) => Some(self.ctx.false_()),
-            _ => None,
+            Term::Lit(LitVal::Bool(true)) => self.ctx.true_(),
+            Term::Lit(LitVal::Bool(false)) => self.ctx.false_(),
+            _ => panic!("term is not a boolean!"),
         }
     }
 
@@ -118,9 +123,9 @@ impl Constr {
                 Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem,
                 [arg1, arg2, arg3],
             ) => {
-                let arg1 = self.get_int(arg1).unwrap();
-                let arg2 = self.get_int(arg2).unwrap();
-                let arg3 = self.get_int(arg3).unwrap();
+                let arg1 = self.get_int(arg1);
+                let arg2 = self.get_int(arg2);
+                let arg3 = self.get_int(arg3);
                 let res = match prim {
                     Prim::IAdd => self.ctx.plus(arg1, arg2),
                     Prim::ISub => self.ctx.sub(arg1, arg2),
@@ -132,15 +137,15 @@ impl Constr {
                 self.ctx.assert(self.ctx.eq(res, arg3)).unwrap();
             }
             (Prim::INeg, [arg1, arg2]) => {
-                let arg1 = self.get_int(arg1).unwrap();
-                let arg2 = self.get_int(arg2).unwrap();
+                let arg1 = self.get_int(arg1);
+                let arg2 = self.get_int(arg2);
                 let res = self.ctx.negate(arg1);
                 self.ctx.assert(self.ctx.eq(res, arg2)).unwrap();
             }
             (Prim::ICmp(cmp), [arg1, arg2, arg3]) => {
-                let arg1 = self.get_int(arg1).unwrap();
-                let arg2 = self.get_int(arg2).unwrap();
-                let arg3 = self.get_bool(arg3).unwrap();
+                let arg1 = self.get_int(arg1);
+                let arg2 = self.get_int(arg2);
+                let arg3 = self.get_bool(arg3);
                 let res = match cmp {
                     Compare::Lt => self.ctx.lt(arg1, arg2),
                     Compare::Le => self.ctx.lte(arg1, arg2),
@@ -152,9 +157,9 @@ impl Constr {
                 self.ctx.assert(self.ctx.eq(res, arg3)).unwrap();
             }
             (Prim::BAnd | Prim::BOr, [arg1, arg2, arg3]) => {
-                let arg1 = self.get_bool(arg1).unwrap();
-                let arg2 = self.get_bool(arg2).unwrap();
-                let arg3 = self.get_bool(arg3).unwrap();
+                let arg1 = self.get_bool(arg1);
+                let arg2 = self.get_bool(arg2);
+                let arg3 = self.get_bool(arg3);
                 let res = match prim {
                     Prim::BAnd => self.ctx.and(arg1, arg2),
                     Prim::BOr => self.ctx.or(arg1, arg2),
@@ -163,8 +168,8 @@ impl Constr {
                 self.ctx.assert(self.ctx.eq(res, arg3)).unwrap();
             }
             (Prim::BNot, [arg1, arg2]) => {
-                let arg1 = self.get_bool(arg1).unwrap();
-                let arg2 = self.get_bool(arg2).unwrap();
+                let arg1 = self.get_bool(arg1);
+                let arg2 = self.get_bool(arg2);
                 let res = self.ctx.not(arg1);
                 self.ctx.assert(self.ctx.eq(res, arg2)).unwrap();
             }
@@ -177,23 +182,23 @@ impl Constr {
     pub fn push_eq(&mut self, x: IdentCtx, term: Term<IdentCtx>) {
         match term {
             Term::Var(_) => {
-                let x2 = self.get_int(&Term::Var(x)).unwrap();
-                let term2 = self.get_int(&term).unwrap();
-                self.ctx.assert(self.ctx.eq(x2, term2)).unwrap();
+                let lhs: SExpr = self.get_int(&Term::Var(x));
+                let rhs = self.get_int(&term);
+                self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
 
-                let x2 = self.get_bool(&Term::Var(x)).unwrap();
-                let term2 = self.get_bool(&term).unwrap();
-                self.ctx.assert(self.ctx.eq(x2, term2)).unwrap();
+                let lhs = self.get_bool(&Term::Var(x));
+                let rhs = self.get_bool(&term);
+                self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
             }
             Term::Lit(LitVal::Int(_)) => {
-                let x = self.get_int(&Term::Var(x)).unwrap();
-                let term = self.get_int(&term).unwrap();
-                self.ctx.assert(self.ctx.eq(x, term)).unwrap();
+                let lhs = self.get_int(&Term::Var(x));
+                let rhs = self.get_int(&term);
+                self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
             }
             Term::Lit(LitVal::Bool(_)) => {
-                let x = self.get_bool(&Term::Var(x)).unwrap();
-                let term = self.get_bool(&term).unwrap();
-                self.ctx.assert(self.ctx.eq(x, term)).unwrap();
+                let lhs = self.get_bool(&Term::Var(x));
+                let rhs = self.get_bool(&term);
+                self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
             }
             Term::Lit(LitVal::Float(_)) => {
                 todo!()
@@ -205,23 +210,6 @@ impl Constr {
                 panic!("only atom terms for eq in Constr!")
             }
         }
-
-        // if let Some(typ) = self.map.get(&x.ident) {
-        //     match *typ {
-        //         LitType::TyInt => {
-        //             let x = self.get_int(&Term::Var(x)).unwrap();
-        //             let term = self.get_int(&term).unwrap();
-        //             self.ctx.assert(self.ctx.eq(x, term)).unwrap();
-        //         }
-        //         LitType::TyFloat => todo!(),
-        //         LitType::TyBool => {
-        //             let x = self.get_bool(&Term::Var(x)).unwrap();
-        //             let term = self.get_bool(&term).unwrap();
-        //             self.ctx.assert(self.ctx.eq(x, term)).unwrap();
-        //         }
-        //         LitType::TyChar => todo!(),
-        //     }
-        // }
     }
 
     pub fn solve(&mut self) -> bool {

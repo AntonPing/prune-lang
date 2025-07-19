@@ -8,8 +8,8 @@ pub enum LinearCode {
     Prim(Prim, Vec<Term<Ident>>),
     Conj(Vec<usize>),
     Disj(Vec<usize>),
-    Label(PredIdent, Vec<Ident>),
     Call(PredIdent, Vec<Term<Ident>>, usize),
+    Label(PredIdent, Vec<Ident>, Vec<Ident>),
 }
 
 impl std::fmt::Display for LinearCode {
@@ -21,18 +21,24 @@ impl std::fmt::Display for LinearCode {
                 let args = args.iter().format(&", ");
                 write!(f, "Prim({:?}, {})", prim, args)
             }
-            LinearCode::Conj(addrs) => write!(f, "Conj([{}])", addrs.iter().format(&",")),
-            LinearCode::Disj(addrs) => write!(f, "Disj([{}])", addrs.iter().format(&",")),
-            LinearCode::Label(label, pars) => {
-                write!(f, "Label({}, [{}])", label, pars.iter().format(&","),)
-            }
+            LinearCode::Conj(addrs) => write!(f, "Conj([{}])", addrs.iter().format(&", ")),
+            LinearCode::Disj(addrs) => write!(f, "Disj([{}])", addrs.iter().format(&", ")),
             LinearCode::Call(label, args, addr) => {
                 write!(
                     f,
                     "Call({}, [{}], {})",
                     label,
-                    args.iter().format(&","),
+                    args.iter().format(&", "),
                     addr
+                )
+            }
+            LinearCode::Label(label, pars, vars) => {
+                write!(
+                    f,
+                    "Label({}, [{}], [{}])",
+                    label,
+                    pars.iter().format(&", "),
+                    vars.iter().format(&", ")
                 )
             }
         }
@@ -58,8 +64,11 @@ impl CompileState {
 
     fn compile_pred(&mut self, pred: &Predicate) {
         self.dict.insert(pred.name, self.codes.len());
-        self.codes
-            .push(LinearCode::Label(pred.name, pred.pars.clone()));
+        self.codes.push(LinearCode::Label(
+            pred.name,
+            pred.pars.clone(),
+            pred.vars.clone(),
+        ));
         self.compile_goal(&pred.goal);
     }
 
@@ -70,6 +79,9 @@ impl CompileState {
             }
             Goal::Eq(lhs, rhs) => {
                 self.codes.push(LinearCode::Eq(lhs.clone(), rhs.clone()));
+            }
+            Goal::Prim(prim, args) => {
+                self.codes.push(LinearCode::Prim(*prim, args.clone()));
             }
             Goal::And(goals) => {
                 if goals.is_empty() {
@@ -100,9 +112,6 @@ impl CompileState {
                         self.compile_goal(goal);
                     }
                 }
-            }
-            Goal::Prim(prim, args) => {
-                self.codes.push(LinearCode::Prim(*prim, args.clone()));
             }
             Goal::PredCall(pred, args) => {
                 self.codes.push(LinearCode::Call(*pred, args.clone(), 0));

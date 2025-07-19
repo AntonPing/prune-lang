@@ -79,6 +79,10 @@ impl Solver {
 }
 
 impl Solver {
+    pub fn declare(&mut self, var: &IdentCtx) {
+        self.constr.declare_var(var);
+    }
+
     pub fn unify(&mut self, lhs: Term<IdentCtx>, rhs: Term<IdentCtx>) -> Result<(), ()> {
         self.unify_vec.push((lhs.clone(), rhs.clone()));
 
@@ -111,6 +115,9 @@ fn test_solver() {
     let y = Ident::dummy(&"y");
 
     let mut sol = Solver::new();
+
+    sol.declare(&x.tag_ctx(0));
+    sol.declare(&y.tag_ctx(0));
 
     sol.solve(
         Prim::ICmp(Compare::Lt),

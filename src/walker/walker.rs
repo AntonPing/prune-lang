@@ -115,7 +115,7 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
         self.idx_cnt = 0;
         self.tmsp_cnt = 0;
         self.state.stack.drain(..);
-        let pnt = self.new_point(entry + 1, 0, None);
+        let pnt = self.new_point(entry, 0, None);
         self.state.stack.push(pnt);
         self.state.cost = 0;
         self.sol.reset();
@@ -151,12 +151,10 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
             LinearCode::Const(_) => 4,
             LinearCode::Eq(_, _) => 4,
             LinearCode::Prim(_, _) => 4,
+            LinearCode::Call(_, _, _) => 2,
             LinearCode::Conj(_) => 3,
             LinearCode::Disj(_) => 1,
-            LinearCode::Label(_, _) => {
-                panic!("the interpreter can not execute a label!")
-            }
-            LinearCode::Call(_, _, _) => 2,
+            LinearCode::Label(_, _, _) => 5,
         };
         Point::new(addr, idx, Priority::new(tag, self.tmsp_cnt), pred)
     }
@@ -209,6 +207,25 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
                     return self.update_backtrack(curr_pnt);
                 }
             }
+            LinearCode::Call(_pred, args, addr) => {
+                if let LinearCode::Label(_pred, pars, vars) = &self.codes[*addr] {
+                    self.idx_cnt += 1;
+                    assert_eq!(pars.len(), args.len());
+                    for (par, arg) in pars.iter().zip(args.iter()) {
+                        self.sol.declare(&par.tag_ctx(self.idx_cnt));
+                        let lhs = Term::Var(par.tag_ctx(self.idx_cnt));
+                        let rhs = arg.var_map_func(&|x| x.tag_ctx(idx));
+                        self.sol.unify(lhs, rhs).unwrap(); // unify with a fresh variable cannot fail
+                    }
+                    for var in vars {
+                        self.sol.declare(&var.tag_ctx(self.idx_cnt));
+                    }
+                    let pnt = self.new_point(addr + 1, self.idx_cnt, Some(curr_pnt));
+                    self.push_point(pnt);
+                } else {
+                    panic!("addr of call not reference to a label!");
+                }
+            }
             LinearCode::Conj(addrs) => {
                 for addr in addrs.clone().into_iter().rev() {
                     let pnt = self.new_point(addr, idx, Some(curr_pnt.clone()));
@@ -224,23 +241,17 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
                 }
                 return self.backtrack();
             }
-            LinearCode::Label(_pred, _args) => {
-                panic!("the interpreter can not execute a label!");
-            }
-            LinearCode::Call(_pred, args, addr) => {
-                if let LinearCode::Label(_pred, pars) = &self.codes[*addr] {
-                    self.idx_cnt += 1;
-                    assert_eq!(pars.len(), args.len());
-                    for (par, arg) in pars.iter().zip(args.iter()) {
-                        let lhs = Term::Var(par.tag_ctx(self.idx_cnt));
-                        let rhs = arg.var_map_func(&|x| x.tag_ctx(idx));
-                        self.sol.unify(lhs, rhs).unwrap(); // unify with a fresh variable cannot fail
-                    }
-                    let pnt = self.new_point(addr + 1, self.idx_cnt, Some(curr_pnt));
-                    self.push_point(pnt);
-                } else {
-                    panic!("addr of call not reference to a label!");
+            LinearCode::Label(_pred, args, vars) => {
+                assert!(self.state.stack.is_empty());
+                assert_eq!(self.idx_cnt, 0);
+                for arg in args {
+                    self.sol.declare(&arg.tag_ctx(self.idx_cnt));
                 }
+                for var in vars {
+                    self.sol.declare(&var.tag_ctx(self.idx_cnt));
+                }
+                let pnt = self.new_point(addr + 1, self.idx_cnt, Some(curr_pnt));
+                self.push_point(pnt);
             }
         }
         StateResult::Running
@@ -319,6 +330,8 @@ end
         .parse(&p1)
         .unwrap();
     let dict = crate::logic::transform::prog_to_dict(&prog);
+
+    // println!("{:#?}", dict);
     let (codes, map) = super::compile::compile_dict(&dict);
     // println!("{:?}", map);
 
