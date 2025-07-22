@@ -178,7 +178,7 @@ begin
     is_elem(append(xs, x), x) = false
 end
 "#;
-    let prog = syntax::parser::parser::ProgramParser::new()
+    let prog = syntax::parser_gen::parser::ProgramParser::new()
         .parse(&p1)
         .unwrap();
     let dict = crate::logic::transform::prog_to_dict(&prog);

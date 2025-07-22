@@ -4,4 +4,4 @@ use crate::utils::prim::Prim;
 
 pub mod ast;
 pub mod lexer;
-pub mod parser;
+pub mod parser_gen;

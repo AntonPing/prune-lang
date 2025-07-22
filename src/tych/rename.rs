@@ -292,7 +292,7 @@ begin
     )
 end
 "#;
-    let mut prog = crate::syntax::parser::parser::ProgramParser::new()
+    let mut prog = crate::syntax::parser_gen::parser::ProgramParser::new()
         .parse(p1)
         .unwrap();
 

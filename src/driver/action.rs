@@ -33,7 +33,7 @@ impl<'log, Log: io::Write> Pipeline<'log, Log> {
             self.error.push(PipeError::FileNotExist(s));
             ()
         })?;
-        let prog = syntax::parser::parser::ProgramParser::new()
+        let prog = syntax::parser_gen::parser::ProgramParser::new()
             .parse(&src.as_str())
             .map_err(|err| {
                 let s = err.to_string();
