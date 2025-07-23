@@ -1,0 +1,712 @@
+use super::lexer::*;
+use super::*;
+use crate::driver::diagnostic::Diagnostic;
+use crate::syntax::ast::*;
+
+pub struct Parser<'src, 'diag> {
+    source: &'src str,
+    tokens: Vec<TokenSpan>,
+    cursor: usize,
+    diags: &'diag mut Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+enum ParseError {
+    LexerError(Span),
+    UnknownPrim(Span),
+    FailedToMatch(Token, Token, Span),
+    FailedToParse(&'static str, Token, Span),
+}
+type ParseResult<T> = Result<T, ParseError>;
+
+impl<'src, 'diag> Parser<'src, 'diag> {
+    pub fn new(src: &'src str, diags: &'diag mut Vec<Diagnostic>) -> Parser<'src, 'diag> {
+        let tokens = lexer::tokenize(src);
+        Parser {
+            source: src,
+            tokens,
+            cursor: 0,
+            diags,
+        }
+    }
+
+    #[allow(dead_code)]
+    fn peek_token_span(&self) -> &TokenSpan {
+        &self.tokens[self.cursor]
+    }
+
+    fn peek_token(&self) -> Token {
+        self.tokens[self.cursor].token
+    }
+
+    #[allow(dead_code)]
+    fn peek_token_nth(&self, n: usize) -> Token {
+        if self.cursor + n < self.tokens.len() {
+            self.tokens[self.cursor + n].token
+        } else {
+            Token::EndOfFile
+        }
+    }
+
+    fn peek_span(&self) -> &Span {
+        &self.tokens[self.cursor].span
+    }
+
+    #[allow(dead_code)]
+    fn peek_span_nth(&self, n: usize) -> &Span {
+        if self.cursor + n < self.tokens.len() {
+            &self.tokens[self.cursor + n].span
+        } else {
+            &self.tokens[self.tokens.len() - 1].span
+        }
+    }
+
+    fn peek_slice(&self) -> &'src str {
+        let span = &self.tokens[self.cursor].span;
+        &self.source[span.start..span.end]
+    }
+
+    fn start_pos(&self) -> usize {
+        self.tokens[self.cursor].span.start
+    }
+
+    fn end_pos(&self) -> usize {
+        self.tokens[self.cursor - 1].span.end
+    }
+
+    fn emit(&mut self, err: &ParseError) {
+        match err {
+            ParseError::LexerError(span) => self.diags.push(
+                Diagnostic::error("cannot scan next token!")
+                    .line_span(span.clone(), "here is the bad token"),
+            ),
+            ParseError::UnknownPrim(span) => self.diags.push(
+                Diagnostic::error("unknown primitve!")
+                    .line_span(span.clone(), "here is the primitive"),
+            ),
+            ParseError::FailedToMatch(expect, found, span) => {
+                self.diags
+                    .push(Diagnostic::error("cannot match token!").line_span(
+                        span.clone(),
+                        format!("expect token {expect:?}, found token {found:?}"),
+                    ))
+            }
+            ParseError::FailedToParse(name, found, span) => self.diags.push(
+                Diagnostic::error(format!("cannot parse {name}!"))
+                    .line_span(span.clone(), format!("found token {found:?}")),
+            ),
+        }
+    }
+
+    fn next_token(&mut self) -> ParseResult<&TokenSpan> {
+        let tok = &self.tokens[self.cursor];
+        if tok.token == Token::TokError {
+            Err(ParseError::LexerError(self.peek_span().clone()))
+        } else {
+            if self.cursor < self.tokens.len() - 1 {
+                self.cursor += 1;
+            }
+            Ok(tok)
+        }
+    }
+
+    fn match_token(&mut self, tok: Token) -> ParseResult<()> {
+        if self.peek_token() == tok {
+            self.next_token()?;
+            Ok(())
+        } else {
+            Err(ParseError::FailedToMatch(
+                tok,
+                self.peek_token(),
+                self.peek_span().clone(),
+            ))
+        }
+    }
+
+    #[allow(dead_code)]
+    fn option<T, F>(&mut self, func: F) -> ParseResult<Option<T>>
+    where
+        F: Fn(&mut Parser) -> ParseResult<T>,
+    {
+        let last = self.cursor;
+        match func(self) {
+            Ok(res) => Ok(Some(res)),
+            Err(err) => {
+                // if it failed without consuming any token
+                if self.cursor == last {
+                    Ok(None) // return Err(ParseError::FailedToParse((), self.peek_token(), self.peek_span().clone()))
+                } else {
+                    Err(err) // otherwise fail
+                }
+            }
+        }
+    }
+
+    #[allow(dead_code)]
+    fn surround<T, F>(&mut self, left: Token, right: Token, func: F) -> ParseResult<T>
+    where
+        F: Fn(&mut Parser) -> ParseResult<T>,
+    {
+        self.match_token(left)?;
+        let res = func(self)?;
+        self.match_token(right)?;
+        Ok(res)
+    }
+
+    fn delimited_list<T, F>(
+        &mut self,
+        left: Token,
+        delim: Token,
+        right: Token,
+        func: F,
+    ) -> ParseResult<Vec<T>>
+    where
+        F: Fn(&mut Parser) -> ParseResult<T>,
+    {
+        let mut vec: Vec<T> = Vec::new();
+        self.match_token(left)?;
+        // allow leading delimiter
+        if self.peek_token() == delim {
+            self.next_token()?;
+        }
+        // allow empty list
+        if self.peek_token() == right {
+            self.next_token()?;
+            return Ok(vec);
+        }
+        vec.push(func(self)?);
+        while self.peek_token() == delim {
+            self.next_token()?;
+            // allow trailing delimiter
+            if self.peek_token() == right {
+                break;
+            }
+            vec.push(func(self)?);
+        }
+        self.match_token(right)?;
+        Ok(vec)
+    }
+
+    fn parse_lit_val(&mut self) -> ParseResult<LitVal> {
+        match self.peek_token() {
+            Token::Int => {
+                let x = self.peek_slice().parse::<i64>().unwrap();
+                self.next_token()?;
+                Ok(LitVal::Int(x))
+            }
+            Token::Float => {
+                let x = self.peek_slice().parse::<f64>().unwrap();
+                self.next_token()?;
+                Ok(LitVal::Float(x))
+            }
+            Token::Bool => {
+                let x = self.peek_slice().parse::<bool>().unwrap();
+                self.next_token()?;
+                Ok(LitVal::Bool(x))
+            }
+            Token::Char => {
+                let x = self.peek_slice().trim_matches('\'');
+                // transform from 'c' to "c"
+                let x: String = "\""
+                    .chars()
+                    .into_iter()
+                    .chain(x.chars().into_iter())
+                    .chain("\"".chars().into_iter())
+                    .collect();
+                if let Ok(s) = snailquote::unescape(&x) {
+                    assert_eq!(s.len(), 1);
+                    self.next_token()?;
+                    Ok(LitVal::Char(s.chars().nth(0).unwrap()))
+                } else {
+                    Err(ParseError::LexerError(self.peek_span().clone()))
+                }
+            }
+            _tok => Err(ParseError::FailedToParse(
+                &"literal value",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
+        }
+    }
+
+    fn parse_lit_typ(&mut self) -> ParseResult<LitType> {
+        match self.peek_token() {
+            Token::TyInt => {
+                self.next_token()?;
+                Ok(LitType::TyInt)
+            }
+            Token::TyFloat => {
+                self.next_token()?;
+                Ok(LitType::TyFloat)
+            }
+            Token::TyBool => {
+                self.next_token()?;
+                Ok(LitType::TyBool)
+            }
+            Token::TyChar => {
+                self.next_token()?;
+                Ok(LitType::TyChar)
+            }
+            _tok => Err(ParseError::FailedToParse(
+                &"literal type",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
+        }
+    }
+
+    fn parse_lident(&mut self) -> ParseResult<Ident> {
+        match self.peek_token() {
+            Token::LowerIdent => {
+                let res = Ident::dummy(&self.peek_slice());
+                self.next_token()?;
+                Ok(res)
+            }
+            _tok => Err(ParseError::FailedToParse(
+                "lowercase identifier",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
+        }
+    }
+
+    fn parse_uident(&mut self) -> ParseResult<Ident> {
+        match self.peek_token() {
+            Token::UpperIdent => {
+                let res = Ident::dummy(&self.peek_slice());
+                self.next_token()?;
+                Ok(res)
+            }
+            _tok => Err(ParseError::FailedToParse(
+                "uppercase identifier",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
+        }
+    }
+
+    fn parse_prim_opr(&mut self) -> ParseResult<Prim> {
+        match self.peek_token() {
+            Token::PrimOpr => {
+                let s = self.peek_slice();
+                self.next_token()?;
+                let res = match s {
+                    "@iadd" => Prim::IAdd,
+                    "@isub" => Prim::ISub,
+                    "@imul" => Prim::IMul,
+                    "@idiv" => Prim::IDiv,
+                    "@irem" => Prim::IRem,
+                    "@ineg" => Prim::INeg,
+                    "@icmplt" => Prim::ICmp(Compare::Lt),
+                    "@icmple" => Prim::ICmp(Compare::Le),
+                    "@icmpeq" => Prim::ICmp(Compare::Eq),
+                    "@icmpgt" => Prim::ICmp(Compare::Gt),
+                    "@icmpge" => Prim::ICmp(Compare::Ge),
+                    "@icmpne" => Prim::ICmp(Compare::Ne),
+                    "@band" => Prim::BAnd,
+                    "@bor" => Prim::BOr,
+                    "@bnot" => Prim::BNot,
+                    _ => {
+                        return Err(ParseError::UnknownPrim(self.peek_span().clone()));
+                    }
+                };
+                Ok(res)
+            }
+            _tok => Err(ParseError::FailedToParse(
+                "primitive operator",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
+        }
+    }
+
+    fn parse_expr_args(&mut self) -> ParseResult<Vec<Expr>> {
+        self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+            par.parse_expr()
+        })
+    }
+
+    fn parse_expr(&mut self) -> ParseResult<Expr> {
+        let start = self.start_pos();
+        match self.peek_token() {
+            Token::Int | Token::Float | Token::Bool | Token::Char => {
+                let lit = self.parse_lit_val()?;
+                let end = self.end_pos();
+                let _span = Span { start, end };
+                Ok(Expr::Lit { lit })
+            }
+            Token::LowerIdent => {
+                let var = self.parse_lident()?;
+                if let Token::LParen = self.peek_token() {
+                    let args = self.parse_expr_args()?;
+                    let end = self.end_pos();
+                    let _span = Span { start, end };
+                    Ok(Expr::App { func: var, args })
+                } else {
+                    let end = self.end_pos();
+                    let _span = Span { start, end };
+                    Ok(Expr::Var { var })
+                }
+            }
+            Token::UpperIdent => {
+                let name = self.parse_uident()?;
+                let flds = if let Token::LParen = self.peek_token() {
+                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                        par.parse_expr()
+                    })?
+                } else {
+                    Vec::new()
+                };
+                let end = self.end_pos();
+                let _span = Span { start, end };
+                Ok(Expr::Cons { name, flds })
+            }
+            Token::PrimOpr => {
+                let prim = self.parse_prim_opr()?;
+                let args = self.parse_expr_args()?;
+                let end = self.end_pos();
+                let _span = Span { start, end };
+                Ok(Expr::Prim { prim, args })
+            }
+            Token::Let => {
+                self.match_token(Token::Let)?;
+                let bind = self.parse_lident()?;
+                self.match_token(Token::Equal)?;
+                let expr = Box::new(self.parse_expr()?);
+                self.match_token(Token::Semi)?;
+                let cont = Box::new(self.parse_expr()?);
+                Ok(Expr::Let { bind, expr, cont })
+            }
+            Token::If => {
+                self.match_token(Token::If)?;
+                let cond = Box::new(self.parse_expr()?);
+                self.match_token(Token::Then)?;
+                let then = Box::new(self.parse_expr()?);
+                self.match_token(Token::Else)?;
+                let els = Box::new(self.parse_expr()?);
+                let end = self.end_pos();
+                let _span = Span { start, end };
+                Ok(Expr::Ifte { cond, then, els })
+            }
+            Token::Match => {
+                self.match_token(Token::Match)?;
+                let expr = Box::new(self.parse_expr()?);
+                let brchs = self
+                    .delimited_list(Token::With, Token::Bar, Token::End, |par| par.parse_brch())?;
+                let end = self.end_pos();
+                let _span = Span { start, end };
+                Ok(Expr::Match { expr, brchs })
+            }
+            Token::LParen => {
+                self.match_token(Token::LParen)?;
+                let expr = self.parse_expr()?;
+                self.match_token(Token::RParen)?;
+                Ok(expr)
+            }
+            _tok => Err(ParseError::FailedToParse(
+                "expression",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
+        }
+    }
+
+    fn parse_brch(&mut self) -> ParseResult<(Pattern, Expr)> {
+        let start = self.start_pos();
+        let patn = self.parse_pattern()?;
+        self.match_token(Token::FatArrow)?;
+        let body = self.parse_expr()?;
+        let end = self.end_pos();
+        let _span = Span { start, end };
+        Ok((patn, body))
+    }
+
+    fn parse_pattern(&mut self) -> ParseResult<Pattern> {
+        let start = self.start_pos();
+        let name = self.parse_uident()?;
+        let flds = if let Token::LParen = self.peek_token() {
+            self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                par.parse_lident()
+            })?
+        } else {
+            Vec::new()
+        };
+        let end = self.end_pos();
+        let _span = Span { start, end };
+        Ok(Pattern { name, flds })
+    }
+
+    fn parse_goal(&mut self) -> ParseResult<Goal> {
+        let start = self.start_pos();
+        match self.peek_token() {
+            Token::Fresh => {
+                self.match_token(Token::Fresh)?;
+                let vars =
+                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                        par.parse_lident()
+                    })?;
+                self.match_token(Token::LParen)?;
+                let body = Box::new(self.parse_goal()?);
+                self.match_token(Token::RParen)?;
+                let end = self.end_pos();
+                let _span = Span { start, end };
+                Ok(Goal::Fresh { vars, body })
+            }
+            Token::And => {
+                self.match_token(Token::And)?;
+                let goals =
+                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                        par.parse_goal()
+                    })?;
+                let end = self.end_pos();
+                let _span = Span { start, end };
+                Ok(Goal::And { goals })
+            }
+            Token::Or => {
+                self.match_token(Token::Or)?;
+                let goals =
+                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                        par.parse_goal()
+                    })?;
+                let end = self.end_pos();
+                let _span = Span { start, end };
+                Ok(Goal::Or { goals })
+            }
+            Token::LParen => {
+                let goals =
+                    self.delimited_list(Token::LParen, Token::Semi, Token::RParen, |par| {
+                        par.parse_goal()
+                    })?;
+                let end = self.end_pos();
+                let _span = Span { start, end };
+                Ok(Goal::Or { goals })
+            }
+            _ => {
+                let lhs = self.parse_expr()?;
+                if let Token::Equal = self.peek_token() {
+                    self.match_token(Token::Equal)?;
+                    let rhs = self.parse_expr()?;
+                    let end = self.end_pos();
+                    let _span = Span { start, end };
+                    Ok(Goal::Eq { lhs, rhs })
+                } else if let Expr::App { func, args } = lhs {
+                    let end = self.end_pos();
+                    let _span = Span { start, end };
+                    Ok(Goal::Pred { pred: func, args })
+                } else {
+                    Err(ParseError::FailedToParse(
+                        "goal",
+                        self.peek_token(),
+                        self.peek_span().clone(),
+                    ))
+                }
+            }
+        }
+    }
+
+    fn parse_type(&mut self) -> ParseResult<Type> {
+        match self.peek_token() {
+            Token::TyInt | Token::TyFloat | Token::TyBool | Token::TyChar => {
+                let lit_typ = self.parse_lit_typ()?;
+                Ok(Type::Lit(lit_typ))
+            }
+            Token::UpperIdent => {
+                let name = self.parse_uident()?;
+                Ok(Type::Data(name))
+            }
+            _tok => Err(ParseError::FailedToParse(
+                "type",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
+        }
+    }
+
+    fn parse_varient(&mut self) -> ParseResult<Constructor> {
+        let start = self.start_pos();
+        let name = self.parse_uident()?;
+        let flds = if let Token::LParen = self.peek_token() {
+            self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                par.parse_type()
+            })?
+        } else {
+            Vec::new()
+        };
+        let end = self.end_pos();
+        let _span = Span { start, end };
+        Ok(Constructor { name, flds })
+    }
+
+    fn parse_data_decl(&mut self) -> ParseResult<DataDecl> {
+        let start = self.start_pos();
+        self.match_token(Token::Datatype)?;
+        let name = self.parse_uident()?;
+        let vars = self.delimited_list(Token::Where, Token::Bar, Token::End, |par| {
+            par.parse_varient()
+        })?;
+        let end = self.end_pos();
+        let _span = Span { start, end };
+        Ok(DataDecl { name, cons: vars })
+    }
+
+    fn parse_func_decl(&mut self) -> ParseResult<FuncDecl> {
+        let start = self.start_pos();
+        self.match_token(Token::Function)?;
+        let name = self.parse_lident()?;
+        let pars = self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+            let ident = par.parse_lident()?;
+            par.match_token(Token::Colon)?;
+            let typ = par.parse_type()?;
+            Ok((ident, typ))
+        })?;
+        self.match_token(Token::Arrow)?;
+        let res = self.parse_type()?;
+        self.match_token(Token::Begin)?;
+        let body = self.parse_expr()?;
+        self.match_token(Token::End)?;
+        let end = self.end_pos();
+        let _span = Span { start, end };
+        Ok(FuncDecl {
+            name,
+            pars,
+            res,
+            body,
+        })
+    }
+
+    fn parse_pred_decl(&mut self) -> ParseResult<PredDecl> {
+        let start = self.start_pos();
+        self.match_token(Token::Predicate)?;
+        let name = self.parse_lident()?;
+        let pars = self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+            let ident = par.parse_lident()?;
+            par.match_token(Token::Colon)?;
+            let typ = par.parse_type()?;
+            Ok((ident, typ))
+        })?;
+
+        let goals = self.delimited_list(Token::Begin, Token::Semi, Token::End, |par| {
+            par.parse_goal()
+        })?;
+        let body = Goal::And { goals };
+        let end = self.end_pos();
+        let _span = Span { start, end };
+        Ok(PredDecl { name, pars, body })
+    }
+
+    fn parse_decl(&mut self) -> ParseResult<Declaration> {
+        match self.peek_token() {
+            Token::Datatype => {
+                let decl = self.parse_data_decl()?;
+                Ok(Declaration::Data(decl))
+            }
+            Token::Function => {
+                let decl = self.parse_func_decl()?;
+                Ok(Declaration::Func(decl))
+            }
+            Token::Predicate => {
+                let decl = self.parse_pred_decl()?;
+                Ok(Declaration::Pred(decl))
+            }
+            _tok => Err(ParseError::FailedToParse(
+                "declaration",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
+        }
+    }
+
+    fn parse_program(&mut self) -> Program {
+        let mut decls: Vec<Declaration> = Vec::new();
+        loop {
+            match self.peek_token() {
+                Token::Datatype | Token::Function | Token::Predicate => {
+                    // toplevel error recovering
+                    match self.parse_decl() {
+                        Ok(res) => decls.push(res),
+                        Err(err) => self.emit(&err),
+                    }
+                }
+                Token::TokError => {
+                    self.emit(&ParseError::LexerError(self.peek_span().clone()));
+                    self.cursor += 1;
+                }
+                Token::EndOfFile => break,
+                _tok => {
+                    self.next_token().unwrap();
+                }
+            }
+        }
+        self.match_token(Token::EndOfFile).unwrap();
+
+        let mut datas = Vec::new();
+        let mut funcs = Vec::new();
+        let mut preds = Vec::new();
+
+        for decl in decls.into_iter() {
+            match decl {
+                Declaration::Data(data) => datas.push(data),
+                Declaration::Func(func) => funcs.push(func),
+                Declaration::Pred(pred) => preds.push(pred),
+            }
+        }
+
+        Program {
+            datas,
+            funcs,
+            preds,
+        }
+    }
+}
+
+pub fn parse_program<'src, 'diag>(diags: &'diag mut Vec<Diagnostic>, src: &'src str) -> Program {
+    let mut pass = Parser::new(src, diags);
+    let res = pass.parse_program();
+    res
+}
+
+#[test]
+fn parser_test() {
+    let s = r#"
+// test line comment
+/*
+    /*
+        test block comment
+    */
+*/
+datatype IntList where
+| Cons(Int, IntList)
+| Nil
+end
+
+function append(xs: IntList, x: Int) -> Int
+begin
+    match xs with
+    | Cons(head, tail) => Cons(head, append(tail, x))
+    | Nil => Cons(x, Nil)
+    end
+end
+
+function is_elem(xs: IntList, x: Int) -> Bool
+begin
+    match xs with
+    | Cons(head, tail) => if @icmpeq(head, x) then true else is_elem(tail, x) 
+    | Nil => false
+    end
+end
+
+predicate is_elem_after_append(xs: IntList, x: Int)
+begin
+    is_elem(append(xs, x), x) = false
+end
+"#;
+    let mut diags = Vec::new();
+    let res = parse_program(&mut diags, s);
+    println!("{:#?}", res);
+
+    assert!(diags.is_empty());
+
+    // for diag in diags {
+    //     println!("{}", diag.report(s, 10));
+    // }
+}

@@ -1,7 +1,8 @@
 use crate::utils::ident::Ident;
 use crate::utils::lit::{LitType, LitVal};
-use crate::utils::prim::Prim;
+use crate::utils::prim::{Compare, Prim};
 
 pub mod ast;
 pub mod lexer;
+pub mod parser;
 pub mod parser_gen;
