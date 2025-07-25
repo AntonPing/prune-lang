@@ -42,15 +42,15 @@ begin
 			match right2 with
 			| Node(r_left, r_x, r_right) =>
 				Node(Node(left2, x, r_left), r_x, r_right)
-			| Empty => assert(false); tree
+			| Empty => tree
 			end
 		else if @icmpeq(diff, 2) then
 			match left2 with
 			| Node(l_left, l_x, l_right) =>
 				Node(l_left, l_x, Node(l_right, x, right2))
-			| Empty => assert(false); Empty
+			| Empty => Empty
 			end
-		else assert(false); Empty
+		else Empty
 	| Empty => Empty
 	end
 end

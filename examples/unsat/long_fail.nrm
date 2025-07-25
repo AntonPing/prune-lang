@@ -31,7 +31,7 @@ end
 predicate long_fail(x: Int, xs: List, ys: List)
 begin
 	and(
-		@p1(x, xs),
-        @p2(x, ys),
+		p1(x, xs),
+        p2(x, ys),
 	)
 end
