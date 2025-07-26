@@ -332,20 +332,24 @@ impl<'src, 'diag> Parser<'src, 'diag> {
             Token::Int | Token::Float | Token::Bool | Token::Char => {
                 let lit = self.parse_lit_val()?;
                 let end = self.end_pos();
-                let _span = Span { start, end };
-                Ok(Expr::Lit { lit })
+                let span = Span { start, end };
+                Ok(Expr::Lit { lit, span })
             }
             Token::LowerIdent => {
                 let var = self.parse_lident()?;
                 if let Token::LParen = self.peek_token() {
                     let args = self.parse_expr_args()?;
                     let end = self.end_pos();
-                    let _span = Span { start, end };
-                    Ok(Expr::App { func: var, args })
+                    let span = Span { start, end };
+                    Ok(Expr::App {
+                        func: var,
+                        args,
+                        span,
+                    })
                 } else {
                     let end = self.end_pos();
-                    let _span = Span { start, end };
-                    Ok(Expr::Var { var })
+                    let span = Span { start, end };
+                    Ok(Expr::Var { var, span })
                 }
             }
             Token::UpperIdent => {
@@ -358,15 +362,15 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                     Vec::new()
                 };
                 let end = self.end_pos();
-                let _span = Span { start, end };
-                Ok(Expr::Cons { name, flds })
+                let span = Span { start, end };
+                Ok(Expr::Cons { name, flds, span })
             }
             Token::PrimOpr => {
                 let prim = self.parse_prim_opr()?;
                 let args = self.parse_expr_args()?;
                 let end = self.end_pos();
-                let _span = Span { start, end };
-                Ok(Expr::Prim { prim, args })
+                let span = Span { start, end };
+                Ok(Expr::Prim { prim, args, span })
             }
             Token::Let => {
                 self.match_token(Token::Let)?;
@@ -375,7 +379,14 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 let expr = Box::new(self.parse_expr()?);
                 self.match_token(Token::Semi)?;
                 let cont = Box::new(self.parse_expr()?);
-                Ok(Expr::Let { bind, expr, cont })
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Expr::Let {
+                    bind,
+                    expr,
+                    cont,
+                    span,
+                })
             }
             Token::If => {
                 self.match_token(Token::If)?;
@@ -385,8 +396,13 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 self.match_token(Token::Else)?;
                 let els = Box::new(self.parse_expr()?);
                 let end = self.end_pos();
-                let _span = Span { start, end };
-                Ok(Expr::Ifte { cond, then, els })
+                let span = Span { start, end };
+                Ok(Expr::Ifte {
+                    cond,
+                    then,
+                    els,
+                    span,
+                })
             }
             Token::Match => {
                 self.match_token(Token::Match)?;
@@ -394,8 +410,8 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 let brchs = self
                     .delimited_list(Token::With, Token::Bar, Token::End, |par| par.parse_brch())?;
                 let end = self.end_pos();
-                let _span = Span { start, end };
-                Ok(Expr::Match { expr, brchs })
+                let span = Span { start, end };
+                Ok(Expr::Match { expr, brchs, span })
             }
             Token::LParen => {
                 self.match_token(Token::LParen)?;
@@ -432,8 +448,16 @@ impl<'src, 'diag> Parser<'src, 'diag> {
             Vec::new()
         };
         let end = self.end_pos();
-        let _span = Span { start, end };
-        Ok(Pattern { name, flds })
+        let span = Span { start, end };
+        Ok(Pattern { name, flds, span })
+    }
+
+    fn parse_goal_seq(&mut self, left: Token, right: Token) -> ParseResult<Goal> {
+        let start = self.start_pos();
+        let goals = self.delimited_list(left, Token::Semi, right, |par| par.parse_goal())?;
+        let end = self.end_pos();
+        let span = Span { start, end };
+        Ok(Goal::And { goals, span })
     }
 
     fn parse_goal(&mut self) -> ParseResult<Goal> {
@@ -449,8 +473,8 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 let body = Box::new(self.parse_goal()?);
                 self.match_token(Token::RParen)?;
                 let end = self.end_pos();
-                let _span = Span { start, end };
-                Ok(Goal::Fresh { vars, body })
+                let span = Span { start, end };
+                Ok(Goal::Fresh { vars, body, span })
             }
             Token::And => {
                 self.match_token(Token::And)?;
@@ -459,8 +483,8 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                         par.parse_goal()
                     })?;
                 let end = self.end_pos();
-                let _span = Span { start, end };
-                Ok(Goal::And { goals })
+                let span = Span { start, end };
+                Ok(Goal::And { goals, span })
             }
             Token::Or => {
                 self.match_token(Token::Or)?;
@@ -469,17 +493,12 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                         par.parse_goal()
                     })?;
                 let end = self.end_pos();
-                let _span = Span { start, end };
-                Ok(Goal::Or { goals })
+                let span = Span { start, end };
+                Ok(Goal::Or { goals, span })
             }
             Token::LParen => {
-                let goals =
-                    self.delimited_list(Token::LParen, Token::Semi, Token::RParen, |par| {
-                        par.parse_goal()
-                    })?;
-                let end = self.end_pos();
-                let _span = Span { start, end };
-                Ok(Goal::Or { goals })
+                let body = self.parse_goal_seq(Token::LParen, Token::RParen)?;
+                Ok(body)
             }
             _ => {
                 let lhs = self.parse_expr()?;
@@ -487,12 +506,14 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                     self.match_token(Token::Equal)?;
                     let rhs = self.parse_expr()?;
                     let end = self.end_pos();
-                    let _span = Span { start, end };
-                    Ok(Goal::Eq { lhs, rhs })
-                } else if let Expr::App { func, args } = lhs {
-                    let end = self.end_pos();
-                    let _span = Span { start, end };
-                    Ok(Goal::Pred { pred: func, args })
+                    let span = Span { start, end };
+                    Ok(Goal::Eq { lhs, rhs, span })
+                } else if let Expr::App { func, args, span } = lhs {
+                    Ok(Goal::Pred {
+                        pred: func,
+                        args,
+                        span,
+                    })
                 } else {
                     Err(ParseError::FailedToParse(
                         "goal",
@@ -533,8 +554,8 @@ impl<'src, 'diag> Parser<'src, 'diag> {
             Vec::new()
         };
         let end = self.end_pos();
-        let _span = Span { start, end };
-        Ok(Constructor { name, flds })
+        let span = Span { start, end };
+        Ok(Constructor { name, flds, span })
     }
 
     fn parse_data_decl(&mut self) -> ParseResult<DataDecl> {
@@ -545,8 +566,12 @@ impl<'src, 'diag> Parser<'src, 'diag> {
             par.parse_varient()
         })?;
         let end = self.end_pos();
-        let _span = Span { start, end };
-        Ok(DataDecl { name, cons: vars })
+        let span = Span { start, end };
+        Ok(DataDecl {
+            name,
+            cons: vars,
+            span,
+        })
     }
 
     fn parse_func_decl(&mut self) -> ParseResult<FuncDecl> {
@@ -565,12 +590,13 @@ impl<'src, 'diag> Parser<'src, 'diag> {
         let body = self.parse_expr()?;
         self.match_token(Token::End)?;
         let end = self.end_pos();
-        let _span = Span { start, end };
+        let span = Span { start, end };
         Ok(FuncDecl {
             name,
             pars,
             res,
             body,
+            span,
         })
     }
 
@@ -584,14 +610,15 @@ impl<'src, 'diag> Parser<'src, 'diag> {
             let typ = par.parse_type()?;
             Ok((ident, typ))
         })?;
-
-        let goals = self.delimited_list(Token::Begin, Token::Semi, Token::End, |par| {
-            par.parse_goal()
-        })?;
-        let body = Goal::And { goals };
+        let body = self.parse_goal_seq(Token::Begin, Token::End)?;
         let end = self.end_pos();
-        let _span = Span { start, end };
-        Ok(PredDecl { name, pars, body })
+        let span = Span { start, end };
+        Ok(PredDecl {
+            name,
+            pars,
+            body,
+            span,
+        })
     }
 
     fn parse_decl(&mut self) -> ParseResult<Declaration> {

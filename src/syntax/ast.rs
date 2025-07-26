@@ -1,104 +1,139 @@
 use super::*;
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Program {
     pub datas: Vec<DataDecl>,
     pub funcs: Vec<FuncDecl>,
     pub preds: Vec<PredDecl>,
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Declaration {
     Data(DataDecl),
     Func(FuncDecl),
     Pred(PredDecl),
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DataDecl {
     pub name: Ident,
     pub cons: Vec<Constructor>,
+    pub span: Span,
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Constructor {
     pub name: Ident,
     pub flds: Vec<Type>,
+    pub span: Span,
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Type {
     Lit(LitType),
     Data(Ident),
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FuncDecl {
     pub name: Ident,
     pub pars: Vec<(Ident, Type)>,
     pub res: Type,
     pub body: Expr,
+    pub span: Span,
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Pattern {
     pub name: Ident,
     pub flds: Vec<Ident>,
+    pub span: Span,
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
     Lit {
         lit: LitVal,
+        span: Span,
     },
     Var {
         var: Ident,
+        span: Span,
     },
     Prim {
         prim: Prim,
         args: Vec<Expr>,
+        span: Span,
     },
     Cons {
         name: Ident,
         flds: Vec<Expr>,
+        span: Span,
     },
     Match {
         expr: Box<Expr>,
         brchs: Vec<(Pattern, Expr)>,
+        span: Span,
     },
     Let {
         bind: Ident,
         expr: Box<Expr>,
         cont: Box<Expr>,
+        span: Span,
     },
     App {
         func: Ident,
         args: Vec<Expr>,
+        span: Span,
     },
     Ifte {
         cond: Box<Expr>,
         then: Box<Expr>,
         els: Box<Expr>,
+        span: Span,
     },
     Assert {
         expr: Box<Expr>,
         cont: Box<Expr>,
+        span: Span,
     },
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PredDecl {
     pub name: Ident,
     pub pars: Vec<(Ident, Type)>,
     pub body: Goal,
+    pub span: Span,
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Goal {
-    Fresh { vars: Vec<Ident>, body: Box<Goal> },
-    Eq { lhs: Expr, rhs: Expr },
-    Fail { expr: Expr },
-    Pred { pred: Ident, args: Vec<Expr> },
-    And { goals: Vec<Goal> },
-    Or { goals: Vec<Goal> },
+    Fresh {
+        vars: Vec<Ident>,
+        body: Box<Goal>,
+        span: Span,
+    },
+    Eq {
+        lhs: Expr,
+        rhs: Expr,
+        span: Span,
+    },
+    Fail {
+        expr: Expr,
+        span: Span,
+    },
+    Pred {
+        pred: Ident,
+        args: Vec<Expr>,
+        span: Span,
+    },
+    And {
+        goals: Vec<Goal>,
+        span: Span,
+    },
+    Or {
+        goals: Vec<Goal>,
+        span: Span,
+    },
 }

@@ -110,22 +110,38 @@ impl Renamer {
 
     fn visit_expr(&mut self, expr: &mut Expr) {
         match expr {
-            Expr::Lit { lit: _ } => {}
-            Expr::Var { var } => {
+            Expr::Lit { lit: _, span: _ } => {}
+            Expr::Var { var, span: _ } => {
                 self.update_val_var(var);
             }
-            Expr::Prim { prim: _, args } => {
+            Expr::Prim {
+                prim: _,
+                args,
+                span: _,
+            } => {
                 args.iter_mut().for_each(|arg| self.visit_expr(arg));
             }
-            Expr::App { func, args } => {
+            Expr::App {
+                func,
+                args,
+                span: _,
+            } => {
                 self.update_val_var(func);
                 args.iter_mut().for_each(|arg| self.visit_expr(arg));
             }
-            Expr::Cons { name, flds } => {
+            Expr::Cons {
+                name,
+                flds,
+                span: _,
+            } => {
                 self.update_cons_var(name);
                 flds.iter_mut().for_each(|fld| self.visit_expr(fld));
             }
-            Expr::Match { expr, brchs } => {
+            Expr::Match {
+                expr,
+                brchs,
+                span: _,
+            } => {
                 self.visit_expr(expr);
                 brchs.iter_mut().for_each(|(patn, expr)| {
                     self.enter_scope();
@@ -135,19 +151,33 @@ impl Renamer {
                     self.leave_scope();
                 });
             }
-            Expr::Let { bind, expr, cont } => {
+            Expr::Let {
+                bind,
+                expr,
+                cont,
+                span: _,
+            } => {
                 self.visit_expr(expr);
                 self.enter_scope();
                 self.intro_val_var(bind);
                 self.visit_expr(cont);
                 self.leave_scope();
             }
-            Expr::Ifte { cond, then, els } => {
+            Expr::Ifte {
+                cond,
+                then,
+                els,
+                span: _,
+            } => {
                 self.visit_expr(cond);
                 self.visit_expr(then);
                 self.visit_expr(els);
             }
-            Expr::Assert { expr, cont } => {
+            Expr::Assert {
+                expr,
+                cont,
+                span: _,
+            } => {
                 self.visit_expr(expr);
                 self.visit_expr(cont);
             }
@@ -156,27 +186,35 @@ impl Renamer {
 
     fn visit_goal(&mut self, goal: &mut Goal) {
         match goal {
-            Goal::Fresh { vars, body } => {
+            Goal::Fresh {
+                vars,
+                body,
+                span: _,
+            } => {
                 self.enter_scope();
                 vars.iter_mut().for_each(|var| self.intro_val_var(var));
                 self.visit_goal(body);
                 self.leave_scope();
             }
-            Goal::Eq { lhs, rhs } => {
+            Goal::Eq { lhs, rhs, span: _ } => {
                 self.visit_expr(lhs);
                 self.visit_expr(rhs);
             }
-            Goal::Fail { expr } => {
+            Goal::Fail { expr, span: _ } => {
                 self.visit_expr(expr);
             }
-            Goal::Pred { pred, args } => {
+            Goal::Pred {
+                pred,
+                args,
+                span: _,
+            } => {
                 self.update_val_var(pred);
                 args.iter_mut().for_each(|arg| self.visit_expr(arg));
             }
-            Goal::And { goals } => {
+            Goal::And { goals, span: _ } => {
                 goals.iter_mut().for_each(|goal| self.visit_goal(goal));
             }
-            Goal::Or { goals } => {
+            Goal::Or { goals, span: _ } => {
                 goals.iter_mut().for_each(|goal| self.visit_goal(goal));
             }
         }
