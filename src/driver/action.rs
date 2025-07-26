@@ -13,6 +13,7 @@ use crate::tych::rename;
 pub struct Pipeline<'src, 'log, Log: io::Write> {
     src: &'src str,
     log: &'log mut Log,
+    verbosity: u8,
     diags: Vec<Diagnostic>,
 }
 
@@ -23,6 +24,7 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         Pipeline {
             src,
             log,
+            verbosity: 10,
             diags: Vec::new(),
         }
     }
@@ -45,9 +47,16 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
     // }
 
     pub fn parse_program(&mut self) -> PipeResult<ast::Program> {
-        let prog = syntax::parser::parse_program(&mut self.diags, &self.src);
-        self.check_diag()?;
-        Ok(prog)
+        let (prog, errs) = syntax::parser::parse_program(&self.src);
+        if errs.is_empty() {
+            Ok(prog)
+        } else {
+            for err in errs {
+                let diag: Diagnostic = err.into();
+                write!(&mut self.log, "{}", diag.report(self.src, self.verbosity)).unwrap();
+            }
+            Err(())
+        }
     }
 
     pub fn rename_pass(&mut self, prog: &mut ast::Program) -> PipeResult<HashMap<Ident, Ident>> {

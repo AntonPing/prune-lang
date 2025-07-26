@@ -543,9 +543,8 @@ begin
     end
 end
 "#;
-    let mut diags = Vec::new();
-    let prog = crate::syntax::parser::parse_program(&mut diags, src);
-    assert!(diags.is_empty());
+    let (prog, errs) = crate::syntax::parser::parse_program(&src);
+    assert!(errs.is_empty());
 
     let dict = prog_to_dict(&prog);
     println!("{:#?}", dict);

@@ -383,15 +383,8 @@ begin
     )
 end
 "#;
-    let mut diags = Vec::new();
-    let mut prog = crate::syntax::parser::parse_program(&mut diags, src);
-    // assert!(diags.is_empty());
-
-    // for diag in diags {
-    //     println!("{}", diag.report(src, 10));
-    // }
-
-    // println!("{:#?}", prog);
+    let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
+    assert!(errs.is_empty());
 
     crate::tych::rename::rename_pass(&mut prog).unwrap();
 

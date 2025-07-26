@@ -3,30 +3,53 @@ use super::*;
 use crate::driver::diagnostic::Diagnostic;
 use crate::syntax::ast::*;
 
-pub struct Parser<'src, 'diag> {
+pub struct Parser<'src> {
     source: &'src str,
     tokens: Vec<TokenSpan>,
     cursor: usize,
-    diags: &'diag mut Vec<Diagnostic>,
+    errors: Vec<ParseError>,
 }
 
 #[derive(Debug, Clone)]
-enum ParseError {
+pub enum ParseError {
     LexerError(Span),
     UnknownPrim(Span),
     FailedToMatch(Token, Token, Span),
     FailedToParse(&'static str, Token, Span),
 }
+
+impl Into<Diagnostic> for ParseError {
+    fn into(self) -> Diagnostic {
+        match self {
+            ParseError::LexerError(span) => Diagnostic::error("cannot scan next token!")
+                .line_span(span.clone(), "here is the bad token"),
+
+            ParseError::UnknownPrim(span) => Diagnostic::error("unknown primitve!")
+                .line_span(span.clone(), "here is the primitive"),
+            ParseError::FailedToMatch(expect, found, span) => {
+                Diagnostic::error("cannot match token!").line_span(
+                    span.clone(),
+                    format!("expect token {expect:?}, found token {found:?}"),
+                )
+            }
+            ParseError::FailedToParse(name, found, span) => {
+                Diagnostic::error(format!("cannot parse {name}!"))
+                    .line_span(span.clone(), format!("found token {found:?}"))
+            }
+        }
+    }
+}
+
 type ParseResult<T> = Result<T, ParseError>;
 
-impl<'src, 'diag> Parser<'src, 'diag> {
-    pub fn new(src: &'src str, diags: &'diag mut Vec<Diagnostic>) -> Parser<'src, 'diag> {
+impl<'src> Parser<'src> {
+    pub fn new(src: &'src str) -> Parser<'src> {
         let tokens = lexer::tokenize(src);
         Parser {
             source: src,
             tokens,
             cursor: 0,
-            diags,
+            errors: Vec::new(),
         }
     }
 
@@ -72,30 +95,6 @@ impl<'src, 'diag> Parser<'src, 'diag> {
 
     fn end_pos(&self) -> usize {
         self.tokens[self.cursor - 1].span.end
-    }
-
-    fn emit(&mut self, err: &ParseError) {
-        match err {
-            ParseError::LexerError(span) => self.diags.push(
-                Diagnostic::error("cannot scan next token!")
-                    .line_span(span.clone(), "here is the bad token"),
-            ),
-            ParseError::UnknownPrim(span) => self.diags.push(
-                Diagnostic::error("unknown primitve!")
-                    .line_span(span.clone(), "here is the primitive"),
-            ),
-            ParseError::FailedToMatch(expect, found, span) => {
-                self.diags
-                    .push(Diagnostic::error("cannot match token!").line_span(
-                        span.clone(),
-                        format!("expect token {expect:?}, found token {found:?}"),
-                    ))
-            }
-            ParseError::FailedToParse(name, found, span) => self.diags.push(
-                Diagnostic::error(format!("cannot parse {name}!"))
-                    .line_span(span.clone(), format!("found token {found:?}")),
-            ),
-        }
     }
 
     fn next_token(&mut self) -> ParseResult<&TokenSpan> {
@@ -651,11 +650,12 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                     // toplevel error recovering
                     match self.parse_decl() {
                         Ok(res) => decls.push(res),
-                        Err(err) => self.emit(&err),
+                        Err(err) => self.errors.push(err),
                     }
                 }
                 Token::TokError => {
-                    self.emit(&ParseError::LexerError(self.peek_span().clone()));
+                    self.errors
+                        .push(ParseError::LexerError(self.peek_span().clone()));
                     self.cursor += 1;
                 }
                 Token::EndOfFile => break,
@@ -686,15 +686,15 @@ impl<'src, 'diag> Parser<'src, 'diag> {
     }
 }
 
-pub fn parse_program<'src, 'diag>(diags: &'diag mut Vec<Diagnostic>, src: &'src str) -> Program {
-    let mut pass = Parser::new(src, diags);
-    let res = pass.parse_program();
-    res
+pub fn parse_program<'src, 'diag>(src: &'src str) -> (Program, Vec<ParseError>) {
+    let mut pass = Parser::new(src);
+    let prog = pass.parse_program();
+    (prog, pass.errors)
 }
 
 #[test]
 fn parser_test() {
-    let s = r#"
+    let src = r#"
 // test line comment
 /*
     /*
@@ -727,11 +727,10 @@ begin
     is_elem(append(xs, x), x) = false
 end
 "#;
-    let mut diags = Vec::new();
-    let res = parse_program(&mut diags, s);
-    println!("{:#?}", res);
+    let (_prog, errs) = parse_program(&src);
+    // println!("{:#?}", prog);
 
-    assert!(diags.is_empty());
+    assert!(errs.is_empty());
 
     // for diag in diags {
     //     println!("{}", diag.report(s, 10));

@@ -333,9 +333,8 @@ begin
 end
 "#;
 
-    let mut diags = Vec::new();
-    let mut prog = crate::syntax::parser::parse_program(&mut diags, src);
-    assert!(diags.is_empty());
+    let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
+    assert!(errs.is_empty());
 
     rename_pass(&mut prog).unwrap();
 
