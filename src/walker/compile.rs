@@ -150,8 +150,7 @@ pub fn compile_dict(
 
 #[test]
 fn compile_pred_test() {
-    use crate::syntax;
-    let p1: &'static str = r#"
+    let src: &'static str = r#"
 datatype IntList where
 | Cons(Int, IntList)
 | Nil
@@ -178,9 +177,10 @@ begin
     is_elem(append(xs, x), x) = false
 end
 "#;
-    let prog = syntax::parser_gen::parser::ProgramParser::new()
-        .parse(&p1)
-        .unwrap();
+    let mut diags = Vec::new();
+    let prog = crate::syntax::parser::parse_program(&mut diags, src);
+    assert!(diags.is_empty());
+
     let dict = crate::logic::transform::prog_to_dict(&prog);
     let (codes, map) = compile_dict(&dict);
     for (i, code) in codes.iter().enumerate() {

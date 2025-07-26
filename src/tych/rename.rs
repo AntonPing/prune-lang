@@ -262,7 +262,7 @@ pub fn rename_pass(prog: &mut Program) -> Result<HashMap<Ident, Ident>, Vec<Rena
 
 #[test]
 fn renamer_test() {
-    let p1: &'static str = r#"
+    let src: &'static str = r#"
 datatype IntList where
 | Cons(Int, IntList)
 | Nil
@@ -287,16 +287,17 @@ end
 predicate is_elem_after_append(xs: IntList, x: Int)
 begin
     fresh(ys) (
-        ys = append(xs, x);
-        is_elem(ys, x) = false;
+        and(
+            ys = append(xs, x),
+            is_elem(ys, x) = false,
+        )
     )
 end
 "#;
-    let mut prog = crate::syntax::parser_gen::parser::ProgramParser::new()
-        .parse(p1)
-        .unwrap();
 
-    // println!("{:#?}", prog);
+    let mut diags = Vec::new();
+    let mut prog = crate::syntax::parser::parse_program(&mut diags, src);
+    assert!(diags.is_empty());
 
     rename_pass(&mut prog).unwrap();
 

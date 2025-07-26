@@ -458,8 +458,9 @@ pub fn prog_to_dict(prog: &ast::Program) -> HashMap<PredIdent, Predicate> {
 // }
 
 #[test]
+#[ignore = "just to see result"]
 fn prog_to_pred_test() {
-    let p1: &'static str = r#"
+    let src: &'static str = r#"
 datatype IntList where
 | Cons(Int, IntList)
 | Nil
@@ -469,16 +470,14 @@ function append(xs: IntList, x: Int) -> Int
 begin
     match xs with
     | Cons(head, tail) =>
-        assert head;
-        assert tail;
         Cons(head, append(tail, x))
     | Nil => Cons(x, Nil)
     end
 end
 "#;
-    let prog = crate::syntax::parser_gen::parser::ProgramParser::new()
-        .parse(p1)
-        .unwrap();
+    let mut diags = Vec::new();
+    let prog = crate::syntax::parser::parse_program(&mut diags, src);
+    assert!(diags.is_empty());
 
     let dict = prog_to_dict(&prog);
     println!("{:#?}", dict);

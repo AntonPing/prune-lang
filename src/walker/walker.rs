@@ -298,7 +298,7 @@ fn test_walker() {
     use crate::logic::ast::*;
     use crate::utils::ident::Ident;
 
-    let p1: &'static str = r#"
+    let src: &'static str = r#"
 datatype IntList where
 | Cons(Int, IntList)
 | Nil
@@ -326,11 +326,11 @@ begin
 end
     "#;
 
-    let prog = crate::syntax::parser_gen::parser::ProgramParser::new()
-        .parse(&p1)
-        .unwrap();
-    let dict = crate::logic::transform::prog_to_dict(&prog);
+    let mut diags = Vec::new();
+    let prog = crate::syntax::parser::parse_program(&mut diags, src);
+    assert!(diags.is_empty());
 
+    let dict = crate::logic::transform::prog_to_dict(&prog);
     // println!("{:#?}", dict);
     let (codes, map) = super::compile::compile_dict(&dict);
     // println!("{:?}", map);
