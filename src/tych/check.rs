@@ -386,9 +386,10 @@ end
     let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());
 
-    crate::tych::rename::rename_pass(&mut prog).unwrap();
+    let (_map, errs) = crate::tych::rename::rename_pass(&mut prog);
+    assert!(errs.is_empty());
 
-    println!("{:#?}", prog);
+    // println!("{:#?}", prog);
 
     let map = check_pass(&prog).unwrap();
 

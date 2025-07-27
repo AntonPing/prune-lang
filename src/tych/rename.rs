@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::*;
 
 use crate::syntax::ast::*;
@@ -8,39 +6,77 @@ use crate::utils::env_map::EnvMap;
 struct Renamer {
     /// map a dummy identifier to an unique Identifier
     val_map: EnvMap<Ident, Ident>,
+    func_pred_map: EnvMap<Ident, Ident>,
     typ_map: EnvMap<Ident, Ident>,
     cons_map: EnvMap<Ident, Ident>,
-    error: Vec<RenameError>,
+    errors: Vec<RenameError>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RenameError {
     UnboundedValueVariable(Ident),
+    UnboundedFuncPredVariable(Ident),
     UnboundedTypeVariable(Ident),
-    UnboundedConstructorVariable(Ident),
-    MultipuleValueDefinition(Ident),
-    MultipuleTypeDefinition(Ident),
-    MultipuleConstructorDefinition(Ident),
+    UnboundedConstrVariable(Ident),
+    MultipleValueDefinition(Ident),
+    MultipleFuncPredDefinition(Ident),
+    MultipleTypeDefinition(Ident),
+    MultipleConstrDefinition(Ident),
+}
+
+use crate::driver::diagnostic::Diagnostic;
+impl Into<Diagnostic> for RenameError {
+    fn into(self) -> Diagnostic {
+        match self {
+            RenameError::UnboundedValueVariable(var) => {
+                Diagnostic::error(format!("unbounded value variable {var}!"))
+            }
+            RenameError::UnboundedFuncPredVariable(var) => {
+                Diagnostic::error(format!("unbounded func-pred variable {var}!"))
+            }
+            RenameError::UnboundedTypeVariable(var) => {
+                Diagnostic::error(format!("unbounded type variable {var}!"))
+            }
+            RenameError::UnboundedConstrVariable(var) => {
+                Diagnostic::error(format!("unbounded constructor variable {var}!"))
+            }
+            RenameError::MultipleValueDefinition(var) => {
+                Diagnostic::error(format!("unbounded value variable {var}!"))
+            }
+            RenameError::MultipleFuncPredDefinition(var) => {
+                Diagnostic::error(format!("unbounded func-pred variable {var}!"))
+            }
+            RenameError::MultipleTypeDefinition(var) => {
+                Diagnostic::error(format!("unbounded type variable {var}!"))
+            }
+            RenameError::MultipleConstrDefinition(var) => {
+                Diagnostic::error(format!("unbounded constructor variable {var}!"))
+            }
+        }
+    }
 }
 
 impl Renamer {
     fn new() -> Renamer {
         Renamer {
             val_map: EnvMap::new(),
+            func_pred_map: EnvMap::new(),
             typ_map: EnvMap::new(),
             cons_map: EnvMap::new(),
-            error: Vec::new(),
+            errors: Vec::new(),
         }
     }
 
     fn enter_scope(&mut self) {
         self.val_map.enter_scope();
+        self.func_pred_map.enter_scope();
         self.typ_map.enter_scope();
         self.cons_map.enter_scope();
     }
 
     fn leave_scope(&mut self) {
         self.val_map.leave_scope();
+        self.func_pred_map.leave_scope();
         self.typ_map.leave_scope();
         self.cons_map.leave_scope();
     }
@@ -49,7 +85,17 @@ impl Renamer {
         assert!(var.is_dummy());
         let new_var = var.uniquify();
         if self.val_map.insert(*var, new_var) {
-            self.error.push(RenameError::MultipuleValueDefinition(*var));
+            self.errors.push(RenameError::MultipleValueDefinition(*var));
+        }
+        *var = new_var
+    }
+
+    fn intro_func_pred_var(&mut self, var: &mut Ident) {
+        assert!(var.is_dummy());
+        let new_var = var.uniquify();
+        if self.func_pred_map.insert(*var, new_var) {
+            self.errors
+                .push(RenameError::MultipleFuncPredDefinition(*var));
         }
         *var = new_var
     }
@@ -58,7 +104,7 @@ impl Renamer {
         assert!(var.is_dummy());
         let new_var = var.uniquify();
         if self.typ_map.insert(*var, new_var) {
-            self.error.push(RenameError::MultipuleTypeDefinition(*var));
+            self.errors.push(RenameError::MultipleTypeDefinition(*var));
         }
         *var = new_var
     }
@@ -67,8 +113,8 @@ impl Renamer {
         assert!(var.is_dummy());
         let new_var = var.uniquify();
         if self.cons_map.insert(*var, new_var) {
-            self.error
-                .push(RenameError::MultipuleConstructorDefinition(*var));
+            self.errors
+                .push(RenameError::MultipleConstrDefinition(*var));
         }
         *var = new_var
     }
@@ -76,7 +122,17 @@ impl Renamer {
     fn update_val_var(&mut self, var: &mut Ident) {
         assert!(var.is_dummy());
         let new_var = self.val_map.get(var).copied().unwrap_or_else(|| {
-            self.error.push(RenameError::UnboundedValueVariable(*var));
+            self.errors.push(RenameError::UnboundedValueVariable(*var));
+            *var
+        });
+        *var = new_var;
+    }
+
+    fn update_func_pred_var(&mut self, var: &mut Ident) {
+        assert!(var.is_dummy());
+        let new_var = self.func_pred_map.get(var).copied().unwrap_or_else(|| {
+            self.errors
+                .push(RenameError::UnboundedFuncPredVariable(*var));
             *var
         });
         *var = new_var;
@@ -85,7 +141,7 @@ impl Renamer {
     fn update_typ_var(&mut self, var: &mut Ident) {
         assert!(var.is_dummy());
         let new_var = self.typ_map.get(var).copied().unwrap_or_else(|| {
-            self.error.push(RenameError::UnboundedTypeVariable(*var));
+            self.errors.push(RenameError::UnboundedTypeVariable(*var));
             *var
         });
         *var = new_var;
@@ -94,8 +150,7 @@ impl Renamer {
     fn update_cons_var(&mut self, var: &mut Ident) {
         assert!(var.is_dummy());
         let new_var = self.cons_map.get(var).copied().unwrap_or_else(|| {
-            self.error
-                .push(RenameError::UnboundedConstructorVariable(*var));
+            self.errors.push(RenameError::UnboundedConstrVariable(*var));
             *var
         });
         *var = new_var;
@@ -126,7 +181,7 @@ impl Renamer {
                 args,
                 span: _,
             } => {
-                self.update_val_var(func);
+                self.update_func_pred_var(func);
                 args.iter_mut().for_each(|arg| self.visit_expr(arg));
             }
             Expr::Cons {
@@ -208,7 +263,7 @@ impl Renamer {
                 args,
                 span: _,
             } => {
-                self.update_val_var(pred);
+                self.update_func_pred_var(pred);
                 args.iter_mut().for_each(|arg| self.visit_expr(arg));
             }
             Goal::And { goals, span: _ } => {
@@ -221,7 +276,7 @@ impl Renamer {
     }
 
     fn visit_func_decl_head(&mut self, func_decl: &mut FuncDecl) {
-        self.intro_val_var(&mut func_decl.name);
+        self.intro_func_pred_var(&mut func_decl.name);
     }
 
     fn visit_func_decl(&mut self, func_decl: &mut FuncDecl) {
@@ -235,7 +290,7 @@ impl Renamer {
     }
 
     fn visit_pred_decl_head(&mut self, pred_decl: &mut PredDecl) {
-        self.intro_val_var(&mut pred_decl.name);
+        self.intro_func_pred_var(&mut pred_decl.name);
     }
 
     fn visit_pred_decl(&mut self, pred_decl: &mut PredDecl) {
@@ -288,14 +343,13 @@ impl Renamer {
     }
 }
 
-pub fn rename_pass(prog: &mut Program) -> Result<HashMap<Ident, Ident>, Vec<RenameError>> {
+pub fn rename_pass(prog: &mut Program) -> (HashMap<Ident, Ident>, Vec<RenameError>) {
     let mut pass = Renamer::new();
     pass.visit_prog(prog);
-    if pass.error.is_empty() {
-        Ok(pass.val_map.iter().map(|x| (*x.0, *x.1)).collect())
-    } else {
-        Err(pass.error)
-    }
+    (
+        pass.func_pred_map.iter().map(|(k, v)| (*k, *v)).collect(),
+        pass.errors,
+    )
 }
 
 #[test]
@@ -336,7 +390,8 @@ end
     let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());
 
-    rename_pass(&mut prog).unwrap();
+    let (_map, errs) = rename_pass(&mut prog);
+    assert!(errs.is_empty());
 
     // println!("{:#?}", prog);
     // println!("{:#?}", errs);

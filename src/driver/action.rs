@@ -60,13 +60,16 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
     }
 
     pub fn rename_pass(&mut self, prog: &mut ast::Program) -> PipeResult<HashMap<Ident, Ident>> {
-        let map = rename::rename_pass(prog).map_err(|errs| {
-            errs.into_iter().for_each(|_err| {
-                self.diags.push(Diagnostic::error("rename error!"));
-            });
-        })?;
-        self.check_diag()?;
-        Ok(map)
+        let (map, errs) = rename::rename_pass(prog);
+        if errs.is_empty() {
+            Ok(map)
+        } else {
+            for err in errs {
+                let diag: Diagnostic = err.into();
+                write!(&mut self.log, "{}", diag.report(self.src, self.verbosity)).unwrap();
+            }
+            Err(())
+        }
     }
 
     pub fn create_walker(
