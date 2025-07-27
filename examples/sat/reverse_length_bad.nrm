@@ -28,3 +28,5 @@ predicate same_length_after_reverse(xs: IntList)
 begin
     @icmpeq(length(reverse(xs)), length(xs)) = false
 end
+
+entry same_length_after_reverse(10, 1000, 10)

@@ -23,3 +23,5 @@ predicate is_elem_after_append(xs: IntList, x: Int)
 begin
     is_elem(append(xs, x), x) = false
 end
+
+entry is_elem_after_append(10, 51, 1)

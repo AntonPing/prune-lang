@@ -50,3 +50,5 @@ begin
         is_sorted(insert(tree, x)) = false,
     )
 end
+
+entry always_sorted(10, 1000, 10)

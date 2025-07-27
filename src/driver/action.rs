@@ -75,38 +75,34 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
     pub fn create_walker(
         &'log mut self,
         prog: &ast::Program,
-    ) -> Result<(Walker<'log, Log>, HashMap<PredIdent, usize>), ()> {
+    ) -> (Walker<'log, Log>, HashMap<PredIdent, usize>) {
         let dict = crate::logic::transform::prog_to_dict(&prog);
-        let (codes, entrys) = compile::compile_dict(&dict);
+        let (codes, map) = compile::compile_dict(&dict);
         let wlk = Walker::new(codes, self.log);
-        Ok((wlk, entrys))
+        (wlk, map)
     }
 
-    pub fn test_prog(
-        &'log mut self,
-        entry: &'static str,
-        start: usize,
-        end: usize,
-        step: usize,
-    ) -> Result<bool, ()> {
+    pub fn test_prog(&'log mut self) -> Result<Vec<bool>, ()> {
         let mut prog = self.parse_program()?;
-        let map = self.rename_pass(&mut prog)?;
-        let (mut wlk, entrys) = self.create_walker(&prog)?;
-        let entry = entrys
-            .get(&PredIdent::Check(map[&Ident::dummy(&entry)]))
-            .ok_or(())?;
-        let res = wlk.run_loop(*entry, start, end, step);
-        Ok(res)
+        let _ = self.rename_pass(&mut prog)?;
+        let (mut wlk, map) = self.create_walker(&prog);
+
+        let mut res_vec = Vec::new();
+        for entry_decl in prog.entrys {
+            let entry = map[&PredIdent::Check(entry_decl.entry)];
+            let res = wlk.run_loop(
+                entry,
+                entry_decl.iter_start,
+                entry_decl.iter_end,
+                entry_decl.iter_step,
+            );
+            res_vec.push(res);
+        }
+        Ok(res_vec)
     }
 }
 
-pub fn test_unsat_prog<P: AsRef<path::Path>>(
-    prog_name: P,
-    entry: &'static str,
-    start: usize,
-    end: usize,
-    step: usize,
-) -> Result<(), ()> {
+pub fn test_unsat_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
     let mut path = PathBuf::new();
     path.push("examples");
     path.push("unsat");
@@ -115,18 +111,12 @@ pub fn test_unsat_prog<P: AsRef<path::Path>>(
     let src = fs::read_to_string(path).map_err(|_err| ())?;
     let mut log = io::empty();
     let mut pipe = Pipeline::new(&src, &mut log);
-    let res = pipe.test_prog(entry, start, end, step)?;
-    assert_eq!(res, false);
+    let res_vec = pipe.test_prog()?;
+    assert!(res_vec.iter().any(|p| !*p));
     Ok(())
 }
 
-pub fn test_sat_prog<P: AsRef<path::Path>>(
-    prog_name: P,
-    entry: &'static str,
-    start: usize,
-    end: usize,
-    step: usize,
-) -> Result<(), ()> {
+pub fn test_sat_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
     let mut path = PathBuf::new();
     path.push("examples");
     path.push("sat");
@@ -135,7 +125,7 @@ pub fn test_sat_prog<P: AsRef<path::Path>>(
     let src = fs::read_to_string(path).map_err(|_err| ())?;
     let mut log = io::empty();
     let mut pipe = Pipeline::new(&src, &mut log);
-    let res = pipe.test_prog(entry, start, end, step)?;
-    assert_eq!(res, true);
+    let res_vec = pipe.test_prog()?;
+    assert!(res_vec.iter().all(|p| *p));
     Ok(())
 }

@@ -120,3 +120,5 @@ begin
 		is_sorted(rotate(tree)) = false,
     )
 end
+
+entry always_sorted(10, 51, 1)
