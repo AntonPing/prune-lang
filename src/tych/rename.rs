@@ -318,6 +318,10 @@ impl Renamer {
         self.leave_scope();
     }
 
+    fn visit_entry_decl(&mut self, entry_decl: &mut EntryDecl) {
+        self.update_func_pred_var(&mut entry_decl.entry);
+    }
+
     fn visit_prog(&mut self, prog: &mut Program) {
         // first iteration: visit heads
         prog.datas
@@ -340,6 +344,9 @@ impl Renamer {
         prog.preds
             .iter_mut()
             .for_each(|pred_decl| self.visit_pred_decl(pred_decl));
+        prog.entrys
+            .iter_mut()
+            .for_each(|entry_decl| self.visit_entry_decl(entry_decl));
     }
 }
 
@@ -359,6 +366,8 @@ datatype IntList where
 | Cons(Int, IntList)
 | Nil
 end
+
+entry is_elem_after_append(10, 20, 5)
 
 function append(xs: IntList, x: Int) -> Int
 begin

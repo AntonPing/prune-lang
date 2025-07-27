@@ -5,6 +5,7 @@ pub struct Program {
     pub datas: Vec<DataDecl>,
     pub funcs: Vec<FuncDecl>,
     pub preds: Vec<PredDecl>,
+    pub entrys: Vec<EntryDecl>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -12,6 +13,7 @@ pub enum Declaration {
     Data(DataDecl),
     Func(FuncDecl),
     Pred(PredDecl),
+    Entry(EntryDecl),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -136,4 +138,13 @@ pub enum Goal {
         goals: Vec<Goal>,
         span: Span,
     },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct EntryDecl {
+    pub entry: Ident,
+    pub iter_start: usize,
+    pub iter_end: usize,
+    pub iter_step: usize,
+    pub span: Span,
 }

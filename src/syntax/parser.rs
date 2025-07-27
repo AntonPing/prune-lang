@@ -620,6 +620,51 @@ impl<'src> Parser<'src> {
         })
     }
 
+    fn parse_int(&mut self) -> ParseResult<usize> {
+        match self.peek_token() {
+            Token::Int => {
+                let x = self.peek_slice().parse::<i64>().unwrap();
+                if x >= 0 {
+                    self.next_token()?;
+                    Ok(x as usize)
+                } else {
+                    Err(ParseError::FailedToParse(
+                        "positive integer",
+                        self.peek_token(),
+                        self.peek_span().clone(),
+                    ))
+                }
+            }
+            _ => Err(ParseError::FailedToParse(
+                "positive integer",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
+        }
+    }
+
+    fn parse_entry_decl(&mut self) -> ParseResult<EntryDecl> {
+        let start = self.start_pos();
+        self.match_token(Token::Entry)?;
+        let entry = self.parse_lident()?;
+        self.match_token(Token::LParen)?;
+        let iter_start = self.parse_int()?;
+        self.match_token(Token::Comma)?;
+        let iter_end = self.parse_int()?;
+        self.match_token(Token::Comma)?;
+        let iter_step = self.parse_int()?;
+        self.match_token(Token::RParen)?;
+        let end = self.end_pos();
+        let span = Span { start, end };
+        Ok(EntryDecl {
+            entry,
+            iter_start,
+            iter_end,
+            iter_step,
+            span,
+        })
+    }
+
     fn parse_decl(&mut self) -> ParseResult<Declaration> {
         match self.peek_token() {
             Token::Datatype => {
@@ -634,6 +679,10 @@ impl<'src> Parser<'src> {
                 let decl = self.parse_pred_decl()?;
                 Ok(Declaration::Pred(decl))
             }
+            Token::Entry => {
+                let decl = self.parse_entry_decl()?;
+                Ok(Declaration::Entry(decl))
+            }
             _tok => Err(ParseError::FailedToParse(
                 "declaration",
                 self.peek_token(),
@@ -646,7 +695,7 @@ impl<'src> Parser<'src> {
         let mut decls: Vec<Declaration> = Vec::new();
         loop {
             match self.peek_token() {
-                Token::Datatype | Token::Function | Token::Predicate => {
+                Token::Datatype | Token::Function | Token::Predicate | Token::Entry => {
                     // toplevel error recovering
                     match self.parse_decl() {
                         Ok(res) => decls.push(res),
@@ -669,12 +718,14 @@ impl<'src> Parser<'src> {
         let mut datas = Vec::new();
         let mut funcs = Vec::new();
         let mut preds = Vec::new();
+        let mut entrys = Vec::new();
 
         for decl in decls.into_iter() {
             match decl {
                 Declaration::Data(data) => datas.push(data),
                 Declaration::Func(func) => funcs.push(func),
                 Declaration::Pred(pred) => preds.push(pred),
+                Declaration::Entry(entry) => entrys.push(entry),
             }
         }
 
@@ -682,6 +733,7 @@ impl<'src> Parser<'src> {
             datas,
             funcs,
             preds,
+            entrys,
         }
     }
 }
