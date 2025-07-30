@@ -38,10 +38,12 @@ impl Subst {
     }
 
     pub fn savepoint(&mut self) {
+        assert!(self.bridge.is_empty());
         self.saves.push(self.map.len())
     }
 
     pub fn backtrack(&mut self) {
+        assert!(self.bridge.is_empty());
         let len = self.saves.pop().unwrap();
         for _ in 0..(self.map.len() - len) {
             self.map.pop().unwrap();

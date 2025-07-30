@@ -87,6 +87,7 @@ impl Solver {
         self.unify_vec.push((lhs.clone(), rhs.clone()));
 
         if self.subst.unify(lhs, rhs).is_err() {
+            self.subst.bridge.clear();
             return Err(());
         }
         for (x, term) in self.subst.bridge.drain(..) {
