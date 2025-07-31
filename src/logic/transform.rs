@@ -174,20 +174,6 @@ impl Transformer {
                 ]);
                 (Term::Var(x), goal)
             }
-            Expr::Assert {
-                expr,
-                cont,
-                span: _,
-            } => {
-                let (term1, goal1) = self.translate_expr(expr);
-                let (term2, goal2) = self.translate_expr(cont);
-                let goal = Goal::And(vec![
-                    goal1,
-                    unify_decompose(term1, Term::Lit(LitVal::Bool(true))),
-                    goal2,
-                ]);
-                (term2, goal)
-            }
         }
     }
 
@@ -211,7 +197,6 @@ impl Transformer {
                 let (term2, goal2) = self.translate_expr(rhs);
                 Goal::And(vec![goal1, goal2, unify_decompose(term1, term2)])
             }
-            ast::Goal::Fail { expr: _, span: _ } => todo!(),
             ast::Goal::Pred {
                 pred,
                 args,

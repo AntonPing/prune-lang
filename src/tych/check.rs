@@ -183,16 +183,6 @@ impl Checker {
                 self.unify(&then, &els)?;
                 Ok(then)
             }
-            Expr::Assert {
-                expr,
-                cont,
-                span: _,
-            } => {
-                let expr = self.check_expr(expr)?;
-                let cont = self.check_expr(cont)?;
-                self.unify(&UnifyType::Lit(LitType::TyBool), &expr)?;
-                Ok(cont)
-            }
         }
     }
 
@@ -214,10 +204,6 @@ impl Checker {
                 let lhs = self.check_expr(lhs)?;
                 let rhs = self.check_expr(rhs)?;
                 self.unify(&lhs, &rhs)?;
-                Ok(())
-            }
-            Goal::Fail { expr, span: _ } => {
-                self.check_expr(expr)?;
                 Ok(())
             }
             Goal::Pred {

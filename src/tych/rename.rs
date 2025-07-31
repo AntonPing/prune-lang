@@ -228,14 +228,6 @@ impl Renamer {
                 self.visit_expr(then);
                 self.visit_expr(els);
             }
-            Expr::Assert {
-                expr,
-                cont,
-                span: _,
-            } => {
-                self.visit_expr(expr);
-                self.visit_expr(cont);
-            }
         }
     }
 
@@ -254,9 +246,6 @@ impl Renamer {
             Goal::Eq { lhs, rhs, span: _ } => {
                 self.visit_expr(lhs);
                 self.visit_expr(rhs);
-            }
-            Goal::Fail { expr, span: _ } => {
-                self.visit_expr(expr);
             }
             Goal::Pred {
                 pred,

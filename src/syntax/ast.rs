@@ -94,11 +94,6 @@ pub enum Expr {
         els: Box<Expr>,
         span: Span,
     },
-    Assert {
-        expr: Box<Expr>,
-        cont: Box<Expr>,
-        span: Span,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -119,10 +114,6 @@ pub enum Goal {
     Eq {
         lhs: Expr,
         rhs: Expr,
-        span: Span,
-    },
-    Fail {
-        expr: Expr,
         span: Span,
     },
     Pred {
