@@ -336,6 +336,6 @@ end
 
     let mut log = std::io::empty();
     let mut wlk = Walker::new(codes, &mut log);
-    let entry = map[&PredIdent::Check(Ident::dummy(&"is_elem_after_append"))];
+    let entry = map[&PredIdent::Pos(Ident::dummy(&"is_elem_after_append"))];
     assert!(!wlk.run_loop(entry, 10, 100, 10))
 }

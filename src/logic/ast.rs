@@ -1,32 +1,27 @@
 use super::*;
 
+// This enum is for supporting non-monotonic logic in the future
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub enum PredIdent {
-    Succ(Ident),
-    Fail(Ident),
-    Check(Ident),
+    Pos(Ident),
+    Neg(Ident),
 }
 
 impl PredIdent {
-    pub fn is_succ(&self) -> bool {
-        matches!(self, PredIdent::Succ(_))
+    pub fn is_pos(&self) -> bool {
+        matches!(self, PredIdent::Pos(_))
     }
 
-    pub fn is_fail(&self) -> bool {
-        matches!(self, PredIdent::Fail(_))
-    }
-
-    pub fn is_check(&self) -> bool {
-        matches!(self, PredIdent::Check(_))
+    pub fn is_neg(&self) -> bool {
+        matches!(self, PredIdent::Neg(_))
     }
 }
 
 impl std::fmt::Display for PredIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PredIdent::Succ(ident) => write!(f, "(succ){}", ident),
-            PredIdent::Fail(ident) => write!(f, "(fail){}", ident),
-            PredIdent::Check(ident) => write!(f, "(check){}", ident),
+            PredIdent::Pos(ident) => write!(f, "(+){}", ident),
+            PredIdent::Neg(ident) => write!(f, "(-){}", ident),
         }
     }
 }

@@ -89,7 +89,7 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
 
         let mut res_vec = Vec::new();
         for entry_decl in prog.entrys {
-            let entry = map[&PredIdent::Check(entry_decl.entry)];
+            let entry = map[&PredIdent::Pos(entry_decl.entry)];
             let res = wlk.run_loop(
                 entry,
                 entry_decl.iter_start,

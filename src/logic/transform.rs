@@ -51,9 +51,9 @@ impl Transformer {
         var
     }
 
-    fn translate_succ_func(&mut self, func: &ast::FuncDecl) -> Predicate {
+    fn translate_func(&mut self, func: &ast::FuncDecl) -> Predicate {
         assert!(self.vars.is_empty());
-        let (term, goal) = self.translate_succ_expr(&func.body);
+        let (term, goal) = self.translate_expr(&func.body);
         let name = func.name;
         let mut pars: Vec<Ident> = func.pars.iter().map(|(id, _typ)| *id).collect();
         let x = Ident::fresh(&"res_func");
@@ -61,28 +61,14 @@ impl Transformer {
         let vars = self.vars.drain(..).collect();
         let goal = Goal::And(vec![Goal::Eq(x, term), goal]);
         Predicate {
-            name: PredIdent::Succ(name),
+            name: PredIdent::Pos(name),
             pars,
             vars,
             goal: goal_optimize(goal),
         }
     }
 
-    fn translate_fail_func(&mut self, func: &ast::FuncDecl) -> Predicate {
-        assert!(self.vars.is_empty());
-        let goal = self.translate_fail_expr(&func.body);
-        let name = func.name;
-        let pars: Vec<Ident> = func.pars.iter().map(|(id, _typ)| *id).collect();
-        let vars = self.vars.drain(..).collect();
-        Predicate {
-            name: PredIdent::Fail(name),
-            pars,
-            vars,
-            goal: goal_optimize(goal),
-        }
-    }
-
-    fn translate_succ_expr(&mut self, expr: &Expr) -> (Term<Ident>, Goal) {
+    fn translate_expr(&mut self, expr: &Expr) -> (Term<Ident>, Goal) {
         match expr {
             Expr::Lit { lit, span: _ } => (Term::Lit(*lit), Goal::Const(true)),
             Expr::Var { var, span: _ } => (Term::Var(*var), Goal::Const(true)),
@@ -93,7 +79,7 @@ impl Transformer {
             } => {
                 let x = self.fresh_var("res_prim");
                 let (mut terms, mut goals): (Vec<Term<Ident>>, Vec<Goal>) =
-                    args.iter().map(|arg| self.translate_succ_expr(arg)).unzip();
+                    args.iter().map(|arg| self.translate_expr(arg)).unzip();
                 terms.push(Term::Var(x));
                 goals.push(Goal::Prim(*prim, terms));
                 (Term::Var(x), Goal::And(goals))
@@ -104,7 +90,7 @@ impl Transformer {
                 span: _,
             } => {
                 let (terms, goals): (Vec<Term<Ident>>, Vec<Goal>) =
-                    flds.iter().map(|fld| self.translate_succ_expr(fld)).unzip();
+                    flds.iter().map(|fld| self.translate_expr(fld)).unzip();
                 (Term::Cons(*name, terms), Goal::And(goals))
             }
             Expr::Match {
@@ -113,7 +99,7 @@ impl Transformer {
                 span: _,
             } => {
                 let x = self.fresh_var("res_match");
-                let (term, goal) = self.translate_succ_expr(expr);
+                let (term, goal) = self.translate_expr(expr);
                 let goals = brchs
                     .iter()
                     .map(|(patn, expr)| {
@@ -130,7 +116,7 @@ impl Transformer {
                             ),
                             term.clone(),
                         );
-                        let (term2, goal2) = self.translate_succ_expr(expr);
+                        let (term2, goal2) = self.translate_expr(expr);
                         let goal3 = Goal::Eq(x, term2);
                         Goal::And(vec![goal1, goal2, goal3])
                     })
@@ -143,8 +129,8 @@ impl Transformer {
                 cont,
                 span: _,
             } => {
-                let (term1, goal1) = self.translate_succ_expr(expr);
-                let (term2, goal2) = self.translate_succ_expr(cont);
+                let (term1, goal1) = self.translate_expr(expr);
+                let (term2, goal2) = self.translate_expr(cont);
                 self.vars.push(*bind);
                 let goal = Goal::And(vec![goal1, Goal::Eq(*bind, term1), goal2]);
                 (term2, goal)
@@ -156,9 +142,9 @@ impl Transformer {
             } => {
                 let x = self.fresh_var("res_app");
                 let (mut terms, mut goals): (Vec<Term<Ident>>, Vec<Goal>) =
-                    args.iter().map(|arg| self.translate_succ_expr(arg)).unzip();
+                    args.iter().map(|arg| self.translate_expr(arg)).unzip();
                 terms.push(Term::Var(x));
-                goals.push(Goal::PredCall(PredIdent::Succ(*func), terms));
+                goals.push(Goal::PredCall(PredIdent::Pos(*func), terms));
                 (Term::Var(x), Goal::And(goals))
             }
             Expr::Ifte {
@@ -168,9 +154,9 @@ impl Transformer {
                 span: _,
             } => {
                 let x = self.fresh_var("res_if");
-                let (term0, goal0) = self.translate_succ_expr(cond);
-                let (term1, goal1) = self.translate_succ_expr(then);
-                let (term2, goal2) = self.translate_succ_expr(els);
+                let (term0, goal0) = self.translate_expr(cond);
+                let (term1, goal1) = self.translate_expr(then);
+                let (term2, goal2) = self.translate_expr(els);
                 let goal = Goal::And(vec![
                     goal0,
                     Goal::Or(vec![
@@ -193,8 +179,8 @@ impl Transformer {
                 cont,
                 span: _,
             } => {
-                let (term1, goal1) = self.translate_succ_expr(expr);
-                let (term2, goal2) = self.translate_succ_expr(cont);
+                let (term1, goal1) = self.translate_expr(expr);
+                let (term2, goal2) = self.translate_expr(cont);
                 let goal = Goal::And(vec![
                     goal1,
                     unify_decompose(term1, Term::Lit(LitVal::Bool(true))),
@@ -205,153 +191,13 @@ impl Transformer {
         }
     }
 
-    fn translate_fail_expr(&mut self, expr: &Expr) -> Goal {
-        match expr {
-            Expr::Lit { lit: _, span: _ } => Goal::Const(false),
-            Expr::Var { var: _, span: _ } => Goal::Const(false),
-            Expr::Prim {
-                prim: _,
-                args,
-                span: _,
-            } => {
-                let goals = args
-                    .iter()
-                    .map(|expr| self.translate_fail_expr(expr))
-                    .collect();
-                Goal::Or(goals)
-            }
-            Expr::Cons {
-                name: _,
-                flds,
-                span: _,
-            } => {
-                let goals = flds
-                    .iter()
-                    .map(|expr| self.translate_fail_expr(expr))
-                    .collect();
-                Goal::Or(goals)
-            }
-            Expr::Match {
-                expr,
-                brchs,
-                span: _,
-            } => {
-                let fail_goal = self.translate_fail_expr(expr);
-                let (term, succ_goal) = self.translate_succ_expr(expr);
-                let goals = brchs
-                    .iter()
-                    .map(|(patn, expr)| {
-                        let goal1 = unify_decompose(
-                            Term::Cons(
-                                patn.name,
-                                patn.flds
-                                    .iter()
-                                    .map(|fld| {
-                                        self.vars.push(*fld);
-                                        Term::Var(*fld)
-                                    })
-                                    .collect(),
-                            ),
-                            term.clone(),
-                        );
-                        let goal2 = self.translate_fail_expr(expr);
-                        Goal::And(vec![goal1, goal2])
-                    })
-                    .collect();
-                Goal::Or(vec![fail_goal, Goal::And(vec![succ_goal, Goal::Or(goals)])])
-            }
-            Expr::Let {
-                bind,
-                expr,
-                cont,
-                span: _,
-            } => {
-                let fail_goal1 = self.translate_fail_expr(expr);
-                let (term1, succ_goal1) = self.translate_succ_expr(expr);
-                let fail_goal2 = self.translate_fail_expr(cont);
-                self.vars.push(*bind);
-                Goal::Or(vec![
-                    fail_goal1,
-                    Goal::And(vec![succ_goal1, Goal::Eq(*bind, term1), fail_goal2]),
-                ])
-            }
-            Expr::App {
-                func,
-                args,
-                span: _,
-            } => {
-                let fail_goals = args
-                    .iter()
-                    .map(|arg| self.translate_fail_expr(arg))
-                    .collect();
-
-                let (terms, goals): (Vec<Term<Ident>>, Vec<Goal>) =
-                    args.iter().map(|arg| self.translate_succ_expr(arg)).unzip();
-
-                Goal::Or(vec![
-                    Goal::Or(fail_goals),
-                    Goal::And(vec![
-                        Goal::And(goals),
-                        Goal::PredCall(PredIdent::Fail(*func), terms),
-                    ]),
-                ])
-            }
-            Expr::Ifte {
-                cond,
-                then,
-                els,
-                span: _,
-            } => {
-                let fail_goal0 = self.translate_fail_expr(cond);
-                let (term0, succ_goal0) = self.translate_succ_expr(cond);
-                let fail_goal1 = self.translate_fail_expr(then);
-                let fail_goal2 = self.translate_fail_expr(els);
-                Goal::Or(vec![
-                    fail_goal0,
-                    Goal::And(vec![
-                        succ_goal0.clone(),
-                        unify_decompose(term0.clone(), Term::Lit(LitVal::Bool(true))),
-                        fail_goal1,
-                    ]),
-                    Goal::And(vec![
-                        succ_goal0,
-                        unify_decompose(term0.clone(), Term::Lit(LitVal::Bool(false))),
-                        fail_goal2,
-                    ]),
-                ])
-            }
-            Expr::Assert {
-                expr,
-                cont,
-                span: _,
-            } => {
-                let fail_goal1 = self.translate_fail_expr(expr);
-                let (term1, succ_goal1) = self.translate_succ_expr(expr);
-                let fail_goal2 = self.translate_fail_expr(cont);
-
-                Goal::Or(vec![
-                    fail_goal1,
-                    Goal::And(vec![
-                        succ_goal1.clone(),
-                        unify_decompose(term1.clone(), Term::Lit(LitVal::Bool(false))),
-                    ]),
-                    Goal::And(vec![
-                        succ_goal1,
-                        unify_decompose(term1, Term::Lit(LitVal::Bool(true))),
-                        fail_goal2,
-                    ]),
-                ])
-            }
-        }
-    }
-
     fn compile_pred(&mut self, pred: &ast::PredDecl) -> Predicate {
         assert!(self.vars.is_empty());
         let body = self.compile_goal(&pred.body);
         let pars: Vec<Ident> = pred.pars.iter().map(|(id, _typ)| *id).collect();
         let vars = self.vars.drain(..).collect();
         Predicate {
-            name: PredIdent::Check(pred.name),
+            name: PredIdent::Pos(pred.name),
             pars,
             vars,
             goal: goal_optimize(body),
@@ -361,22 +207,22 @@ impl Transformer {
     fn compile_goal(&mut self, goal: &ast::Goal) -> Goal {
         match goal {
             ast::Goal::Eq { lhs, rhs, span: _ } => {
-                let (term1, goal1) = self.translate_succ_expr(lhs);
-                let (term2, goal2) = self.translate_succ_expr(rhs);
+                let (term1, goal1) = self.translate_expr(lhs);
+                let (term2, goal2) = self.translate_expr(rhs);
                 Goal::And(vec![goal1, goal2, unify_decompose(term1, term2)])
             }
-            ast::Goal::Fail { expr, span: _ } => self.translate_fail_expr(expr),
+            ast::Goal::Fail { expr: _, span: _ } => todo!(),
             ast::Goal::Pred {
                 pred,
                 args,
                 span: _,
             } => {
                 let (args, mut goals): (Vec<Term<Ident>>, Vec<Goal>) =
-                    args.iter().map(|arg| self.translate_succ_expr(arg)).unzip();
+                    args.iter().map(|arg| self.translate_expr(arg)).unzip();
                 if goals.is_empty() {
-                    Goal::PredCall(PredIdent::Check(*pred), args)
+                    Goal::PredCall(PredIdent::Pos(*pred), args)
                 } else {
-                    goals.push(Goal::PredCall(PredIdent::Check(*pred), args));
+                    goals.push(Goal::PredCall(PredIdent::Pos(*pred), args));
                     Goal::And(goals)
                 }
             }
@@ -436,14 +282,12 @@ pub fn prog_to_dict(prog: &ast::Program) -> HashMap<PredIdent, Predicate> {
     let mut pass = Transformer::new();
     let mut dict = HashMap::new();
     for func in &prog.funcs {
-        let succ_pred = pass.translate_succ_func(func);
-        let fail_pred = pass.translate_fail_func(func);
-        dict.insert(PredIdent::Succ(func.name), succ_pred);
-        dict.insert(PredIdent::Fail(func.name), fail_pred);
+        let pred = pass.translate_func(func);
+        dict.insert(PredIdent::Pos(func.name), pred);
     }
     for pred in &prog.preds {
         let check_pred = pass.compile_pred(pred);
-        dict.insert(PredIdent::Check(pred.name), check_pred);
+        dict.insert(PredIdent::Pos(pred.name), check_pred);
     }
     dict
 }
