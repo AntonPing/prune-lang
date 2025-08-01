@@ -107,7 +107,7 @@ pub fn test_unsat_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
     path.push("examples");
     path.push("unsat");
     path.push(prog_name);
-    path.set_extension("nrm");
+    path.set_extension("pr");
     let src = fs::read_to_string(path).map_err(|_err| ())?;
     let mut log = io::empty();
     let mut pipe = Pipeline::new(&src, &mut log);
@@ -121,7 +121,7 @@ pub fn test_sat_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
     path.push("examples");
     path.push("sat");
     path.push(prog_name);
-    path.set_extension("nrm");
+    path.set_extension("pr");
     let src = fs::read_to_string(path).map_err(|_err| ())?;
     let mut log = io::empty();
     let mut pipe = Pipeline::new(&src, &mut log);

@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use norem_lang::driver::action;
+use prune_lang::driver::action;
 
 fn bench_append(c: &mut Criterion) {
     c.bench_function("append", |b| {

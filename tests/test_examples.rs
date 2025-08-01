@@ -1,4 +1,4 @@
-use norem_lang::driver::action;
+use prune_lang::driver::action;
 
 #[test]
 fn test_append() {
