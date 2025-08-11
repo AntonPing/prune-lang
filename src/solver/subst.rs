@@ -1,9 +1,10 @@
+use crate::utils::env_map::EnvMap;
+
 use super::*;
 
 #[derive(Debug)]
 pub struct Subst {
-    map: Vec<(IdentCtx, Term<IdentCtx>)>,
-    saves: Vec<usize>,
+    map: EnvMap<IdentCtx, Term<IdentCtx>>,
     pub bridge: Vec<(IdentCtx, Term<IdentCtx>)>,
 }
 
@@ -12,8 +13,6 @@ impl std::fmt::Display for Subst {
         for (x, term) in self.map.iter() {
             writeln!(f, "{x} = {term}")?;
         }
-        let saves = self.saves.iter().format(&", ");
-        writeln!(f, "subst save:[{saves:?}]")?;
         Ok(())
     }
 }
@@ -21,33 +20,29 @@ impl std::fmt::Display for Subst {
 impl Subst {
     pub fn new() -> Subst {
         Subst {
-            map: Vec::new(),
-            saves: Vec::new(),
+            map: EnvMap::new(),
             bridge: Vec::new(),
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.saves.is_empty()
+        assert!(self.bridge.is_empty());
+        self.map.is_scope_empty()
     }
 
     pub fn reset(&mut self) {
         self.map.clear();
-        self.saves.clear();
         self.bridge.clear();
     }
 
     pub fn savepoint(&mut self) {
         assert!(self.bridge.is_empty());
-        self.saves.push(self.map.len())
+        self.map.enter_scope();
     }
 
     pub fn backtrack(&mut self) {
         assert!(self.bridge.is_empty());
-        let len = self.saves.pop().unwrap();
-        for _ in 0..(self.map.len() - len) {
-            self.map.pop().unwrap();
-        }
+        self.map.leave_scope();
     }
 }
 
@@ -57,7 +52,7 @@ impl Subst {
     }
     pub fn walk_safe(&self, var: &IdentCtx, iter: usize) -> Term<IdentCtx> {
         assert!(iter < 1000);
-        for (k, v) in self.map.iter().rev() {
+        for (k, v) in self.map.iter() {
             if *k == *var {
                 if let Term::Var(var2) = v {
                     return self.walk_safe(var2, iter + 1);
@@ -76,7 +71,7 @@ impl Subst {
             }
             Term::Cons(_, _) => {}
         }
-        self.map.push((x, term));
+        self.map.insert(x, term);
     }
 
     pub fn unify(&mut self, lhs: Term<IdentCtx>, rhs: Term<IdentCtx>) -> Result<(), ()> {

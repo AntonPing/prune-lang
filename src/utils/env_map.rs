@@ -85,6 +85,19 @@ where
         self.base_map.is_empty()
     }
 
+    /// Returns `true` if there is no saved scope frame
+    pub fn is_scope_empty(&self) -> bool {
+        self.scopes.is_empty()
+    }
+
+    /// Clears the map, removing all key-value pairs. Keeps the allocated memory
+    /// for reuse.
+    pub fn clear(&mut self) {
+        self.base_map.clear();
+        self.history.clear();
+        self.scopes.clear();
+    }
+
     /// Returns a reference to the value corresponding to the key.
     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
     where
