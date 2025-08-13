@@ -5,7 +5,6 @@ use super::*;
 #[derive(Debug)]
 pub struct Subst {
     map: EnvMap<IdentCtx, Term<IdentCtx>>,
-    pub bridge: Vec<(IdentCtx, Term<IdentCtx>)>,
 }
 
 impl std::fmt::Display for Subst {
@@ -19,29 +18,22 @@ impl std::fmt::Display for Subst {
 
 impl Subst {
     pub fn new() -> Subst {
-        Subst {
-            map: EnvMap::new(),
-            bridge: Vec::new(),
-        }
+        Subst { map: EnvMap::new() }
     }
 
     pub fn is_empty(&self) -> bool {
-        assert!(self.bridge.is_empty());
         self.map.is_scope_empty()
     }
 
     pub fn reset(&mut self) {
         self.map.clear();
-        self.bridge.clear();
     }
 
     pub fn savepoint(&mut self) {
-        assert!(self.bridge.is_empty());
         self.map.enter_scope();
     }
 
     pub fn backtrack(&mut self) {
-        assert!(self.bridge.is_empty());
         self.map.leave_scope();
     }
 }
@@ -64,17 +56,37 @@ impl Subst {
         Term::Var(*var)
     }
 
-    pub fn bind(&mut self, x: IdentCtx, term: Term<IdentCtx>) {
+    pub fn unify(
+        &mut self,
+        lhs: Term<IdentCtx>,
+        rhs: Term<IdentCtx>,
+    ) -> Result<Vec<(IdentCtx, Term<IdentCtx>)>, ()> {
+        let mut subst = Vec::new();
+        self.unify_help(&mut subst, lhs, rhs)?;
+        Ok(subst)
+    }
+
+    pub fn bind(
+        &mut self,
+        subst: &mut Vec<(IdentCtx, Term<IdentCtx>)>,
+        x: IdentCtx,
+        term: Term<IdentCtx>,
+    ) {
         match term {
             Term::Var(_) | Term::Lit(_) => {
-                self.bridge.push((x, term.clone()));
+                subst.push((x, term.clone()));
             }
             Term::Cons(_, _) => {}
         }
         self.map.insert(x, term);
     }
 
-    pub fn unify(&mut self, lhs: Term<IdentCtx>, rhs: Term<IdentCtx>) -> Result<(), ()> {
+    pub fn unify_help(
+        &mut self,
+        subst: &mut Vec<(IdentCtx, Term<IdentCtx>)>,
+        lhs: Term<IdentCtx>,
+        rhs: Term<IdentCtx>,
+    ) -> Result<(), ()> {
         let lhs = if let Term::Var(var) = lhs {
             self.walk(&var)
         } else {
@@ -88,7 +100,7 @@ impl Subst {
         match (lhs, rhs) {
             (Term::Var(x1), Term::Var(x2)) if x1 == x2 => Ok(()),
             (Term::Var(x), term) | (term, Term::Var(x)) => {
-                self.bind(x, term);
+                self.bind(subst, x, term);
                 Ok(())
             }
             (Term::Lit(lit1), Term::Lit(lit2)) => {
@@ -102,7 +114,7 @@ impl Subst {
                 if cons1 == cons2 {
                     assert_eq!(flds1.len(), flds2.len());
                     for (fld1, fld2) in flds1.into_iter().zip(flds2.into_iter()) {
-                        self.unify(fld1, fld2)?;
+                        self.unify_help(subst, fld1, fld2)?;
                     }
                     Ok(())
                 } else {

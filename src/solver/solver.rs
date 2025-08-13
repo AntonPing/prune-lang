@@ -86,13 +86,11 @@ impl Solver {
     pub fn unify(&mut self, lhs: Term<IdentCtx>, rhs: Term<IdentCtx>) -> Result<(), ()> {
         self.unify_vec.push((lhs.clone(), rhs.clone()));
 
-        if self.subst.unify(lhs, rhs).is_err() {
-            self.subst.bridge.clear();
-            return Err(());
-        }
-        for (x, term) in self.subst.bridge.drain(..) {
+        let mut subst = self.subst.unify(lhs, rhs)?;
+        for (x, term) in subst.drain(..) {
             self.constr.push_eq(x, term)
         }
+
         if !self.constr.solve() {
             return Err(());
         }
