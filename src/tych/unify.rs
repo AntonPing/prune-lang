@@ -19,10 +19,23 @@ impl From<&Type> for UnifyType {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UnifyError {
     VecDiffLen(Vec<UnifyType>, Vec<UnifyType>),
     CannotUnify(UnifyType, UnifyType),
     OccurCheckFailed(usize, UnifyType),
+}
+
+use crate::driver::diagnostic::Diagnostic;
+impl Into<Diagnostic> for UnifyError {
+    // todo: better error message
+    fn into(self) -> Diagnostic {
+        match self {
+            UnifyError::VecDiffLen(_, _) => Diagnostic::error(format!("VecDiffLen!")),
+            UnifyError::CannotUnify(_, _) => Diagnostic::error(format!("CannotUnify!")),
+            UnifyError::OccurCheckFailed(_, _) => Diagnostic::error(format!("OccurCheckFailed!")),
+        }
+    }
 }
 
 type UnifyResult = Result<(), UnifyError>;

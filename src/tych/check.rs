@@ -2,9 +2,8 @@ use super::*;
 
 use super::unify::{UnifySolver, UnifyType};
 use crate::syntax::ast::*;
+use crate::tych::unify::UnifyError;
 use crate::utils::prim::Prim;
-
-type CheckResult<T> = Result<T, ()>;
 
 struct Checker {
     val_ctx: HashMap<Ident, UnifyType>,
@@ -13,6 +12,7 @@ struct Checker {
     cons_ctx: HashMap<Ident, (Vec<UnifyType>, UnifyType)>,
     data_ctx: HashMap<Ident, Vec<Ident>>,
     solver: UnifySolver,
+    diag: Vec<UnifyError>,
 }
 
 impl Checker {
@@ -24,6 +24,7 @@ impl Checker {
             cons_ctx: HashMap::new(),
             data_ctx: HashMap::new(),
             solver: UnifySolver::new(),
+            diag: Vec::new(),
         }
     }
 
@@ -31,89 +32,73 @@ impl Checker {
         UnifyType::Cell(self.solver.new_cell())
     }
 
-    fn unify(&mut self, typ1: &UnifyType, typ2: &UnifyType) -> CheckResult<()> {
+    fn unify(&mut self, typ1: &UnifyType, typ2: &UnifyType) {
         match self.solver.unify(typ1, typ2) {
             Ok(()) => {}
-            Err(err) => match err {
-                unify::UnifyError::VecDiffLen(_typs1, _typs2) => {
-                    // self.diags.push(Diagnostic::error(
-                    //     "cannot unify varibles with different length!",
-                    // ));
-                }
-                unify::UnifyError::CannotUnify(_typ1, _typ2) => {
-                    // self.diags.push(Diagnostic::error("cannot unify types!"));
-                }
-                unify::UnifyError::OccurCheckFailed(_var, _typ) => {
-                    // self.diags.push(Diagnostic::error("occur check failed!"));
-                }
-            },
-        }
-        Ok(())
-    }
-
-    fn unify_vec(&mut self, vec1: &Vec<UnifyType>, vec2: &Vec<UnifyType>) -> CheckResult<()> {
-        if vec1.len() != vec2.len() {
-            Err(())
-        } else {
-            for (typ1, typ2) in vec1.iter().zip(vec2.iter()) {
-                self.unify(typ1, typ2)?;
+            Err(err) => {
+                self.diag.push(err);
             }
-            Ok(())
         }
     }
 
-    fn check_prim(&mut self, prim: &Prim, args: &Vec<Expr>) -> CheckResult<UnifyType> {
-        let args = args
-            .iter()
-            .map(|arg| self.check_expr(arg))
-            .collect::<CheckResult<Vec<_>>>()?;
+    fn unify_many(&mut self, typs1: &Vec<UnifyType>, typs2: &Vec<UnifyType>) {
+        match self.solver.unify_many(typs1, typs2) {
+            Ok(()) => {}
+            Err(err) => {
+                self.diag.push(err);
+            }
+        }
+    }
+
+    fn check_prim(&mut self, prim: &Prim, args: &Vec<Expr>) -> UnifyType {
+        let args = args.iter().map(|arg| self.check_expr(arg)).collect();
 
         match prim {
             Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem => {
-                self.unify_vec(
+                self.unify_many(
                     &vec![
                         UnifyType::Lit(LitType::TyInt),
                         UnifyType::Lit(LitType::TyInt),
                     ],
                     &args,
-                )?;
-                Ok(UnifyType::Lit(LitType::TyInt))
+                );
+                UnifyType::Lit(LitType::TyInt)
             }
             Prim::INeg => {
-                self.unify_vec(&vec![UnifyType::Lit(LitType::TyInt)], &args)?;
-                Ok(UnifyType::Lit(LitType::TyInt))
+                self.unify_many(&vec![UnifyType::Lit(LitType::TyInt)], &args);
+                UnifyType::Lit(LitType::TyInt)
             }
             Prim::ICmp(_) => {
-                self.unify_vec(
+                self.unify_many(
                     &vec![
                         UnifyType::Lit(LitType::TyInt),
                         UnifyType::Lit(LitType::TyInt),
                     ],
                     &args,
-                )?;
-                Ok(UnifyType::Lit(LitType::TyInt))
+                );
+                UnifyType::Lit(LitType::TyBool)
             }
             Prim::BAnd | Prim::BOr => {
-                self.unify_vec(
+                self.unify_many(
                     &vec![
                         UnifyType::Lit(LitType::TyBool),
                         UnifyType::Lit(LitType::TyBool),
                     ],
                     &args,
-                )?;
-                Ok(UnifyType::Lit(LitType::TyBool))
+                );
+                UnifyType::Lit(LitType::TyBool)
             }
             Prim::BNot => {
-                self.unify_vec(&vec![UnifyType::Lit(LitType::TyBool)], &args)?;
-                Ok(UnifyType::Lit(LitType::TyBool))
+                self.unify_many(&vec![UnifyType::Lit(LitType::TyBool)], &args);
+                UnifyType::Lit(LitType::TyBool)
             }
         }
     }
 
-    fn check_expr(&mut self, expr: &Expr) -> CheckResult<UnifyType> {
+    fn check_expr(&mut self, expr: &Expr) -> UnifyType {
         match expr {
-            Expr::Lit { lit, span: _ } => Ok(UnifyType::Lit(lit.get_typ())),
-            Expr::Var { var, span: _ } => Ok(self.val_ctx[var].clone()),
+            Expr::Lit { lit, span: _ } => UnifyType::Lit(lit.get_typ()),
+            Expr::Var { var, span: _ } => self.val_ctx[var].clone(),
             Expr::Prim {
                 prim,
                 args,
@@ -124,28 +109,25 @@ impl Checker {
                 flds,
                 span: _,
             } => {
-                let flds = flds
-                    .iter()
-                    .map(|fld| self.check_expr(fld))
-                    .collect::<CheckResult<Vec<_>>>()?;
+                let flds = flds.iter().map(|fld| self.check_expr(fld)).collect();
                 let (pars, res) = self.cons_ctx[name].clone();
-                self.unify_vec(&pars, &flds)?;
-                Ok(res)
+                self.unify_many(&pars, &flds);
+                res
             }
             Expr::Match {
                 expr,
                 brchs,
                 span: _,
             } => {
-                let expr = self.check_expr(expr)?;
+                let expr = self.check_expr(expr);
                 let res = self.fresh();
                 for (lhs, rhs) in brchs.iter() {
-                    let lhs = self.check_patn(lhs)?;
-                    self.unify(&expr, &lhs)?;
-                    let rhs = self.check_expr(rhs)?;
-                    self.unify(&res, &rhs)?;
+                    let lhs = self.check_patn(lhs);
+                    self.unify(&expr, &lhs);
+                    let rhs = self.check_expr(rhs);
+                    self.unify(&res, &rhs);
                 }
-                Ok(res)
+                res
             }
             Expr::Let {
                 bind,
@@ -153,7 +135,7 @@ impl Checker {
                 cont,
                 span: _,
             } => {
-                let expr = self.check_expr(expr)?;
+                let expr = self.check_expr(expr);
                 self.val_ctx.insert(*bind, expr);
                 self.check_expr(&cont)
             }
@@ -163,12 +145,9 @@ impl Checker {
                 span: _,
             } => {
                 let (pars, res) = self.func_ctx[func].clone();
-                let args = args
-                    .iter()
-                    .map(|arg| self.check_expr(arg))
-                    .collect::<CheckResult<Vec<_>>>()?;
-                self.unify_vec(&pars, &args)?;
-                Ok(res)
+                let args = args.iter().map(|arg| self.check_expr(arg)).collect();
+                self.unify_many(&pars, &args);
+                res
             }
             Expr::Ifte {
                 cond,
@@ -176,17 +155,17 @@ impl Checker {
                 els,
                 span: _,
             } => {
-                let cond = self.check_expr(cond)?;
-                let then = self.check_expr(then)?;
-                let els = self.check_expr(els)?;
-                self.unify(&UnifyType::Lit(LitType::TyBool), &cond)?;
-                self.unify(&then, &els)?;
-                Ok(then)
+                let cond = self.check_expr(cond);
+                let then = self.check_expr(then);
+                let els = self.check_expr(els);
+                self.unify(&UnifyType::Lit(LitType::TyBool), &cond);
+                self.unify(&then, &els);
+                then
             }
         }
     }
 
-    fn check_goal(&mut self, goal: &Goal) -> CheckResult<()> {
+    fn check_goal(&mut self, goal: &Goal) {
         match goal {
             Goal::Fresh {
                 vars,
@@ -197,14 +176,12 @@ impl Checker {
                     let cell = self.fresh();
                     self.val_ctx.insert(*var, cell);
                 }
-                self.check_goal(&body)?;
-                Ok(())
+                self.check_goal(&body);
             }
             Goal::Eq { lhs, rhs, span: _ } => {
-                let lhs = self.check_expr(lhs)?;
-                let rhs = self.check_expr(rhs)?;
-                self.unify(&lhs, &rhs)?;
-                Ok(())
+                let lhs = self.check_expr(lhs);
+                let rhs = self.check_expr(rhs);
+                self.unify(&lhs, &rhs);
             }
             Goal::Pred {
                 pred,
@@ -212,39 +189,28 @@ impl Checker {
                 span: _,
             } => {
                 let pars = self.pred_ctx[pred].clone();
-                let args = args
-                    .iter()
-                    .map(|arg| self.check_expr(arg))
-                    .collect::<CheckResult<Vec<_>>>()?;
-                self.unify_vec(&pars, &args)?;
-                Ok(())
+                let args = args.iter().map(|arg| self.check_expr(arg)).collect();
+                self.unify_many(&pars, &args);
             }
             Goal::And { goals, span: _ } => {
                 for goal in goals {
-                    self.check_goal(goal)?;
+                    self.check_goal(goal);
                 }
-                Ok(())
             }
             Goal::Or { goals, span: _ } => {
                 for goal in goals {
-                    self.check_goal(goal)?;
+                    self.check_goal(goal);
                 }
-                Ok(())
             }
         }
     }
 
-    fn check_patn(&mut self, patn: &Pattern) -> CheckResult<UnifyType> {
+    fn check_patn(&mut self, patn: &Pattern) -> UnifyType {
         let (pars, res) = self.cons_ctx[&patn.name].clone();
-
-        pars.iter().zip(patn.flds.iter()).for_each(|(par, fld)| {
+        for (par, fld) in pars.iter().zip(patn.flds.iter()) {
             self.val_ctx.insert(*fld, par.clone());
-        });
-
-        let flds = patn.flds.iter().map(|fld| UnifyType::Var(*fld)).collect();
-        self.unify_vec(&pars, &flds)?;
-
-        Ok(res)
+        }
+        res
     }
 
     fn scan_data_decl_head(&mut self, data_decl: &DataDecl) {
@@ -279,31 +245,28 @@ impl Checker {
         self.pred_ctx.insert(pred_decl.name, pars);
     }
 
-    fn check_func_decl(&mut self, func_decl: &FuncDecl) -> CheckResult<()> {
+    fn check_func_decl(&mut self, func_decl: &FuncDecl) {
         let (pars_ty, res_ty) = self.func_ctx[&func_decl.name].clone();
 
         for ((par, _), par_ty) in func_decl.pars.iter().zip(pars_ty) {
             self.val_ctx.insert(*par, par_ty);
         }
 
-        let body_ty = self.check_expr(&func_decl.body)?;
-        self.unify(&res_ty, &body_ty)?;
-
-        Ok(())
+        let body_ty = self.check_expr(&func_decl.body);
+        self.unify(&res_ty, &body_ty);
     }
 
-    fn check_pred_decl(&mut self, pred_decl: &PredDecl) -> CheckResult<()> {
+    fn check_pred_decl(&mut self, pred_decl: &PredDecl) {
         let pars_ty = self.pred_ctx[&pred_decl.name].clone();
 
         for ((par, _), par_ty) in pred_decl.pars.iter().zip(pars_ty) {
             self.val_ctx.insert(*par, par_ty);
         }
 
-        self.check_goal(&pred_decl.body)?;
-        Ok(())
+        self.check_goal(&pred_decl.body);
     }
 
-    fn check_prog(&mut self, prog: &Program) -> CheckResult<()> {
+    fn check_prog(&mut self, prog: &Program) {
         for data_decl in prog.datas.iter() {
             self.scan_data_decl_head(&data_decl);
         }
@@ -317,21 +280,22 @@ impl Checker {
         }
 
         for func_decl in prog.funcs.iter() {
-            self.check_func_decl(&func_decl)?;
+            self.check_func_decl(&func_decl);
         }
 
         for pred_decl in prog.preds.iter() {
-            self.check_pred_decl(&pred_decl)?;
+            self.check_pred_decl(&pred_decl);
         }
-
-        Ok(())
     }
 }
 
-pub fn check_pass(prog: &Program) -> Result<HashMap<Ident, UnifyType>, ()> {
+pub fn check_pass(prog: &Program) -> (HashMap<Ident, UnifyType>, Vec<UnifyError>) {
     let mut pass = Checker::new();
-    pass.check_prog(prog)?;
-    Ok(pass.val_ctx)
+    pass.check_prog(prog);
+    let map = pass.val_ctx;
+    let sol = pass.solver;
+    let map = map.into_iter().map(|(k, v)| (k, sol.merge(&v))).collect();
+    (map, pass.diag)
 }
 
 #[test]
@@ -343,7 +307,7 @@ datatype IntList where
 | Nil
 end
 
-function append(xs: IntList, x: Int) -> Int
+function append(xs: IntList, x: Int) -> IntList
 begin
     match xs with
     | Cons(head, tail) => Cons(head, append(tail, x))
@@ -377,9 +341,11 @@ end
 
     // println!("{:#?}", prog);
 
-    let map = check_pass(&prog).unwrap();
+    let (_map, errs) = check_pass(&prog);
+    assert!(errs.is_empty());
 
-    println!("{:?}", map);
+    // println!("{:#?}", errs);
+    // println!("{:?}", map);
 
     // println!("{:#?}", prog);
     // println!("{:#?}", errs);

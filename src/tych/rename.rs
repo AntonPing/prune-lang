@@ -274,6 +274,7 @@ impl Renamer {
             self.intro_val_var(par);
             self.visit_type(typ);
         });
+        self.visit_type(&mut func_decl.res);
         self.visit_expr(&mut func_decl.body);
         self.leave_scope();
     }
