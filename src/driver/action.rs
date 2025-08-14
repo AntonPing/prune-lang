@@ -1,14 +1,14 @@
 use crate::driver::diagnostic::Diagnostic;
 use crate::logic::ast::*;
 use crate::syntax::{self, ast};
+use crate::tych;
+use crate::tych::unify::UnifyType;
 use crate::utils::ident::Ident;
 use crate::walker::{compile, walker::Walker};
 
 use std::collections::HashMap;
 use std::path::{self, PathBuf};
 use std::{fs, io};
-
-use crate::tych::rename;
 
 pub struct Pipeline<'src, 'log, Log: io::Write> {
     src: &'src str,
@@ -60,7 +60,20 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
     }
 
     pub fn rename_pass(&mut self, prog: &mut ast::Program) -> PipeResult<HashMap<Ident, Ident>> {
-        let (map, errs) = rename::rename_pass(prog);
+        let (map, errs) = tych::rename::rename_pass(prog);
+        if errs.is_empty() {
+            Ok(map)
+        } else {
+            for err in errs {
+                let diag: Diagnostic = err.into();
+                write!(&mut self.log, "{}", diag.report(self.src, self.verbosity)).unwrap();
+            }
+            Err(())
+        }
+    }
+
+    pub fn check_pass(&mut self, prog: &mut ast::Program) -> PipeResult<HashMap<Ident, UnifyType>> {
+        let (map, errs) = tych::check::check_pass(prog);
         if errs.is_empty() {
             Ok(map)
         } else {
@@ -84,9 +97,10 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
 
     pub fn test_prog(&'log mut self) -> Result<Vec<bool>, ()> {
         let mut prog = self.parse_program()?;
-        let _ = self.rename_pass(&mut prog)?;
-        let (mut wlk, map) = self.create_walker(&prog);
+        let _rename_map = self.rename_pass(&mut prog)?;
+        let _check_map = self.check_pass(&mut prog)?;
 
+        let (mut wlk, map) = self.create_walker(&prog);
         let mut res_vec = Vec::new();
         for entry_decl in prog.entrys {
             let entry = map[&PredIdent::Pos(entry_decl.entry)];

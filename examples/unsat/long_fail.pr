@@ -1,9 +1,9 @@
-datatype List where
-| Cons(Int, List)
+datatype IntList where
+| Cons(Int, IntList)
 | Nil
 end
 
-function length(xs: List) -> Int
+function length(xs: IntList) -> Int
 begin
     match xs with
     | Cons(head, tail) => @iadd(length(tail), 1)
@@ -12,7 +12,7 @@ begin
 end
 
 
-predicate p1(x: Int, xs: Int)
+predicate p1(x: Int, xs: IntList)
 begin
     and(
         @icmpgt(x, 42) = true,
@@ -20,7 +20,7 @@ begin
     )
 end
 
-predicate p2(x: Int, xs: Int)
+predicate p2(x: Int, xs: IntList)
 begin
     and(
         length(xs) = 100,
@@ -28,7 +28,7 @@ begin
     )
 end
 
-predicate long_fail(x: Int, xs: List, ys: List)
+predicate long_fail(x: Int, xs: IntList, ys: IntList)
 begin
 	and(
 		p1(x, xs),

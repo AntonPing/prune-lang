@@ -32,7 +32,9 @@ impl Into<Diagnostic> for UnifyError {
     fn into(self) -> Diagnostic {
         match self {
             UnifyError::VecDiffLen(_, _) => Diagnostic::error(format!("VecDiffLen!")),
-            UnifyError::CannotUnify(_, _) => Diagnostic::error(format!("CannotUnify!")),
+            UnifyError::CannotUnify(lhs, rhs) => {
+                Diagnostic::error(format!("CannotUnify {:?} and {:?}!", lhs, rhs))
+            }
             UnifyError::OccurCheckFailed(_, _) => Diagnostic::error(format!("OccurCheckFailed!")),
         }
     }

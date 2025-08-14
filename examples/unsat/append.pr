@@ -3,7 +3,7 @@ datatype IntList where
 | Nil
 end
 
-function append(xs: IntList, x: Int) -> Int
+function append(xs: IntList, x: Int) -> IntList
 begin
     match xs with
     | Cons(head, tail) => Cons(head, append(tail, x))
