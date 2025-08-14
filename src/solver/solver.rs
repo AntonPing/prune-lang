@@ -8,7 +8,7 @@ pub struct Solver {
     subst: Subst,
     constr: Constr,
     unify_vec: Vec<(Term<IdentCtx>, Term<IdentCtx>)>,
-    solve_vec: Vec<(Prim, Vec<Term<IdentCtx>>)>,
+    solve_vec: Vec<(Prim, Vec<Atom>)>,
     saves: Vec<(usize, usize)>,
 }
 
@@ -98,8 +98,14 @@ impl Solver {
     }
 
     pub fn solve(&mut self, prim: Prim, args: Vec<Term<IdentCtx>>) -> Result<(), ()> {
+        let args: Vec<Atom> = args
+            .iter()
+            .map(|arg| {
+                let atom: Option<Atom> = arg.into();
+                atom.unwrap()
+            })
+            .collect();
         self.solve_vec.push((prim.clone(), args.clone()));
-
         self.constr.push_cons(prim, args);
         if !self.constr.solve() {
             return Err(());

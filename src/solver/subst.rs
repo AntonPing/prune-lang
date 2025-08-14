@@ -60,21 +60,19 @@ impl Subst {
         &mut self,
         lhs: Term<IdentCtx>,
         rhs: Term<IdentCtx>,
-    ) -> Result<Vec<(IdentCtx, Term<IdentCtx>)>, ()> {
+    ) -> Result<Vec<(IdentCtx, Atom)>, ()> {
         let mut subst = Vec::new();
         self.unify_help(&mut subst, lhs, rhs)?;
         Ok(subst)
     }
 
-    pub fn bind(
-        &mut self,
-        subst: &mut Vec<(IdentCtx, Term<IdentCtx>)>,
-        x: IdentCtx,
-        term: Term<IdentCtx>,
-    ) {
+    pub fn bind(&mut self, subst: &mut Vec<(IdentCtx, Atom)>, x: IdentCtx, term: Term<IdentCtx>) {
         match term {
-            Term::Var(_) | Term::Lit(_) => {
-                subst.push((x, term.clone()));
+            Term::Var(var) => {
+                subst.push((x, Atom::Var(var)));
+            }
+            Term::Lit(lit) => {
+                subst.push((x, Atom::Lit(lit)));
             }
             Term::Cons(_, _) => {}
         }
@@ -83,7 +81,7 @@ impl Subst {
 
     pub fn unify_help(
         &mut self,
-        subst: &mut Vec<(IdentCtx, Term<IdentCtx>)>,
+        subst: &mut Vec<(IdentCtx, Atom)>,
         lhs: Term<IdentCtx>,
         rhs: Term<IdentCtx>,
     ) -> Result<(), ()> {
