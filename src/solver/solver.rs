@@ -7,8 +7,8 @@ use super::subst::*;
 pub struct Solver {
     subst: Subst,
     constr: Constr,
-    unify_vec: Vec<(Term<IdentCtx>, Term<IdentCtx>)>,
-    solve_vec: Vec<(Prim, Vec<Atom>)>,
+    unify_vec: Vec<(TermCtx, TermCtx)>,
+    solve_vec: Vec<(Prim, Vec<AtomCtx>)>,
     saves: Vec<(usize, usize)>,
 }
 
@@ -83,7 +83,7 @@ impl Solver {
         self.constr.declare_var(var);
     }
 
-    pub fn unify(&mut self, lhs: Term<IdentCtx>, rhs: Term<IdentCtx>) -> Result<(), ()> {
+    pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Result<(), ()> {
         self.unify_vec.push((lhs.clone(), rhs.clone()));
 
         let mut subst = self.subst.unify(lhs, rhs)?;
@@ -97,14 +97,8 @@ impl Solver {
         Ok(())
     }
 
-    pub fn solve(&mut self, prim: Prim, args: Vec<Term<IdentCtx>>) -> Result<(), ()> {
-        let args: Vec<Atom> = args
-            .iter()
-            .map(|arg| {
-                let atom: Option<Atom> = arg.into();
-                atom.unwrap()
-            })
-            .collect();
+    pub fn solve(&mut self, prim: Prim, args: Vec<TermCtx>) -> Result<(), ()> {
+        let args: Vec<AtomCtx> = args.iter().map(|arg| arg.to_atom().unwrap()).collect();
         self.solve_vec.push((prim.clone(), args.clone()));
         self.constr.push_cons(prim, args);
         if !self.constr.solve() {
@@ -144,10 +138,12 @@ fn test_solver() {
 
     sol.unify(
         Term::Cons(
+            (),
             Ident::dummy(&"Cons"),
             vec![Term::Var(x.tag_ctx(0)), Term::Var(y.tag_ctx(0))],
         ),
         Term::Cons(
+            (),
             Ident::dummy(&"Cons"),
             vec![Term::Lit(LitVal::Int(43)), Term::Lit(LitVal::Int(42))],
         ),

@@ -4,7 +4,7 @@ use super::*;
 
 #[derive(Debug)]
 pub struct Subst {
-    map: EnvMap<IdentCtx, Term<IdentCtx>>,
+    map: EnvMap<IdentCtx, TermCtx>,
 }
 
 impl std::fmt::Display for Subst {
@@ -39,10 +39,10 @@ impl Subst {
 }
 
 impl Subst {
-    pub fn walk(&self, var: &IdentCtx) -> Term<IdentCtx> {
+    pub fn walk(&self, var: &IdentCtx) -> TermCtx {
         self.walk_safe(var, 0)
     }
-    pub fn walk_safe(&self, var: &IdentCtx, iter: usize) -> Term<IdentCtx> {
+    pub fn walk_safe(&self, var: &IdentCtx, iter: usize) -> TermCtx {
         assert!(iter < 1000);
         for (k, v) in self.map.iter() {
             if *k == *var {
@@ -56,34 +56,30 @@ impl Subst {
         Term::Var(*var)
     }
 
-    pub fn unify(
-        &mut self,
-        lhs: Term<IdentCtx>,
-        rhs: Term<IdentCtx>,
-    ) -> Result<Vec<(IdentCtx, Atom)>, ()> {
+    pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Result<Vec<(IdentCtx, AtomCtx)>, ()> {
         let mut subst = Vec::new();
         self.unify_help(&mut subst, lhs, rhs)?;
         Ok(subst)
     }
 
-    pub fn bind(&mut self, subst: &mut Vec<(IdentCtx, Atom)>, x: IdentCtx, term: Term<IdentCtx>) {
+    pub fn bind(&mut self, subst: &mut Vec<(IdentCtx, AtomCtx)>, x: IdentCtx, term: TermCtx) {
         match term {
             Term::Var(var) => {
-                subst.push((x, Atom::Var(var)));
+                subst.push((x, Term::Var(var)));
             }
             Term::Lit(lit) => {
-                subst.push((x, Atom::Lit(lit)));
+                subst.push((x, Term::Lit(lit)));
             }
-            Term::Cons(_, _) => {}
+            Term::Cons(_, _, _) => {}
         }
         self.map.insert(x, term);
     }
 
     pub fn unify_help(
         &mut self,
-        subst: &mut Vec<(IdentCtx, Atom)>,
-        lhs: Term<IdentCtx>,
-        rhs: Term<IdentCtx>,
+        subst: &mut Vec<(IdentCtx, AtomCtx)>,
+        lhs: TermCtx,
+        rhs: TermCtx,
     ) -> Result<(), ()> {
         let lhs = if let Term::Var(var) = lhs {
             self.walk(&var)
@@ -108,7 +104,7 @@ impl Subst {
                     Err(())
                 }
             }
-            (Term::Cons(cons1, flds1), Term::Cons(cons2, flds2)) => {
+            (Term::Cons(_, cons1, flds1), Term::Cons(_, cons2, flds2)) => {
                 if cons1 == cons2 {
                     assert_eq!(flds1.len(), flds2.len());
                     for (fld1, fld2) in flds1.into_iter().zip(flds2.into_iter()) {

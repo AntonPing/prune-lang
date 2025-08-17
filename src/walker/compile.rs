@@ -4,11 +4,11 @@ use crate::logic::ast::*;
 #[derive(Clone, Debug)]
 pub enum LinearCode {
     Const(bool),
-    Eq(Ident, Term<Ident>),
-    Prim(Prim, Vec<Term<Ident>>),
+    Eq(Ident, TermId),
+    Prim(Prim, Vec<TermId>),
     Conj(Vec<usize>),
     Disj(Vec<usize>),
-    Call(PredIdent, Vec<Term<Ident>>, usize),
+    Call(PredIdent, Vec<TermId>, usize),
     Label(PredIdent, Vec<Ident>, Vec<Ident>),
 }
 

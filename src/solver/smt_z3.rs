@@ -86,9 +86,9 @@ impl Constr {
         self.declare_bool(var);
     }
 
-    pub fn get_int(&mut self, atom: &Atom) -> SExpr {
+    pub fn get_int(&mut self, atom: &AtomCtx) -> SExpr {
         match atom {
-            Atom::Var(x) => {
+            Term::Var(x) => {
                 let res = self
                     .int_vars
                     .iter()
@@ -96,14 +96,14 @@ impl Constr {
                     .expect(format!("integer variable {} not declared!", x).as_str());
                 res
             }
-            Atom::Lit(LitVal::Int(x)) => self.ctx.numeral(*x),
+            Term::Lit(LitVal::Int(x)) => self.ctx.numeral(*x),
             _ => panic!("atom is not an integer!"),
         }
     }
 
-    pub fn get_bool(&mut self, atom: &Atom) -> SExpr {
+    pub fn get_bool(&mut self, atom: &AtomCtx) -> SExpr {
         match atom {
-            Atom::Var(x) => {
+            Term::Var(x) => {
                 let res = self
                     .bool_vars
                     .iter()
@@ -111,13 +111,13 @@ impl Constr {
                     .expect(format!("boolean variable {} not declared!", x).as_str());
                 res
             }
-            Atom::Lit(LitVal::Bool(true)) => self.ctx.true_(),
-            Atom::Lit(LitVal::Bool(false)) => self.ctx.false_(),
+            Term::Lit(LitVal::Bool(true)) => self.ctx.true_(),
+            Term::Lit(LitVal::Bool(false)) => self.ctx.false_(),
             _ => panic!("atom is not a boolean!"),
         }
     }
 
-    pub fn push_cons(&mut self, prim: Prim, args: Vec<Atom>) {
+    pub fn push_cons(&mut self, prim: Prim, args: Vec<AtomCtx>) {
         match (prim, &args[..]) {
             (
                 Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem,
@@ -179,31 +179,31 @@ impl Constr {
         }
     }
 
-    pub fn push_eq(&mut self, x: IdentCtx, atom: Atom) {
+    pub fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx) {
         match atom {
-            Atom::Var(_) => {
-                let lhs: SExpr = self.get_int(&Atom::Var(x));
+            Term::Var(_) => {
+                let lhs: SExpr = self.get_int(&Term::Var(x));
                 let rhs = self.get_int(&atom);
                 self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
 
-                let lhs = self.get_bool(&Atom::Var(x));
+                let lhs = self.get_bool(&Term::Var(x));
                 let rhs = self.get_bool(&atom);
                 self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
             }
-            Atom::Lit(LitVal::Int(_)) => {
-                let lhs = self.get_int(&Atom::Var(x));
+            Term::Lit(LitVal::Int(_)) => {
+                let lhs = self.get_int(&Term::Var(x));
                 let rhs = self.get_int(&atom);
                 self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
             }
-            Atom::Lit(LitVal::Bool(_)) => {
-                let lhs = self.get_bool(&Atom::Var(x));
+            Term::Lit(LitVal::Bool(_)) => {
+                let lhs = self.get_bool(&Term::Var(x));
                 let rhs = self.get_bool(&atom);
                 self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
             }
-            Atom::Lit(LitVal::Float(_)) => {
+            Term::Lit(LitVal::Float(_)) => {
                 todo!()
             }
-            Atom::Lit(LitVal::Char(_)) => {
+            Term::Lit(LitVal::Char(_)) => {
                 todo!()
             }
         }

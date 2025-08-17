@@ -3,13 +3,13 @@ use crate::syntax::ast::{self, Expr};
 use super::optimize::goal_optimize;
 use super::*;
 
-fn unify_decompose(lhs: Term<Ident>, rhs: Term<Ident>) -> Goal {
+fn unify_decompose(lhs: TermId, rhs: TermId) -> Goal {
     let mut vec: Vec<Goal> = Vec::new();
     unify_decompose_help(&mut vec, lhs, rhs);
     Goal::And(vec)
 }
 
-fn unify_decompose_help(vec: &mut Vec<Goal>, lhs: Term<Ident>, rhs: Term<Ident>) {
+fn unify_decompose_help(vec: &mut Vec<Goal>, lhs: TermId, rhs: TermId) {
     match (lhs, rhs) {
         (Term::Var(x1), Term::Var(x2)) if x1 == x2 => {}
         (Term::Var(var), term) | (term, Term::Var(var)) => {
@@ -20,7 +20,7 @@ fn unify_decompose_help(vec: &mut Vec<Goal>, lhs: Term<Ident>, rhs: Term<Ident>)
                 vec.push(Goal::Const(false));
             }
         }
-        (Term::Cons(cons1, flds1), Term::Cons(cons2, flds2)) => {
+        (Term::Cons(_, cons1, flds1), Term::Cons(_, cons2, flds2)) => {
             if cons1 == cons2 {
                 assert_eq!(flds1.len(), flds2.len());
                 for (fld1, fld2) in flds1.into_iter().zip(flds2.into_iter()) {
@@ -68,7 +68,7 @@ impl Transformer {
         }
     }
 
-    fn translate_expr(&mut self, expr: &Expr) -> (Term<Ident>, Goal) {
+    fn translate_expr(&mut self, expr: &Expr) -> (TermId, Goal) {
         match expr {
             Expr::Lit { lit, span: _ } => (Term::Lit(*lit), Goal::Const(true)),
             Expr::Var { var, span: _ } => (Term::Var(*var), Goal::Const(true)),
@@ -78,7 +78,7 @@ impl Transformer {
                 span: _,
             } => {
                 let x = self.fresh_var("res_prim");
-                let (mut terms, mut goals): (Vec<Term<Ident>>, Vec<Goal>) =
+                let (mut terms, mut goals): (Vec<TermId>, Vec<Goal>) =
                     args.iter().map(|arg| self.translate_expr(arg)).unzip();
                 terms.push(Term::Var(x));
                 goals.push(Goal::Prim(*prim, terms));
@@ -89,9 +89,9 @@ impl Transformer {
                 flds,
                 span: _,
             } => {
-                let (terms, goals): (Vec<Term<Ident>>, Vec<Goal>) =
+                let (terms, goals): (Vec<TermId>, Vec<Goal>) =
                     flds.iter().map(|fld| self.translate_expr(fld)).unzip();
-                (Term::Cons(*name, terms), Goal::And(goals))
+                (Term::Cons((), *name, terms), Goal::And(goals))
             }
             Expr::Match {
                 expr,
@@ -105,6 +105,7 @@ impl Transformer {
                     .map(|(patn, expr)| {
                         let goal1 = unify_decompose(
                             Term::Cons(
+                                (),
                                 patn.name,
                                 patn.flds
                                     .iter()
@@ -141,7 +142,7 @@ impl Transformer {
                 span: _,
             } => {
                 let x = self.fresh_var("res_app");
-                let (mut terms, mut goals): (Vec<Term<Ident>>, Vec<Goal>) =
+                let (mut terms, mut goals): (Vec<TermId>, Vec<Goal>) =
                     args.iter().map(|arg| self.translate_expr(arg)).unzip();
                 terms.push(Term::Var(x));
                 goals.push(Goal::PredCall(PredIdent::Pos(*func), terms));
@@ -202,7 +203,7 @@ impl Transformer {
                 args,
                 span: _,
             } => {
-                let (args, mut goals): (Vec<Term<Ident>>, Vec<Goal>) =
+                let (args, mut goals): (Vec<TermId>, Vec<Goal>) =
                     args.iter().map(|arg| self.translate_expr(arg)).unzip();
                 if goals.is_empty() {
                     Goal::PredCall(PredIdent::Pos(*pred), args)
@@ -231,37 +232,37 @@ impl Transformer {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct DnfGoal {
-    pub eqs: Vec<(Term<Ident>, Term<Ident>)>,
-    pub prims: Vec<(Prim, Vec<Term<Ident>>)>,
-    pub preds: Vec<(PredIdent, Vec<Term<Ident>>)>,
-}
+// #[derive(Clone, Debug, PartialEq)]
+// pub struct DnfGoal {
+//     pub eqs: Vec<(TermId, TermId)>,
+//     pub prims: Vec<(Prim, Vec<TermId>)>,
+//     pub preds: Vec<(PredIdent, Vec<TermId>)>,
+// }
 
-impl DnfGoal {
-    pub fn new() -> DnfGoal {
-        DnfGoal {
-            eqs: Vec::new(),
-            prims: Vec::new(),
-            preds: Vec::new(),
-        }
-    }
+// impl DnfGoal {
+//     pub fn new() -> DnfGoal {
+//         DnfGoal {
+//             eqs: Vec::new(),
+//             prims: Vec::new(),
+//             preds: Vec::new(),
+//         }
+//     }
 
-    pub fn free_vars(&self, vars: &mut Vec<Ident>) {
-        for (lhs, rhs) in &self.eqs {
-            lhs.free_vars(vars);
-            rhs.free_vars(vars);
-        }
+//     pub fn free_vars(&self, vars: &mut Vec<Ident>) {
+//         for (lhs, rhs) in &self.eqs {
+//             lhs.free_vars(vars);
+//             rhs.free_vars(vars);
+//         }
 
-        for (_prim, args) in &self.prims {
-            args.iter().for_each(|arg| arg.free_vars(vars));
-        }
+//         for (_prim, args) in &self.prims {
+//             args.iter().for_each(|arg| arg.free_vars(vars));
+//         }
 
-        for (_prim, args) in &self.preds {
-            args.iter().for_each(|arg| arg.free_vars(vars));
-        }
-    }
-}
+//         for (_prim, args) in &self.preds {
+//             args.iter().for_each(|arg| arg.free_vars(vars));
+//         }
+//     }
+// }
 
 pub fn prog_to_dict(prog: &ast::Program) -> HashMap<PredIdent, Predicate> {
     let mut pass = Transformer::new();
