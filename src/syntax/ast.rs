@@ -47,7 +47,7 @@ pub struct FuncDecl {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pattern {
-    pub name: Ident,
+    pub cons: Ident,
     pub flds: Vec<Ident>,
     pub span: Span,
 }
@@ -68,7 +68,7 @@ pub enum Expr {
         span: Span,
     },
     Cons {
-        name: Ident,
+        cons: Ident,
         flds: Vec<Expr>,
         span: Span,
     },

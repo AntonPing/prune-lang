@@ -148,13 +148,13 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
 
     fn new_point(&self, addr: usize, idx: usize, pred: Option<Point>) -> Point {
         let tag = match &self.codes[addr] {
-            LinearCode::Const(_) => 4,
+            LinearCode::Lit(_) => 4,
             LinearCode::Eq(_, _) => 4,
             LinearCode::Cons(_, _, _) => 4,
             LinearCode::Prim(_, _) => 4,
             LinearCode::Call(_, _, _) => 2,
-            LinearCode::Conj(_) => 3,
-            LinearCode::Disj(_) => 1,
+            LinearCode::And(_) => 3,
+            LinearCode::Or(_) => 1,
             LinearCode::Label(_, _, _) => 5,
         };
         Point::new(addr, idx, Priority::new(tag, self.tmsp_cnt), pred)
@@ -188,14 +188,14 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
         let (addr, idx) = curr_pnt.get_addr_idx();
         let code = &self.codes[addr];
         match code {
-            LinearCode::Const(true) => {}
-            LinearCode::Const(false) => {
+            LinearCode::Lit(true) => {}
+            LinearCode::Lit(false) => {
                 return self.update_backtrack(curr_pnt);
             }
-            LinearCode::Eq(lhs, rhs) => {
-                let lhs = lhs.tag_ctx(idx);
-                let rhs = rhs.tag_ctx(idx);
-                if self.sol.unify(Term::Var(lhs), rhs.to_term()).is_err() {
+            LinearCode::Eq(var, atom) => {
+                let var = var.tag_ctx(idx);
+                let atom = atom.tag_ctx(idx);
+                if self.sol.unify(Term::Var(var), atom.to_term()).is_err() {
                     return self.update_backtrack(curr_pnt);
                 }
             }
@@ -222,9 +222,9 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
                     assert_eq!(pars.len(), args.len());
                     for (par, arg) in pars.iter().zip(args.iter()) {
                         self.sol.declare(&par.tag_ctx(self.idx_cnt));
-                        let lhs = Term::Var(par.tag_ctx(self.idx_cnt));
-                        let rhs = arg.tag_ctx(idx);
-                        self.sol.unify(lhs, rhs.to_term()).unwrap(); // unify with a fresh variable cannot fail
+                        let par = Term::Var(par.tag_ctx(self.idx_cnt));
+                        let arg = arg.tag_ctx(idx);
+                        self.sol.unify(par, arg.to_term()).unwrap(); // unify with a fresh variable cannot fail
                     }
                     for var in vars {
                         self.sol.declare(&var.tag_ctx(self.idx_cnt));
@@ -235,13 +235,13 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
                     panic!("addr of call not reference to a label!");
                 }
             }
-            LinearCode::Conj(addrs) => {
+            LinearCode::And(addrs) => {
                 for addr in addrs.clone().into_iter().rev() {
                     let pnt = self.new_point(addr, idx, Some(curr_pnt.clone()));
                     self.push_point(pnt);
                 }
             }
-            LinearCode::Disj(addrs) => {
+            LinearCode::Or(addrs) => {
                 for addr in addrs.clone().into_iter().rev() {
                     let pnt = self.new_point(addr, idx, Some(curr_pnt.clone()));
                     self.state.stack.push(pnt);

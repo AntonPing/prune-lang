@@ -3,12 +3,12 @@ use crate::logic::ast::*;
 
 #[derive(Clone, Debug)]
 pub enum LinearCode {
-    Const(bool),
+    Lit(bool),
     Eq(Ident, AtomId),
     Cons(Ident, Ident, Vec<AtomId>),
     Prim(Prim, Vec<AtomId>),
-    Conj(Vec<usize>),
-    Disj(Vec<usize>),
+    And(Vec<usize>),
+    Or(Vec<usize>),
     Call(PredIdent, Vec<AtomId>, usize),
     Label(PredIdent, Vec<Ident>, Vec<Ident>),
 }
@@ -16,8 +16,8 @@ pub enum LinearCode {
 impl std::fmt::Display for LinearCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LinearCode::Const(p) => write!(f, "Const({})", p),
-            LinearCode::Eq(lhs, rhs) => write!(f, "Eq({}, {})", lhs, rhs),
+            LinearCode::Lit(p) => write!(f, "Lit({})", p),
+            LinearCode::Eq(var, atom) => write!(f, "Eq({}, {})", var, atom),
             LinearCode::Cons(var, cons, flds) => {
                 let flds = flds.iter().format(&", ");
                 write!(f, "Cons({}, {}, {})", var, cons, flds)
@@ -26,8 +26,8 @@ impl std::fmt::Display for LinearCode {
                 let args = args.iter().format(&", ");
                 write!(f, "Prim({:?}, {})", prim, args)
             }
-            LinearCode::Conj(addrs) => write!(f, "Conj([{}])", addrs.iter().format(&", ")),
-            LinearCode::Disj(addrs) => write!(f, "Disj([{}])", addrs.iter().format(&", ")),
+            LinearCode::And(addrs) => write!(f, "And([{}])", addrs.iter().format(&", ")),
+            LinearCode::Or(addrs) => write!(f, "Or([{}])", addrs.iter().format(&", ")),
             LinearCode::Call(label, args, addr) => {
                 write!(
                     f,
@@ -79,26 +79,26 @@ impl CompileState {
 
     fn compile_goal(&mut self, goal: &Goal) {
         match goal {
-            Goal::Const(p) => {
-                self.codes.push(LinearCode::Const(*p));
+            Goal::Lit(p) => {
+                self.codes.push(LinearCode::Lit(*p));
+            }
+            Goal::Eq(var, atom) => {
+                self.codes.push(LinearCode::Eq(*var, atom.clone()));
             }
             Goal::Cons(var, cons, flds) => {
                 self.codes.push(LinearCode::Cons(*var, *cons, flds.clone()));
-            }
-            Goal::Eq(lhs, rhs) => {
-                self.codes.push(LinearCode::Eq(*lhs, rhs.clone()));
             }
             Goal::Prim(prim, args) => {
                 self.codes.push(LinearCode::Prim(*prim, args.clone()));
             }
             Goal::And(goals) => {
                 if goals.is_empty() {
-                    self.codes.push(LinearCode::Const(true));
+                    self.codes.push(LinearCode::Lit(true));
                 } else {
                     let base: usize = self.counter;
                     self.counter += goals.len();
                     self.codes
-                        .push(LinearCode::Conj((base..self.counter).collect()));
+                        .push(LinearCode::And((base..self.counter).collect()));
                     for (offset, goal) in goals.iter().enumerate() {
                         self.map.insert(base + offset, self.codes.len());
                         // self.codes.push(LinearCode::Label(base + offset));
@@ -108,12 +108,12 @@ impl CompileState {
             }
             Goal::Or(goals) => {
                 if goals.is_empty() {
-                    self.codes.push(LinearCode::Const(false));
+                    self.codes.push(LinearCode::Lit(false));
                 } else {
                     let base = self.counter;
                     self.counter += goals.len();
                     self.codes
-                        .push(LinearCode::Disj((base..self.counter).collect()));
+                        .push(LinearCode::Or((base..self.counter).collect()));
                     for (offset, goal) in goals.iter().enumerate() {
                         self.map.insert(base + offset, self.codes.len());
                         // self.codes.push(LinearCode::Label(base + offset));
@@ -121,7 +121,7 @@ impl CompileState {
                     }
                 }
             }
-            Goal::PredCall(pred, args) => {
+            Goal::Call(pred, args) => {
                 self.codes.push(LinearCode::Call(*pred, args.clone(), 0));
             }
         }
@@ -130,10 +130,10 @@ impl CompileState {
     fn remap_addr(&mut self) {
         for code in self.codes.iter_mut() {
             match code {
-                LinearCode::Conj(addrs) => {
+                LinearCode::And(addrs) => {
                     addrs.iter_mut().for_each(|addr| *addr = self.map[addr]);
                 }
-                LinearCode::Disj(addrs) => {
+                LinearCode::Or(addrs) => {
                     addrs.iter_mut().for_each(|addr| *addr = self.map[addr]);
                 }
                 LinearCode::Call(pred, _args, addr) => {

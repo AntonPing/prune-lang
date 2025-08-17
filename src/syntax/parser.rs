@@ -352,7 +352,7 @@ impl<'src> Parser<'src> {
                 }
             }
             Token::UpperIdent => {
-                let name = self.parse_uident()?;
+                let cons = self.parse_uident()?;
                 let flds = if let Token::LParen = self.peek_token() {
                     self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
                         par.parse_expr()
@@ -362,7 +362,7 @@ impl<'src> Parser<'src> {
                 };
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Ok(Expr::Cons { name, flds, span })
+                Ok(Expr::Cons { cons, flds, span })
             }
             Token::PrimOpr => {
                 let prim = self.parse_prim_opr()?;
@@ -438,7 +438,7 @@ impl<'src> Parser<'src> {
 
     fn parse_pattern(&mut self) -> ParseResult<Pattern> {
         let start = self.start_pos();
-        let name = self.parse_uident()?;
+        let cons = self.parse_uident()?;
         let flds = if let Token::LParen = self.peek_token() {
             self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
                 par.parse_lident()
@@ -448,7 +448,7 @@ impl<'src> Parser<'src> {
         };
         let end = self.end_pos();
         let span = Span { start, end };
-        Ok(Pattern { name, flds, span })
+        Ok(Pattern { cons, flds, span })
     }
 
     fn parse_goal_seq(&mut self, left: Token, right: Token) -> ParseResult<Goal> {
@@ -531,8 +531,8 @@ impl<'src> Parser<'src> {
                 Ok(Type::Lit(lit_typ))
             }
             Token::UpperIdent => {
-                let name = self.parse_uident()?;
-                Ok(Type::Data(name))
+                let cons = self.parse_uident()?;
+                Ok(Type::Data(cons))
             }
             _tok => Err(ParseError::FailedToParse(
                 "type",

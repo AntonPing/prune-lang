@@ -105,12 +105,12 @@ impl Checker {
                 span: _,
             } => self.check_prim(prim, args),
             Expr::Cons {
-                name,
+                cons,
                 flds,
                 span: _,
             } => {
                 let flds = flds.iter().map(|fld| self.check_expr(fld)).collect();
-                let (pars, res) = self.cons_ctx[name].clone();
+                let (pars, res) = self.cons_ctx[cons].clone();
                 self.unify_many(&pars, &flds);
                 res
             }
@@ -206,7 +206,7 @@ impl Checker {
     }
 
     fn check_patn(&mut self, patn: &Pattern) -> UnifyType {
-        let (pars, res) = self.cons_ctx[&patn.name].clone();
+        let (pars, res) = self.cons_ctx[&patn.cons].clone();
         for (par, fld) in pars.iter().zip(patn.flds.iter()) {
             self.val_ctx.insert(*fld, par.clone());
         }

@@ -50,7 +50,7 @@ impl Transformer {
             },
             (Term::Lit(lit1), Term::Lit(lit2)) => {
                 if lit1 != lit2 {
-                    vec.push(Goal::Const(false));
+                    vec.push(Goal::Lit(false));
                 }
             }
             (Term::Cons(_, cons1, flds1), Term::Cons(_, cons2, flds2)) => {
@@ -60,7 +60,7 @@ impl Transformer {
                         self.unify_decompose_help(vec, fld1, fld2);
                     }
                 } else {
-                    vec.push(Goal::Const(false));
+                    vec.push(Goal::Lit(false));
                 }
             }
             (_, _) => {
@@ -88,8 +88,8 @@ impl Transformer {
 
     fn translate_expr(&mut self, expr: &Expr) -> (AtomId, Goal) {
         match expr {
-            Expr::Lit { lit, span: _ } => (Term::Lit(*lit), Goal::Const(true)),
-            Expr::Var { var, span: _ } => (Term::Var(*var), Goal::Const(true)),
+            Expr::Lit { lit, span: _ } => (Term::Lit(*lit), Goal::Lit(true)),
+            Expr::Var { var, span: _ } => (Term::Var(*var), Goal::Lit(true)),
             Expr::Prim {
                 prim,
                 args,
@@ -103,7 +103,7 @@ impl Transformer {
                 (Term::Var(x), Goal::And(goals))
             }
             Expr::Cons {
-                name,
+                cons: name,
                 flds,
                 span: _,
             } => {
@@ -123,7 +123,7 @@ impl Transformer {
                 let goals = brchs
                     .iter()
                     .map(|(patn, expr)| {
-                        let name = patn.name;
+                        let name = patn.cons;
                         let flds = patn
                             .flds
                             .iter()
@@ -162,7 +162,7 @@ impl Transformer {
                 let (mut atoms, mut goals): (Vec<AtomId>, Vec<Goal>) =
                     args.iter().map(|arg| self.translate_expr(arg)).unzip();
                 atoms.push(Term::Var(x));
-                goals.push(Goal::PredCall(PredIdent::Pos(*func), atoms));
+                goals.push(Goal::Call(PredIdent::Pos(*func), atoms));
                 (Term::Var(x), Goal::And(goals))
             }
             Expr::Ifte {
@@ -243,9 +243,9 @@ impl Transformer {
                 let (args, mut goals): (Vec<AtomId>, Vec<Goal>) =
                     args.iter().map(|arg| self.translate_expr(arg)).unzip();
                 if goals.is_empty() {
-                    Goal::PredCall(PredIdent::Pos(*pred), args)
+                    Goal::Call(PredIdent::Pos(*pred), args)
                 } else {
-                    goals.push(Goal::PredCall(PredIdent::Pos(*pred), args));
+                    goals.push(Goal::Call(PredIdent::Pos(*pred), args));
                     Goal::And(goals)
                 }
             }

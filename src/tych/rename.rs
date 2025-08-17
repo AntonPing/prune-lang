@@ -185,7 +185,7 @@ impl Renamer {
                 args.iter_mut().for_each(|arg| self.visit_expr(arg));
             }
             Expr::Cons {
-                name,
+                cons: name,
                 flds,
                 span: _,
             } => {
@@ -200,7 +200,7 @@ impl Renamer {
                 self.visit_expr(expr);
                 brchs.iter_mut().for_each(|(patn, expr)| {
                     self.enter_scope();
-                    self.update_cons_var(&mut patn.name);
+                    self.update_cons_var(&mut patn.cons);
                     patn.flds.iter_mut().for_each(|fld| self.intro_val_var(fld));
                     self.visit_expr(expr);
                     self.leave_scope();

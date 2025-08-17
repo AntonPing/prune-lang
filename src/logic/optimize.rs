@@ -7,14 +7,14 @@ pub fn goal_flatten(goal: Goal) -> Goal {
             for goal in goals {
                 let goal = goal_flatten(goal);
                 match goal {
-                    Goal::Const(true) => {}
-                    Goal::Const(false) => return Goal::Const(false),
+                    Goal::Lit(true) => {}
+                    Goal::Lit(false) => return Goal::Lit(false),
                     Goal::And(mut goals) => vec.append(&mut goals),
                     goal => vec.push(goal),
                 }
             }
             match vec.len() {
-                0 => Goal::Const(true),
+                0 => Goal::Lit(true),
                 1 => vec.into_iter().next().unwrap(),
                 _ => Goal::And(vec),
             }
@@ -24,14 +24,14 @@ pub fn goal_flatten(goal: Goal) -> Goal {
             for goal in goals {
                 let goal = goal_flatten(goal);
                 match goal {
-                    Goal::Const(false) => {}
-                    Goal::Const(true) => return Goal::Const(true),
+                    Goal::Lit(false) => {}
+                    Goal::Lit(true) => return Goal::Lit(true),
                     Goal::Or(mut goals) => vec.append(&mut goals),
                     goal => vec.push(goal),
                 }
             }
             match vec.len() {
-                0 => Goal::Const(false),
+                0 => Goal::Lit(false),
                 1 => vec.into_iter().next().unwrap(),
                 _ => Goal::Or(vec),
             }
@@ -46,7 +46,7 @@ pub fn goal_reorder(goal: Goal) -> Goal {
 
 fn goal_reorder_help(goal: Goal) -> (Goal, usize) {
     match goal {
-        Goal::Const(_) => (goal, 0),
+        Goal::Lit(_) => (goal, 0),
         Goal::Eq(_, _) => (goal, 100),
         Goal::Cons(_, _, _) => (goal, 200),
         Goal::Prim(_, _) => (goal, 500),
@@ -68,7 +68,7 @@ fn goal_reorder_help(goal: Goal) -> (Goal, usize) {
 
             (Goal::Or(goals), priors.iter().max().unwrap_or(&0) + 1000)
         }
-        Goal::PredCall(_, _) => (goal, 10000),
+        Goal::Call(_, _) => (goal, 10000),
     }
 }
 
