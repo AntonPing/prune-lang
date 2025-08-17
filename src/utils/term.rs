@@ -48,12 +48,22 @@ impl<L: Copy, C: Copy> Term<Ident, L, C> {
     }
 }
 
-impl<V: Copy, L: Copy, C> Term<V, L, C> {
+impl<V: Copy, L: Copy> Term<V, L, ()> {
     pub fn to_atom(&self) -> Option<Term<V, L, Infallible>> {
         match self {
             Term::Var(var) => Some(Term::Var(*var)),
             Term::Lit(lit) => Some(Term::Lit(*lit)),
             Term::Cons(_c, _cons, _flds) => None,
+        }
+    }
+}
+
+impl<V: Copy, L: Copy> Term<V, L, Infallible> {
+    pub fn to_term(&self) -> Term<V, L, ()> {
+        match self {
+            Term::Var(var) => Term::Var(*var),
+            Term::Lit(lit) => Term::Lit(*lit),
+            Term::Cons(_c, _cons, _flds) => unreachable!(),
         }
     }
 }

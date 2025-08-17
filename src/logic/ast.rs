@@ -36,11 +36,12 @@ impl std::fmt::Display for PredIdent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Goal {
     Const(bool),
-    Eq(Ident, TermId),
-    Prim(Prim, Vec<TermId>),
+    Eq(Ident, AtomId),
+    Cons(Ident, Ident, Vec<AtomId>),
+    Prim(Prim, Vec<AtomId>),
     And(Vec<Goal>),
     Or(Vec<Goal>),
-    PredCall(PredIdent, Vec<TermId>),
+    PredCall(PredIdent, Vec<AtomId>),
 }
 
 #[derive(Clone, Debug, PartialEq)]

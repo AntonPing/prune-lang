@@ -48,6 +48,7 @@ fn goal_reorder_help(goal: Goal) -> (Goal, usize) {
     match goal {
         Goal::Const(_) => (goal, 0),
         Goal::Eq(_, _) => (goal, 100),
+        Goal::Cons(_, _, _) => (goal, 200),
         Goal::Prim(_, _) => (goal, 500),
         Goal::And(goals) => {
             let (goals, priors): (Vec<Goal>, Vec<usize>) = goals

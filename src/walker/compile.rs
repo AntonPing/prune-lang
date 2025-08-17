@@ -4,11 +4,12 @@ use crate::logic::ast::*;
 #[derive(Clone, Debug)]
 pub enum LinearCode {
     Const(bool),
-    Eq(Ident, TermId),
-    Prim(Prim, Vec<TermId>),
+    Eq(Ident, AtomId),
+    Cons(Ident, Ident, Vec<AtomId>),
+    Prim(Prim, Vec<AtomId>),
     Conj(Vec<usize>),
     Disj(Vec<usize>),
-    Call(PredIdent, Vec<TermId>, usize),
+    Call(PredIdent, Vec<AtomId>, usize),
     Label(PredIdent, Vec<Ident>, Vec<Ident>),
 }
 
@@ -17,6 +18,10 @@ impl std::fmt::Display for LinearCode {
         match self {
             LinearCode::Const(p) => write!(f, "Const({})", p),
             LinearCode::Eq(lhs, rhs) => write!(f, "Eq({}, {})", lhs, rhs),
+            LinearCode::Cons(var, cons, flds) => {
+                let flds = flds.iter().format(&", ");
+                write!(f, "Cons({}, {}, {})", var, cons, flds)
+            }
             LinearCode::Prim(prim, args) => {
                 let args = args.iter().format(&", ");
                 write!(f, "Prim({:?}, {})", prim, args)
@@ -77,8 +82,11 @@ impl CompileState {
             Goal::Const(p) => {
                 self.codes.push(LinearCode::Const(*p));
             }
+            Goal::Cons(var, cons, flds) => {
+                self.codes.push(LinearCode::Cons(*var, *cons, flds.clone()));
+            }
             Goal::Eq(lhs, rhs) => {
-                self.codes.push(LinearCode::Eq(lhs.clone(), rhs.clone()));
+                self.codes.push(LinearCode::Eq(*lhs, rhs.clone()));
             }
             Goal::Prim(prim, args) => {
                 self.codes.push(LinearCode::Prim(*prim, args.clone()));

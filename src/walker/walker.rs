@@ -150,6 +150,7 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
         let tag = match &self.codes[addr] {
             LinearCode::Const(_) => 4,
             LinearCode::Eq(_, _) => 4,
+            LinearCode::Cons(_, _, _) => 4,
             LinearCode::Prim(_, _) => 4,
             LinearCode::Call(_, _, _) => 2,
             LinearCode::Conj(_) => 3,
@@ -194,12 +195,23 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
             LinearCode::Eq(lhs, rhs) => {
                 let lhs = lhs.tag_ctx(idx);
                 let rhs = rhs.tag_ctx(idx);
-                if self.sol.unify(Term::Var(lhs), rhs).is_err() {
+                if self.sol.unify(Term::Var(lhs), rhs.to_term()).is_err() {
+                    return self.update_backtrack(curr_pnt);
+                }
+            }
+            LinearCode::Cons(var, cons, flds) => {
+                let var = var.tag_ctx(idx);
+                let flds = flds.iter().map(|fld| fld.tag_ctx(idx).to_term()).collect();
+                if self
+                    .sol
+                    .unify(Term::Var(var), Term::Cons((), *cons, flds))
+                    .is_err()
+                {
                     return self.update_backtrack(curr_pnt);
                 }
             }
             LinearCode::Prim(prim, args) => {
-                let args = args.iter().map(|arg| arg.tag_ctx(idx)).collect();
+                let args = args.iter().map(|arg| arg.tag_ctx(idx).to_term()).collect();
                 if self.sol.solve(*prim, args).is_err() {
                     return self.update_backtrack(curr_pnt);
                 }
@@ -212,7 +224,7 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
                         self.sol.declare(&par.tag_ctx(self.idx_cnt));
                         let lhs = Term::Var(par.tag_ctx(self.idx_cnt));
                         let rhs = arg.tag_ctx(idx);
-                        self.sol.unify(lhs, rhs).unwrap(); // unify with a fresh variable cannot fail
+                        self.sol.unify(lhs, rhs.to_term()).unwrap(); // unify with a fresh variable cannot fail
                     }
                     for var in vars {
                         self.sol.declare(&var.tag_ctx(self.idx_cnt));
