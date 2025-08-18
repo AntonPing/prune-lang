@@ -2,9 +2,9 @@ use crate::driver::diagnostic::Diagnostic;
 use crate::logic::ast::*;
 use crate::syntax::{self, ast};
 use crate::tych;
-use crate::tych::unify::UnifyType;
-use crate::utils::ident::Ident;
 use crate::walker::{compile, walker::Walker};
+
+use super::*;
 
 use std::collections::HashMap;
 use std::path::{self, PathBuf};
@@ -72,7 +72,7 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         }
     }
 
-    pub fn check_pass(&mut self, prog: &mut ast::Program) -> PipeResult<HashMap<Ident, UnifyType>> {
+    pub fn check_pass(&mut self, prog: &mut ast::Program) -> PipeResult<HashMap<Ident, TypeId>> {
         let (map, errs) = tych::check::check_pass(prog);
         if errs.is_empty() {
             Ok(map)

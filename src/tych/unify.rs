@@ -110,20 +110,21 @@ impl UnifySolver {
         }
     }
 
-    pub fn merge(&self, typ: &UnifyType) -> UnifyType {
+    pub fn merge(&self, typ: &UnifyType) -> TypeId {
         match typ {
+            UnifyType::Lit(lit) => Term::Lit(*lit),
+            UnifyType::Var(var) => Term::Var(*var),
             UnifyType::Cons(cons, args) => {
                 let args = args.iter().map(|arg| self.merge(arg)).collect();
-                UnifyType::Cons(*cons, args)
+                Term::Cons((), *cons, args)
             }
             UnifyType::Cell(cell) => {
                 if self.arena[*cell].is_some() {
                     self.merge(self.arena[*cell].as_ref().unwrap())
                 } else {
-                    UnifyType::Cell(*cell)
+                    panic!("cell not assigned!");
                 }
             }
-            other => other.clone(),
         }
     }
 }

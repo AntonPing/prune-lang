@@ -1,7 +1,7 @@
 use itertools::Itertools;
 
 use super::ident::{Ident, IdentCtx};
-use super::lit::LitVal;
+use super::lit::{LitType, LitVal};
 
 use std::convert::Infallible;
 use std::fmt;
@@ -34,6 +34,8 @@ pub type TermId = Term<Ident, LitVal, ()>;
 pub type TermCtx = Term<IdentCtx, LitVal, ()>;
 pub type AtomId = Term<Ident, LitVal, Infallible>;
 pub type AtomCtx = Term<IdentCtx, LitVal, Infallible>;
+
+pub type TypeId = Term<Ident, LitType, ()>;
 
 impl<L: Copy, C: Copy> Term<Ident, L, C> {
     pub fn tag_ctx(&self, ctx: usize) -> Term<IdentCtx, L, C> {

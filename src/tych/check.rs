@@ -289,7 +289,7 @@ impl Checker {
     }
 }
 
-pub fn check_pass(prog: &Program) -> (HashMap<Ident, UnifyType>, Vec<UnifyError>) {
+pub fn check_pass(prog: &Program) -> (HashMap<Ident, TypeId>, Vec<UnifyError>) {
     let mut pass = Checker::new();
     pass.check_prog(prog);
     let map = pass.val_ctx;
