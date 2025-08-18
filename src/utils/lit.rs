@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt;
 
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub enum LitType {
@@ -8,7 +8,7 @@ pub enum LitType {
     TyChar,
 }
 
-impl Display for LitType {
+impl fmt::Display for LitType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LitType::TyInt => "Int".fmt(f),
@@ -38,7 +38,7 @@ impl LitVal {
     }
 }
 
-impl Display for LitVal {
+impl fmt::Display for LitVal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LitVal::Int(x) => x.fmt(f),

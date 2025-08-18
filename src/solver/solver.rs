@@ -7,7 +7,7 @@ use super::subst::*;
 pub struct Solver {
     subst: Subst,
     constr: Constr,
-    unify_vec: Vec<(TermCtx, TermCtx)>,
+    unify_vec: Vec<(IdentCtx, TermCtx)>,
     solve_vec: Vec<(Prim, Vec<AtomCtx>)>,
     saves: Vec<(usize, usize)>,
 }
@@ -17,7 +17,7 @@ impl fmt::Display for Solver {
         let unify_vec = self
             .unify_vec
             .iter()
-            .map(|(lhs, rhs)| format!("{} = {}", lhs, rhs))
+            .map(|(var, term)| format!("{} = {}", var, term))
             .format(&", ");
         writeln!(f, "unify: [{}]", unify_vec)?;
 
@@ -83,22 +83,31 @@ impl Solver {
         self.constr.declare_var(var);
     }
 
-    pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Result<(), ()> {
-        self.unify_vec.push((lhs.clone(), rhs.clone()));
-
-        let mut subst = self.subst.unify(lhs, rhs)?;
+    pub fn bind(&mut self, var: IdentCtx, term: TermCtx) -> Result<(), ()> {
+        self.unify_vec.push((var.clone(), term.clone()));
+        let mut subst = self.subst.bind(var, term)?;
         for (x, term) in subst.drain(..) {
             self.constr.push_eq(x, term)
         }
-
         if !self.constr.solve() {
             return Err(());
         }
         Ok(())
     }
 
-    pub fn solve(&mut self, prim: Prim, args: Vec<TermCtx>) -> Result<(), ()> {
-        let args: Vec<AtomCtx> = args.iter().map(|arg| arg.to_atom().unwrap()).collect();
+    // pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Result<(), ()> {
+    //     self.unify_vec.push((lhs.clone(), rhs.clone()));
+    //     let mut subst = self.subst.unify(lhs, rhs)?;
+    //     for (x, term) in subst.drain(..) {
+    //         self.constr.push_eq(x, term)
+    //     }
+    //     if !self.constr.solve() {
+    //         return Err(());
+    //     }
+    //     Ok(())
+    // }
+
+    pub fn solve(&mut self, prim: Prim, args: Vec<AtomCtx>) -> Result<(), ()> {
         self.solve_vec.push((prim.clone(), args.clone()));
         self.constr.push_cons(prim, args);
         if !self.constr.solve() {
@@ -112,6 +121,8 @@ impl Solver {
 fn test_solver() {
     let x = Ident::dummy(&"x");
     let y = Ident::dummy(&"y");
+    let z = Ident::dummy(&"z");
+    let cons = Ident::dummy(&"cons");
 
     let mut sol = Solver::new();
 
@@ -130,23 +141,19 @@ fn test_solver() {
 
     sol.savepoint();
 
-    sol.unify(Term::Var(x.tag_ctx(0)), Term::Var(y.tag_ctx(0)))
-        .unwrap_err();
+    sol.bind(x.tag_ctx(0), Term::Var(y.tag_ctx(0))).unwrap_err();
 
     sol.backtrack();
     sol.savepoint();
 
-    sol.unify(
-        Term::Cons(
-            (),
-            Ident::dummy(&"Cons"),
-            vec![Term::Var(x.tag_ctx(0)), Term::Var(y.tag_ctx(0))],
-        ),
-        Term::Cons(
-            (),
-            Ident::dummy(&"Cons"),
-            vec![Term::Lit(LitVal::Int(43)), Term::Lit(LitVal::Int(42))],
-        ),
+    sol.bind(
+        z.tag_ctx(0),
+        Term::Cons((), cons, vec![Term::Var(x.tag_ctx(0))]),
+    )
+    .unwrap();
+    sol.bind(
+        z.tag_ctx(0),
+        Term::Cons((), cons, vec![Term::Var(y.tag_ctx(0))]),
     )
     .unwrap_err();
 

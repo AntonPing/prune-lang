@@ -195,23 +195,19 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
             LinearCode::Eq(var, atom) => {
                 let var = var.tag_ctx(idx);
                 let atom = atom.tag_ctx(idx);
-                if self.sol.unify(Term::Var(var), atom.to_term()).is_err() {
+                if self.sol.bind(var, atom.to_term()).is_err() {
                     return self.update_backtrack(curr_pnt);
                 }
             }
             LinearCode::Cons(var, cons, flds) => {
                 let var = var.tag_ctx(idx);
                 let flds = flds.iter().map(|fld| fld.tag_ctx(idx).to_term()).collect();
-                if self
-                    .sol
-                    .unify(Term::Var(var), Term::Cons((), *cons, flds))
-                    .is_err()
-                {
+                if self.sol.bind(var, Term::Cons((), *cons, flds)).is_err() {
                     return self.update_backtrack(curr_pnt);
                 }
             }
             LinearCode::Prim(prim, args) => {
-                let args = args.iter().map(|arg| arg.tag_ctx(idx).to_term()).collect();
+                let args = args.iter().map(|arg| arg.tag_ctx(idx)).collect();
                 if self.sol.solve(*prim, args).is_err() {
                     return self.update_backtrack(curr_pnt);
                 }
@@ -222,9 +218,9 @@ impl<'log, Log: io::Write> Walker<'log, Log> {
                     assert_eq!(pars.len(), args.len());
                     for (par, arg) in pars.iter().zip(args.iter()) {
                         self.sol.declare(&par.tag_ctx(self.idx_cnt));
-                        let par = Term::Var(par.tag_ctx(self.idx_cnt));
+                        let par = par.tag_ctx(self.idx_cnt);
                         let arg = arg.tag_ctx(idx);
-                        self.sol.unify(par, arg.to_term()).unwrap(); // unify with a fresh variable cannot fail
+                        self.sol.bind(par, arg.to_term()).unwrap(); // unify with a fresh variable cannot fail
                     }
                     for var in vars {
                         self.sol.declare(&var.tag_ctx(self.idx_cnt));

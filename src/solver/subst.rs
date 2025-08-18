@@ -56,26 +56,19 @@ impl Subst {
         Term::Var(*var)
     }
 
+    pub fn bind(&mut self, x: IdentCtx, term: TermCtx) -> Result<Vec<(IdentCtx, AtomCtx)>, ()> {
+        let mut subst = Vec::new();
+        self.unify_help(&mut subst, Term::Var(x), term)?;
+        Ok(subst)
+    }
+
     pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Result<Vec<(IdentCtx, AtomCtx)>, ()> {
         let mut subst = Vec::new();
         self.unify_help(&mut subst, lhs, rhs)?;
         Ok(subst)
     }
 
-    pub fn bind(&mut self, subst: &mut Vec<(IdentCtx, AtomCtx)>, x: IdentCtx, term: TermCtx) {
-        match term {
-            Term::Var(var) => {
-                subst.push((x, Term::Var(var)));
-            }
-            Term::Lit(lit) => {
-                subst.push((x, Term::Lit(lit)));
-            }
-            Term::Cons(_, _, _) => {}
-        }
-        self.map.insert(x, term);
-    }
-
-    pub fn unify_help(
+    fn unify_help(
         &mut self,
         subst: &mut Vec<(IdentCtx, AtomCtx)>,
         lhs: TermCtx,
@@ -94,7 +87,16 @@ impl Subst {
         match (lhs, rhs) {
             (Term::Var(x1), Term::Var(x2)) if x1 == x2 => Ok(()),
             (Term::Var(x), term) | (term, Term::Var(x)) => {
-                self.bind(subst, x, term);
+                match term {
+                    Term::Var(var) => {
+                        subst.push((x, Term::Var(var)));
+                    }
+                    Term::Lit(lit) => {
+                        subst.push((x, Term::Lit(lit)));
+                    }
+                    Term::Cons(_, _, _) => {}
+                }
+                self.map.insert(x, term);
                 Ok(())
             }
             (Term::Lit(lit1), Term::Lit(lit2)) => {
