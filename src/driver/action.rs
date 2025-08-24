@@ -2,7 +2,7 @@ use crate::driver::diagnostic::Diagnostic;
 use crate::logic::ast::*;
 use crate::syntax::{self, ast};
 use crate::tych;
-use crate::walker::{compile, walker::Walker};
+use crate::walker::{self, compile, walker::Walker};
 
 use super::*;
 
@@ -95,12 +95,25 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         (wlk, map)
     }
 
+    pub fn create_walker_new(
+        &'log mut self,
+        prog: &ast::Program,
+    ) -> (
+        walker::walker_new::Walker<'log, Log>,
+        HashMap<PredIdent, usize>,
+    ) {
+        let dict = crate::logic::transform::prog_to_dict(&prog);
+        let (codes, map) = compile::compile_dict(&dict);
+        let wlk = walker::walker_new::Walker::new(codes, self.log);
+        (wlk, map)
+    }
+
     pub fn test_prog(&'log mut self) -> Result<Vec<bool>, ()> {
         let mut prog = self.parse_program()?;
         let _rename_map = self.rename_pass(&mut prog)?;
         let _check_map = self.check_pass(&mut prog)?;
 
-        let (mut wlk, map) = self.create_walker(&prog);
+        let (mut wlk, map) = self.create_walker_new(&prog);
         let mut res_vec = Vec::new();
         for entry_decl in prog.entrys {
             let entry = map[&PredIdent::Pos(entry_decl.entry)];

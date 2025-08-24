@@ -8,3 +8,4 @@ use std::collections::HashMap;
 pub mod compile;
 pub mod vsids;
 pub mod walker;
+pub mod walker_new;

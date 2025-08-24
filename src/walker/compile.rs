@@ -13,6 +13,21 @@ pub enum LinearCode {
     Label(PredIdent, Vec<Ident>, Vec<Ident>),
 }
 
+impl LinearCode {
+    pub fn tag(&self) -> i32 {
+        match self {
+            LinearCode::Lit(_) => 4,
+            LinearCode::Eq(_, _) => 4,
+            LinearCode::Cons(_, _, _) => 4,
+            LinearCode::Prim(_, _) => 4,
+            LinearCode::Call(_, _, _) => 2,
+            LinearCode::And(_) => 3,
+            LinearCode::Or(_) => 1,
+            LinearCode::Label(_, _, _) => 5,
+        }
+    }
+}
+
 impl std::fmt::Display for LinearCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
