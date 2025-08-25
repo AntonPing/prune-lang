@@ -140,7 +140,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
             if state.cost >= depth {
                 return Some(steps);
             }
-            let idx = self.select_point(depth, state)?;
+            let idx = self.select_point(state).unwrap();
             let curr_pnt = state.stack.remove(idx);
 
             steps += 1;
@@ -153,56 +153,87 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
         return None;
     }
 
-    fn select_point(&mut self, _depth: usize, state: &mut State) -> Option<usize> {
-        let (idx, _tag, _prior) = state
+    fn select_point(&mut self, state: &mut State) -> Option<usize> {
+        let (max_idx, max_tag) = state
             .stack
             .iter_mut()
             .enumerate()
             .map(|(idx, pnt)| {
                 let tag = self.codes[pnt.get_addr_idx().0].tag();
-                pnt.update_decay(self.tmsp_cnt);
-                let prior = pnt.get_prior();
-                (idx, tag, prior)
+                (idx, tag)
             })
-            .max_by(
-                |(_, tag1, prior1), (_, tag2, prior2)| match tag1.cmp(tag2) {
-                    core::cmp::Ordering::Equal => prior1.cmp(prior2),
-                    ord => ord,
-                },
-            )
-            .unwrap();
+            .max_by(|(_, tag1), (_, tag2)| tag1.cmp(tag2))?;
 
-        return Some(idx);
+        if max_tag > 1 {
+            return Some(max_idx);
+        } else {
+            // return Some(max_idx);
 
-        // Look-ahead simulation
+            // One-step look-ahead simulation
+            let (min_idx, _min_res) = state
+                .stack
+                .iter()
+                .enumerate()
+                .map(|(i, pnt)| {
+                    let (addr, idx) = pnt.get_addr_idx();
+                    if let LinearCode::Or(addrs) = &self.codes[addr] {
+                        // return (i, addrs.len());
+                        let res = addrs
+                            .clone()
+                            .iter()
+                            .filter(|addr| {
+                                let pnt = self.new_point(**addr, idx, None);
+                                self.lookahead_pnt(pnt)
+                            })
+                            .count();
+                        (i, res)
+                    } else {
+                        unreachable!()
+                    }
+                })
+                .min_by(|(_, a), (_, b)| a.cmp(b))
+                .unwrap();
 
-        // let mut res_vec: Vec<usize> = Vec::new();
-        // for i in 0..state.len() {
-        //     let mut sim_state: State = state.clone();
-        //     let mut sim_saves: Saves = Saves::new();
+            // writeln!(self.log, "{}/{}:{}", min_idx, state.stack.len(), min_res).unwrap();
 
-        //     let new_depth = std::cmp::min(sim_state.cost + 1, depth);
+            return Some(min_idx);
+        }
+    }
 
-        //     self.sol.savepoint();
+    fn lookahead_pnt(&mut self, pnt: Point) -> bool {
+        let mut saves: Saves = Saves::new();
+        let mut state: State = State::new();
+        let mut flag = true;
 
-        //     let curr_pnt = sim_state.stack.remove(i);
-        //     if self.run_point(&curr_pnt, &mut sim_state, &mut sim_saves) {
-        //         sim_saves.push(&mut self.sol, sim_state);
-        //     }
-        //     let res = self.run_saves(new_depth, &mut sim_saves)?;
-        //     res_vec.push(res);
+        self.sol.savepoint();
 
-        //     self.sol.backtrack();
-        // }
+        state.stack.push(pnt);
+        while let Some(idx) = self.select_first_non_disj_point(&state) {
+            let curr_pnt = state.stack.remove(idx);
+            if !self.run_point(&curr_pnt, &mut state, &mut saves) {
+                flag = false;
+                break;
+            }
+            assert!(saves.is_empty());
+        }
 
-        // let idx = res_vec
-        //     .iter()
-        //     .enumerate()
-        //     .min_by(|(_, a), (_, b)| a.partial_cmp(b).expect("REASON"))
-        //     .map(|(idx, _)| idx)
-        //     .unwrap();
+        self.sol.backtrack();
 
-        // Some(idx)
+        flag
+    }
+
+    fn select_first_non_disj_point(&mut self, state: &State) -> Option<usize> {
+        for (idx, pnt) in state.stack.iter().enumerate() {
+            match self.codes[pnt.get_addr_idx().0] {
+                LinearCode::Or(_) => {
+                    // do nothing
+                }
+                _ => {
+                    return Some(idx);
+                }
+            }
+        }
+        None
     }
 
     fn run_point(&mut self, curr_pnt: &Point, state: &mut State, saves: &mut Saves) -> bool {
