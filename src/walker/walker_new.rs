@@ -1,10 +1,27 @@
 use super::*;
 
-use std::io;
-
 use super::compile::LinearCode;
 use crate::solver::solver::Solver;
-use crate::walker::vsids::{Point, Priority};
+use std::{fmt, io};
+
+#[derive(Clone, Debug)]
+pub struct Point {
+    addr: usize,
+    idx: usize,
+}
+
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self.addr, self.idx)?;
+        Ok(())
+    }
+}
+
+impl Point {
+    fn new(addr: usize, idx: usize) -> Point {
+        Point { addr, idx }
+    }
+}
 
 #[derive(Clone, Debug)]
 struct State {
@@ -54,7 +71,6 @@ impl Saves {
 pub struct Walker<'log, Log: io::Write> {
     codes: Vec<LinearCode>,
     idx_cnt: usize,
-    tmsp_cnt: usize,
     total_step: usize,
     sol: Solver,
     log: &'log mut Log,
@@ -66,7 +82,6 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
             codes,
             sol: Solver::new(),
             idx_cnt: 0,
-            tmsp_cnt: 0,
             total_step: 0,
             log,
         }
@@ -74,7 +89,6 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
 
     fn reset(&mut self) {
         self.idx_cnt = 0;
-        self.tmsp_cnt = 0;
         self.sol.reset();
     }
 
@@ -112,15 +126,6 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
         writeln!(self.log, "{}", self.sol)
     }
 
-    fn new_point(&self, addr: usize, idx: usize, pred: Option<&Point>) -> Point {
-        Point::new(
-            addr,
-            idx,
-            Priority::new(0, self.tmsp_cnt),
-            pred.map(|x| x.clone()),
-        )
-    }
-
     fn run_saves(&mut self, depth: usize, saves: &mut Saves) -> Option<usize> {
         let mut steps: usize = 0;
         while !saves.is_empty() {
@@ -145,8 +150,6 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
 
             steps += 1;
             if !self.run_point(&curr_pnt, state, saves) {
-                curr_pnt.update_bump_upward(self.tmsp_cnt);
-                self.tmsp_cnt += 1;
                 return Some(steps);
             }
         }
@@ -159,7 +162,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
             .iter_mut()
             .enumerate()
             .map(|(idx, pnt)| {
-                let tag = self.codes[pnt.get_addr_idx().0].tag();
+                let tag = self.codes[pnt.addr].tag();
                 (idx, tag)
             })
             .max_by(|(_, tag1), (_, tag2)| tag1.cmp(tag2))?;
@@ -174,19 +177,18 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
                 .stack
                 .iter()
                 .enumerate()
-                .map(|(i, pnt)| {
-                    let (addr, idx) = pnt.get_addr_idx();
-                    if let LinearCode::Or(addrs) = &self.codes[addr] {
+                .map(|(idx, pnt)| {
+                    if let LinearCode::Or(addrs) = &self.codes[pnt.addr] {
                         // return (i, addrs.len());
                         let res = addrs
                             .clone()
                             .iter()
                             .filter(|addr| {
-                                let pnt = self.new_point(**addr, idx, None);
+                                let pnt = Point::new(**addr, pnt.idx);
                                 self.lookahead_pnt(pnt)
                             })
                             .count();
-                        (i, res)
+                        (idx, res)
                     } else {
                         unreachable!()
                     }
@@ -224,7 +226,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
 
     fn select_first_non_disj_point(&mut self, state: &State) -> Option<usize> {
         for (idx, pnt) in state.stack.iter().enumerate() {
-            match self.codes[pnt.get_addr_idx().0] {
+            match self.codes[pnt.addr] {
                 LinearCode::Or(_) => {
                     // do nothing
                 }
@@ -240,7 +242,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
         self.total_step += 1;
         state.cost += 1;
 
-        let (curr_addr, curr_idx) = curr_pnt.get_addr_idx();
+        let (curr_addr, curr_idx) = (curr_pnt.addr, curr_pnt.idx);
         let code = &self.codes[curr_addr];
         match code {
             LinearCode::Lit(_) => {
@@ -277,7 +279,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
                     for var in vars {
                         self.sol.declare(&var.tag_ctx(self.idx_cnt));
                     }
-                    let pnt = self.new_point(addr + 1, self.idx_cnt, Some(curr_pnt));
+                    let pnt = Point::new(addr + 1, self.idx_cnt);
                     state.stack.push(pnt);
                     true
                 } else {
@@ -287,7 +289,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
             LinearCode::And(addrs) => {
                 assert!(addrs.len() >= 2);
                 for addr in addrs.iter().rev() {
-                    let pnt = self.new_point(*addr, curr_idx, Some(curr_pnt));
+                    let pnt = Point::new(*addr, curr_idx);
                     state.stack.push(pnt);
                 }
                 true
@@ -295,12 +297,12 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
             LinearCode::Or(addrs) => {
                 assert!(addrs.len() >= 2);
                 for addr in addrs[1..].iter().rev() {
-                    let pnt = self.new_point(*addr, curr_idx, Some(curr_pnt));
+                    let pnt = Point::new(*addr, curr_idx);
                     state.stack.push(pnt);
                     saves.push(&mut self.sol, state.clone());
                     state.stack.pop();
                 }
-                let pnt = self.new_point(addrs[0], curr_idx, Some(curr_pnt));
+                let pnt = Point::new(addrs[0], curr_idx);
                 state.stack.push(pnt);
                 true
             }
@@ -313,7 +315,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
                 for var in vars {
                     self.sol.declare(&var.tag_ctx(self.idx_cnt));
                 }
-                let pnt = self.new_point(curr_addr + 1, self.idx_cnt, Some(curr_pnt));
+                let pnt = Point::new(curr_addr + 1, self.idx_cnt);
                 state.stack.push(pnt);
                 true
             }
@@ -332,7 +334,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
 
             let mut state = State::new();
 
-            let pnt = self.new_point(entry, self.idx_cnt, None);
+            let pnt = Point::new(entry, self.idx_cnt);
             state.stack.push(pnt);
             let mut saves = Saves::new();
             saves.push(&mut self.sol, state);
