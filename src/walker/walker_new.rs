@@ -71,7 +71,8 @@ impl Saves {
 pub struct Walker<'log, Log: io::Write> {
     codes: Vec<LinearCode>,
     idx_cnt: usize,
-    total_step: usize,
+    step_cnt: usize,
+    step_cnt_la: usize,
     sol: Solver,
     log: &'log mut Log,
 }
@@ -80,15 +81,18 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
     pub fn new(codes: Vec<LinearCode>, log: &'log mut Log) -> Walker<'log, Log> {
         Walker {
             codes,
-            sol: Solver::new(),
             idx_cnt: 0,
-            total_step: 0,
+            step_cnt: 0,
+            step_cnt_la: 0,
+            sol: Solver::new(),
             log,
         }
     }
 
     fn reset(&mut self) {
         self.idx_cnt = 0;
+        self.step_cnt = 0;
+        self.step_cnt_la = 0;
         self.sol.reset();
     }
 
@@ -126,34 +130,29 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
         writeln!(self.log, "{}", self.sol)
     }
 
-    fn run_saves(&mut self, depth: usize, saves: &mut Saves) -> Option<usize> {
-        let mut steps: usize = 0;
+    fn run_saves(&mut self, depth: usize, saves: &mut Saves) -> Result<(), ()> {
         while !saves.is_empty() {
             let mut state = saves.pop(&mut self.sol);
-            let res = self.run_stack(depth, &mut state, saves)?;
-            steps += res;
+            self.run_stack(depth, &mut state, saves)?;
         }
-        Some(steps)
+        Ok(())
     }
 
-    fn run_stack(&mut self, depth: usize, state: &mut State, saves: &mut Saves) -> Option<usize> {
+    fn run_stack(&mut self, depth: usize, state: &mut State, saves: &mut Saves) -> Result<(), ()> {
         // self.write_stack(stack).unwrap();
         // self.write_saves(saves).unwrap();
 
-        let mut steps: usize = 0;
-        while !state.is_empty() {
+        while let Some(idx) = self.select_point(state) {
             if state.cost >= depth {
-                return Some(steps);
+                return Ok(());
             }
-            let idx = self.select_point(state).unwrap();
+            self.step_cnt += 1;
             let curr_pnt = state.stack.remove(idx);
-
-            steps += 1;
             if !self.run_point(&curr_pnt, state, saves) {
-                return Some(steps);
+                return Ok(());
             }
         }
-        return None;
+        return Err(());
     }
 
     fn select_point(&mut self, state: &mut State) -> Option<usize> {
@@ -179,7 +178,8 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
                 .enumerate()
                 .map(|(idx, pnt)| {
                     if let LinearCode::Or(addrs) = &self.codes[pnt.addr] {
-                        // return (i, addrs.len());
+                        // return (idx, addrs.len());
+
                         let res = addrs
                             .clone()
                             .iter()
@@ -211,6 +211,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
 
         state.stack.push(pnt);
         while let Some(idx) = self.select_first_non_disj_point(&state) {
+            self.step_cnt_la += 1;
             let curr_pnt = state.stack.remove(idx);
             if !self.run_point(&curr_pnt, &mut state, &mut saves) {
                 flag = false;
@@ -239,7 +240,6 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
     }
 
     fn run_point(&mut self, curr_pnt: &Point, state: &mut State, saves: &mut Saves) -> bool {
-        self.total_step += 1;
         state.cost += 1;
 
         let (curr_addr, curr_idx) = (curr_pnt.addr, curr_pnt.idx);
@@ -327,8 +327,11 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
         // let mut stdin = io::stdin();
         // self.write_code().unwrap();
 
+        let mut acc_total: usize = 0;
+
         for depth in (start..end).into_iter().step_by(step) {
             write!(self.log, "try depth = {}...", depth).unwrap();
+            self.log.flush().unwrap();
 
             self.reset();
 
@@ -341,11 +344,18 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
 
             let res = self.run_saves(depth, &mut saves);
 
-            if let Some(steps) = res {
+            let total = self.step_cnt + self.step_cnt_la;
+            acc_total += total;
+
+            if res.is_ok() {
                 writeln!(
                     self.log,
-                    "fail. depth = {}, step = {}, total = {}",
-                    depth, steps, self.total_step
+                    "fail. step = {}, step_la = {}(ratio {}), total = {}, acc_total = {} ",
+                    self.step_cnt,
+                    self.step_cnt_la,
+                    (self.step_cnt as f32) / (self.step_cnt_la as f32 + 0.001),
+                    total,
+                    acc_total
                 )
                 .unwrap();
             } else {
