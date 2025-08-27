@@ -2,9 +2,10 @@ use super::*;
 
 use super::compile::LinearCode;
 use crate::solver::solver::Solver;
+use std::collections::VecDeque;
 use std::{fmt, io};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Point {
     addr: usize,
     idx: usize,
@@ -26,19 +27,19 @@ impl Point {
 #[derive(Clone, Debug)]
 struct State {
     cost: usize,
-    stack: Vec<Point>,
+    stack: VecDeque<Point>,
 }
 
 impl State {
     fn new() -> State {
         State {
             cost: 0,
-            stack: Vec::new(),
+            stack: VecDeque::new(),
         }
     }
 
-    fn is_empty(&self) -> bool {
-        self.stack.is_empty()
+    fn push(&mut self, pnt: Point) {
+        self.stack.push_back(pnt);
     }
 }
 
@@ -142,12 +143,12 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
         // self.write_stack(stack).unwrap();
         // self.write_saves(saves).unwrap();
 
-        while let Some(idx) = self.select_point(state) {
+        while let Some(curr_pnt) = self.select_pop(state) {
             if state.cost >= depth {
                 return Ok(());
             }
             self.step_cnt += 1;
-            let curr_pnt = state.stack.remove(idx);
+            // let curr_pnt = state.stack.remove(idx).unwrap();
             if !self.run_point(&curr_pnt, state, saves) {
                 return Ok(());
             }
@@ -155,64 +156,73 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
         return Err(());
     }
 
-    fn select_point(&mut self, state: &mut State) -> Option<usize> {
-        let (max_idx, max_tag) = state
-            .stack
-            .iter_mut()
-            .enumerate()
-            .map(|(idx, pnt)| {
-                let tag = self.codes[pnt.addr].tag();
-                (idx, tag)
-            })
-            .max_by(|(_, tag1), (_, tag2)| tag1.cmp(tag2))?;
+    fn select_pop(&mut self, state: &mut State) -> Option<Point> {
+        if state.stack.is_empty() {
+            return None;
+        }
 
-        if max_tag > 1 {
-            return Some(max_idx);
-        } else {
-            // return Some(max_idx);
+        // choose non-disjunction point first
+        let mut select_idx: Option<usize> = None;
+        for (idx, pnt) in state.stack.iter().enumerate() {
+            if let LinearCode::Or(_addrs) = &self.codes[pnt.addr] {
+                // do nothing
+            } else {
+                select_idx = Some(idx);
+                break;
+            }
+        }
+        if let Some(idx) = select_idx {
+            return Some(state.stack.remove(idx).unwrap());
+        }
 
-            // One-step look-ahead simulation
-            let (min_idx, _min_res) = state
-                .stack
+        // look-ahead for the first point with branching factor 0 or 1
+        let mut vec = Vec::new();
+        while let Some(next_pnt) = state.stack.pop_front() {
+            let brch = self.look_ahead_disj(&next_pnt);
+            if brch <= 1 {
+                for pnt in vec.into_iter() {
+                    state.stack.push_back(pnt);
+                }
+                return Some(next_pnt);
+            } else {
+                vec.push(next_pnt);
+            }
+        }
+
+        // recover all looked points, choose the next one
+        for pnt in vec.into_iter() {
+            state.stack.push_back(pnt);
+        }
+        return Some(state.stack.pop_front().unwrap());
+    }
+
+    fn look_ahead_disj(&mut self, pnt: &Point) -> i32 {
+        if let LinearCode::Or(addrs) = &self.codes[pnt.addr] {
+            let brch = addrs
+                .clone()
                 .iter()
-                .enumerate()
-                .map(|(idx, pnt)| {
-                    if let LinearCode::Or(addrs) = &self.codes[pnt.addr] {
-                        // return (idx, addrs.len());
-
-                        let res = addrs
-                            .clone()
-                            .iter()
-                            .filter(|addr| {
-                                let pnt = Point::new(**addr, pnt.idx);
-                                self.lookahead_pnt(pnt)
-                            })
-                            .count();
-                        (idx, res)
-                    } else {
-                        unreachable!()
-                    }
+                .filter(|addr| {
+                    let pnt = Point::new(**addr, pnt.idx);
+                    self.look_ahead_pnt(pnt)
                 })
-                .min_by(|(_, a), (_, b)| a.cmp(b))
-                .unwrap();
-
-            // writeln!(self.log, "{}/{}:{}", min_idx, state.stack.len(), min_res).unwrap();
-
-            return Some(min_idx);
+                .count();
+            brch as i32
+        } else {
+            panic!("look-ahead on non-disjunction node");
         }
     }
 
-    fn lookahead_pnt(&mut self, pnt: Point) -> bool {
+    fn look_ahead_pnt(&mut self, pnt: Point) -> bool {
         let mut saves: Saves = Saves::new();
         let mut state: State = State::new();
         let mut flag = true;
 
         self.sol.savepoint();
 
-        state.stack.push(pnt);
+        state.push(pnt);
         while let Some(idx) = self.select_first_non_disj_point(&state) {
+            let curr_pnt = state.stack.remove(idx).unwrap();
             self.step_cnt_la += 1;
-            let curr_pnt = state.stack.remove(idx);
             if !self.run_point(&curr_pnt, &mut state, &mut saves) {
                 flag = false;
                 break;
@@ -280,7 +290,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
                         self.sol.declare(&var.tag_ctx(self.idx_cnt));
                     }
                     let pnt = Point::new(addr + 1, self.idx_cnt);
-                    state.stack.push(pnt);
+                    state.push(pnt);
                     true
                 } else {
                     panic!("addr of call not reference to a label!");
@@ -290,7 +300,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
                 assert!(addrs.len() >= 2);
                 for addr in addrs.iter().rev() {
                     let pnt = Point::new(*addr, curr_idx);
-                    state.stack.push(pnt);
+                    state.push(pnt)
                 }
                 true
             }
@@ -298,12 +308,12 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
                 assert!(addrs.len() >= 2);
                 for addr in addrs[1..].iter().rev() {
                     let pnt = Point::new(*addr, curr_idx);
-                    state.stack.push(pnt);
+                    state.push(pnt);
                     saves.push(&mut self.sol, state.clone());
-                    state.stack.pop();
+                    state.stack.pop_back();
                 }
                 let pnt = Point::new(addrs[0], curr_idx);
-                state.stack.push(pnt);
+                state.push(pnt);
                 true
             }
             LinearCode::Label(_pred, args, vars) => {
@@ -316,7 +326,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
                     self.sol.declare(&var.tag_ctx(self.idx_cnt));
                 }
                 let pnt = Point::new(curr_addr + 1, self.idx_cnt);
-                state.stack.push(pnt);
+                state.push(pnt);
                 true
             }
         }
@@ -338,7 +348,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
             let mut state = State::new();
 
             let pnt = Point::new(entry, self.idx_cnt);
-            state.stack.push(pnt);
+            state.push(pnt);
             let mut saves = Saves::new();
             saves.push(&mut self.sol, state);
 
@@ -353,7 +363,7 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
                     "fail. step = {}, step_la = {}(ratio {}), total = {}, acc_total = {} ",
                     self.step_cnt,
                     self.step_cnt_la,
-                    (self.step_cnt as f32) / (self.step_cnt_la as f32 + 0.001),
+                    (self.step_cnt_la as f32) / (self.step_cnt as f32 + 0.001),
                     total,
                     acc_total
                 )
