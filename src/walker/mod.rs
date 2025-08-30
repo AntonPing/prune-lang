@@ -6,6 +6,7 @@ use itertools::Itertools;
 use std::collections::HashMap;
 
 pub mod compile;
+pub mod compile_new;
 pub mod vsids;
 pub mod walker;
 pub mod walker_new;
