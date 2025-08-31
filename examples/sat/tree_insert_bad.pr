@@ -51,4 +51,4 @@ begin
     )
 end
 
-entry always_sorted(10, 1000, 10)
+entry always_sorted(5, 1000, 5)

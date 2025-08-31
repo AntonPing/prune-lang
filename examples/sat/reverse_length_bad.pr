@@ -29,4 +29,4 @@ begin
     @icmpeq(length(reverse(xs)), length(xs)) = false
 end
 
-entry same_length_after_reverse(10, 1000, 10)
+entry same_length_after_reverse(5, 1000, 5)

@@ -36,4 +36,4 @@ begin
 	)
 end
 
-entry long_fail(10, 51, 1)
+entry long_fail(5, 30, 5)

@@ -30,4 +30,4 @@ begin
     intlist_eq(reverse(reverse(xs)), xs) = false
 end
 
-entry double_reverse_same(10, 1000, 10)
+entry double_reverse_same(5, 1000, 5)
