@@ -85,7 +85,7 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
         writeln!(self.log, "{}", self.sol)
     }
 
-    fn run_saves_loop(&mut self, depth: usize) -> bool {
+    fn run_stack_loop(&mut self, depth: usize) -> bool {
         while !self.stack.is_empty() {
             let mut state = self.pop_state();
             if self.run_state_loop(depth, &mut state) {
@@ -97,17 +97,18 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
 
     fn run_state_loop(&mut self, depth: usize, state: &mut State<'blk>) -> bool {
         loop {
-            if state.depth > depth {
+            if state.depth + state.queue.len() > depth {
                 return false;
             }
             self.step_cnt += 1;
-            if !self.run_point(state) {
+            if !self.run_block(state) {
                 return false;
             }
             if state.queue.is_empty() {
                 return true;
             } else {
                 self.split_branch(state);
+                return false;
             }
         }
     }
@@ -116,21 +117,19 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
         assert!(!state.queue.is_empty());
 
         // DFS branching strategy
-        // let mut brchs = state.queue.pop_back().unwrap();
+        // let brchs = state.queue.pop_back().unwrap();
 
         // BFS branching strategy
-        // let mut brchs = state.queue.pop_front().unwrap();
+        // let brchs = state.queue.pop_front().unwrap();
 
         // look-ahead branching heuristic
-        let mut brchs = self.look_ahead(state);
+        let brchs = self.look_ahead(state);
 
-        let last: BlockCtx<'blk> = brchs.pop().unwrap();
         for brch in brchs {
             let mut new_state = state.clone();
             new_state.curr_blk = brch;
             self.push_state(new_state);
         }
-        state.curr_blk = last;
     }
 
     fn look_ahead(&mut self, state: &mut State<'blk>) -> Vec<BlockCtx<'blk>> {
@@ -139,44 +138,47 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
         // look-ahead for the first point with branching factor 0 or 1
         let mut vec = Vec::new();
         while let Some(brchs) = state.queue.pop_front() {
-            let cnt = self.look_ahead_brchs(state, &brchs);
-            if cnt <= 1 {
-                for (brchs, _cnt) in vec.into_iter() {
+            let new_brchs = self.look_ahead_filter(state, brchs);
+            if new_brchs.len() <= 1 {
+                for brchs in vec.into_iter() {
                     state.queue.push_back(brchs);
                 }
-                return brchs;
+                return new_brchs;
             } else {
-                vec.push((brchs, cnt));
+                vec.push(new_brchs);
             }
         }
 
-        let (brchs, _cnt) = vec.remove(0);
-        for (brchs, _cnt) in vec.into_iter() {
+        for brchs in vec.into_iter() {
             state.queue.push_back(brchs);
         }
+
+        state.queue.pop_front().unwrap()
+    }
+
+    fn look_ahead_filter(
+        &mut self,
+        state: &State<'blk>,
+        brchs: Vec<BlockCtx<'blk>>,
+    ) -> Vec<BlockCtx<'blk>> {
         brchs
+            .into_iter()
+            .filter(|brch| {
+                self.sol.savepoint();
+
+                let mut new_state = state.clone();
+                new_state.curr_blk = *brch;
+                self.step_cnt_la += 1;
+                let res = self.run_block(&mut new_state);
+
+                self.sol.backtrack();
+
+                res
+            })
+            .collect()
     }
 
-    fn look_ahead_brchs(&mut self, state: &State<'blk>, brchs: &Vec<BlockCtx<'blk>>) -> usize {
-        let mut count = 0;
-
-        for brch in brchs {
-            self.sol.savepoint();
-
-            let mut new_state = state.clone();
-            new_state.curr_blk = *brch;
-            self.step_cnt_la += 1;
-            if self.run_point(&mut new_state) {
-                count += 1;
-            }
-
-            self.sol.backtrack();
-        }
-
-        count
-    }
-
-    fn run_point(&mut self, state: &mut State<'blk>) -> bool {
+    fn run_block(&mut self, state: &mut State<'blk>) -> bool {
         state.depth += 1;
 
         let curr_blk = state.curr_blk.blk;
@@ -227,7 +229,7 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
                 self.sol.declare(&var.tag_ctx(self.ctx_cnt));
             }
             state.curr_blk = callee.blk.tag_ctx(self.ctx_cnt);
-            let res = self.run_point(state);
+            let res = self.run_block(state);
             if !res {
                 return false;
             }
@@ -267,7 +269,7 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
             let state = State::new(callee.blk.tag_ctx(self.ctx_cnt));
             self.push_state(state);
 
-            let res = self.run_saves_loop(depth);
+            let res = self.run_stack_loop(depth);
 
             let total = self.step_cnt + self.step_cnt_la;
             acc_total += total;
