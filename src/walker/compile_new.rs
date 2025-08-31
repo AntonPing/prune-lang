@@ -5,11 +5,11 @@ use std::fmt;
 
 #[derive(Clone, Debug)]
 pub struct Block {
-    eqs: Vec<(Ident, AtomId)>,
-    cons: Vec<(Ident, Ident, Vec<AtomId>)>,
-    prims: Vec<(Prim, Vec<AtomId>)>,
-    calls: Vec<(PredIdent, Vec<AtomId>)>,
-    brchss: Vec<Vec<Block>>,
+    pub eqs: Vec<(Ident, AtomId)>,
+    pub cons: Vec<(Ident, Ident, Vec<AtomId>)>,
+    pub prims: Vec<(Prim, Vec<AtomId>)>,
+    pub calls: Vec<(PredIdent, Vec<AtomId>)>,
+    pub brchss: Vec<Vec<Block>>,
 }
 
 impl Block {
@@ -102,10 +102,10 @@ impl Block {
 
 #[derive(Clone, Debug)]
 pub struct PredBlock {
-    name: PredIdent,
-    pars: Vec<Ident>,
-    vars: Vec<Ident>,
-    blk: Block,
+    pub name: PredIdent,
+    pub pars: Vec<Ident>,
+    pub vars: Vec<Ident>,
+    pub blk: Block,
 }
 impl std::fmt::Display for PredBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -133,6 +133,24 @@ pub fn compile_dict(dict: &HashMap<PredIdent, Predicate>) -> HashMap<PredIdent, 
     dict.iter()
         .map(|(name, pred)| (*name, PredBlock::compile_pred(pred)))
         .collect()
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct BlockCtx<'blk> {
+    pub blk: &'blk Block,
+    pub ctx: usize,
+}
+
+impl<'blk> fmt::Display for BlockCtx<'blk> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{ctx = {}}} {}", self.ctx, self.blk)
+    }
+}
+
+impl<'blk> Block {
+    pub fn tag_ctx(&'blk self, ctx: usize) -> BlockCtx<'blk> {
+        BlockCtx { ctx, blk: self }
+    }
 }
 
 #[test]

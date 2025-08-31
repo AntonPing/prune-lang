@@ -1,88 +1,48 @@
 use super::*;
 
-use super::compile::LinearCode;
+use super::compile_new::{BlockCtx, PredBlock};
+use crate::logic::ast::PredIdent;
 use crate::solver::solver::Solver;
 use std::collections::VecDeque;
-use std::{fmt, io};
-
-#[derive(Clone, Copy, Debug)]
-pub struct Point {
-    addr: usize,
-    idx: usize,
-}
-
-impl fmt::Display for Point {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", self.addr, self.idx)?;
-        Ok(())
-    }
-}
-
-impl Point {
-    fn new(addr: usize, idx: usize) -> Point {
-        Point { addr, idx }
-    }
-}
+use std::io;
 
 #[derive(Clone, Debug)]
-struct State {
-    cost: usize,
-    stack: VecDeque<Point>,
+struct State<'blk> {
+    depth: usize,
+    curr_blk: BlockCtx<'blk>,
+    queue: VecDeque<Vec<BlockCtx<'blk>>>,
 }
 
-impl State {
-    fn new() -> State {
+impl<'blk> State<'blk> {
+    fn new(curr_blk: BlockCtx<'blk>) -> State<'blk> {
         State {
-            cost: 0,
-            stack: VecDeque::new(),
+            depth: 0,
+            curr_blk,
+            queue: VecDeque::new(),
         }
-    }
-
-    fn push(&mut self, pnt: Point) {
-        self.stack.push_back(pnt);
-    }
-}
-
-#[derive(Clone, Debug)]
-struct Saves {
-    stack: Vec<State>,
-}
-
-impl Saves {
-    fn new() -> Saves {
-        Saves { stack: Vec::new() }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.stack.is_empty()
-    }
-
-    fn push(&mut self, sol: &mut Solver, state: State) {
-        sol.savepoint();
-        self.stack.push(state);
-    }
-
-    fn pop(&mut self, sol: &mut Solver) -> State {
-        sol.backtrack();
-        self.stack.pop().unwrap()
     }
 }
 
 #[derive(Debug)]
-pub struct Walker<'log, Log: io::Write> {
-    codes: Vec<LinearCode>,
-    idx_cnt: usize,
+pub struct Walker<'blk, 'log, Log: io::Write> {
+    dict: &'blk HashMap<PredIdent, PredBlock>,
+    stack: Vec<State<'blk>>,
+    ctx_cnt: usize,
     step_cnt: usize,
     step_cnt_la: usize,
     sol: Solver,
     log: &'log mut Log,
 }
 
-impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
-    pub fn new(codes: Vec<LinearCode>, log: &'log mut Log) -> Walker<'log, Log> {
+impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
+    pub fn new(
+        dict: &'blk HashMap<PredIdent, PredBlock>,
+        log: &'log mut Log,
+    ) -> Walker<'blk, 'log, Log> {
         Walker {
-            codes,
-            idx_cnt: 0,
+            dict,
+            stack: Vec::new(),
+            ctx_cnt: 0,
             step_cnt: 0,
             step_cnt_la: 0,
             sol: Solver::new(),
@@ -91,35 +51,29 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
     }
 
     fn reset(&mut self) {
-        self.idx_cnt = 0;
+        self.ctx_cnt = 0;
         self.step_cnt = 0;
         self.step_cnt_la = 0;
         self.sol.reset();
     }
 
-    pub fn write_code_window(&mut self, addr: usize) -> io::Result<()> {
-        let start = std::cmp::max(addr, 2) - 2;
-        let end = std::cmp::min(addr, self.codes.len() - 3) + 3;
-
-        for (i, code) in self.codes[start..end].iter().enumerate() {
-            let i = i + start;
-
-            if i == addr {
-                writeln!(self.log, "{:03}: >>> {}", &i, &code)?;
-            } else {
-                writeln!(self.log, "{:03}: {}", &i, &code)?;
-            }
-        }
-        Ok(())
+    fn push_state(&mut self, state: State<'blk>) {
+        self.sol.savepoint();
+        self.stack.push(state);
     }
 
-    pub fn write_stack(&mut self, stack: &Vec<Point>) -> io::Result<()> {
+    fn pop_state(&mut self) -> State<'blk> {
+        self.sol.backtrack();
+        self.stack.pop().unwrap()
+    }
+
+    pub fn write_stack(&mut self, stack: &Vec<BlockCtx>) -> io::Result<()> {
         let stack = stack.iter().format(&", ");
         writeln!(self.log, "stack = [{}]", stack)?;
         Ok(())
     }
 
-    pub fn write_saves(&mut self, saves: &Vec<Vec<Point>>) -> io::Result<()> {
+    pub fn write_saves(&mut self, saves: &Vec<Vec<BlockCtx>>) -> io::Result<()> {
         for (i, stack) in saves.iter().rev().enumerate() {
             let stack = stack.iter().format(&", ");
             writeln!(self.log, "save{} = [{}]", i, stack)?;
@@ -131,208 +85,166 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
         writeln!(self.log, "{}", self.sol)
     }
 
-    fn run_saves(&mut self, depth: usize, saves: &mut Saves) -> Result<(), ()> {
-        while !saves.is_empty() {
-            let mut state = saves.pop(&mut self.sol);
-            self.run_stack(depth, &mut state, saves)?;
+    fn run_saves_loop(&mut self, depth: usize) -> bool {
+        while !self.stack.is_empty() {
+            let mut state = self.pop_state();
+            if self.run_state_loop(depth, &mut state) {
+                return true;
+            }
         }
-        Ok(())
+        false
     }
 
-    fn run_stack(&mut self, depth: usize, state: &mut State, saves: &mut Saves) -> Result<(), ()> {
-        // self.write_stack(stack).unwrap();
-        // self.write_saves(saves).unwrap();
-
-        while let Some(curr_pnt) = self.select_pop(state) {
-            if state.cost >= depth {
-                return Ok(());
+    fn run_state_loop(&mut self, depth: usize, state: &mut State<'blk>) -> bool {
+        loop {
+            if state.depth > depth {
+                return false;
             }
             self.step_cnt += 1;
-            // let curr_pnt = state.stack.remove(idx).unwrap();
-            if !self.run_point(&curr_pnt, state, saves) {
-                return Ok(());
+            if !self.run_point(state) {
+                return false;
+            }
+            if state.queue.is_empty() {
+                return true;
+            } else {
+                self.split_branch(state);
             }
         }
-        return Err(());
     }
 
-    fn select_pop(&mut self, state: &mut State) -> Option<Point> {
-        if state.stack.is_empty() {
-            return None;
-        }
+    fn split_branch(&mut self, state: &mut State<'blk>) {
+        assert!(!state.queue.is_empty());
 
-        // choose non-disjunction point first
-        let mut select_idx: Option<usize> = None;
-        for (idx, pnt) in state.stack.iter().enumerate() {
-            if let LinearCode::Or(_addrs) = &self.codes[pnt.addr] {
-                // do nothing
-            } else {
-                select_idx = Some(idx);
-                break;
-            }
+        // DFS branching strategy
+        // let mut brchs = state.queue.pop_back().unwrap();
+
+        // BFS branching strategy
+        // let mut brchs = state.queue.pop_front().unwrap();
+
+        // look-ahead branching heuristic
+        let mut brchs = self.look_ahead(state);
+
+        let last: BlockCtx<'blk> = brchs.pop().unwrap();
+        for brch in brchs {
+            let mut new_state = state.clone();
+            new_state.curr_blk = brch;
+            self.push_state(new_state);
         }
-        if let Some(idx) = select_idx {
-            return Some(state.stack.remove(idx).unwrap());
-        }
+        state.curr_blk = last;
+    }
+
+    fn look_ahead(&mut self, state: &mut State<'blk>) -> Vec<BlockCtx<'blk>> {
+        assert!(!state.queue.is_empty());
 
         // look-ahead for the first point with branching factor 0 or 1
         let mut vec = Vec::new();
-        while let Some(next_pnt) = state.stack.pop_front() {
-            let brch = self.look_ahead_disj(&next_pnt);
-            if brch <= 1 {
-                for pnt in vec.into_iter() {
-                    state.stack.push_back(pnt);
+        while let Some(brchs) = state.queue.pop_front() {
+            let cnt = self.look_ahead_brchs(state, &brchs);
+            if cnt <= 1 {
+                for (brchs, _cnt) in vec.into_iter() {
+                    state.queue.push_back(brchs);
                 }
-                return Some(next_pnt);
+                return brchs;
             } else {
-                vec.push(next_pnt);
+                vec.push((brchs, cnt));
             }
         }
 
-        // recover all looked points, choose the next one
-        for pnt in vec.into_iter() {
-            state.stack.push_back(pnt);
+        let (brchs, _cnt) = vec.remove(0);
+        for (brchs, _cnt) in vec.into_iter() {
+            state.queue.push_back(brchs);
         }
-        return Some(state.stack.pop_front().unwrap());
+        brchs
     }
 
-    fn look_ahead_disj(&mut self, pnt: &Point) -> i32 {
-        if let LinearCode::Or(addrs) = &self.codes[pnt.addr] {
-            let brch = addrs
-                .clone()
-                .iter()
-                .filter(|addr| {
-                    let pnt = Point::new(**addr, pnt.idx);
-                    self.look_ahead_pnt(pnt)
-                })
-                .count();
-            brch as i32
-        } else {
-            panic!("look-ahead on non-disjunction node");
-        }
-    }
+    fn look_ahead_brchs(&mut self, state: &State<'blk>, brchs: &Vec<BlockCtx<'blk>>) -> usize {
+        let mut count = 0;
 
-    fn look_ahead_pnt(&mut self, pnt: Point) -> bool {
-        let mut saves: Saves = Saves::new();
-        let mut state: State = State::new();
-        let mut flag = true;
+        for brch in brchs {
+            self.sol.savepoint();
 
-        self.sol.savepoint();
-
-        state.push(pnt);
-        while let Some(idx) = self.select_first_non_disj_point(&state) {
-            let curr_pnt = state.stack.remove(idx).unwrap();
+            let mut new_state = state.clone();
+            new_state.curr_blk = *brch;
             self.step_cnt_la += 1;
-            if !self.run_point(&curr_pnt, &mut state, &mut saves) {
-                flag = false;
-                break;
+            if self.run_point(&mut new_state) {
+                count += 1;
             }
-            assert!(saves.is_empty());
+
+            self.sol.backtrack();
         }
 
-        self.sol.backtrack();
-
-        flag
+        count
     }
 
-    fn select_first_non_disj_point(&mut self, state: &State) -> Option<usize> {
-        for (idx, pnt) in state.stack.iter().enumerate() {
-            match self.codes[pnt.addr] {
-                LinearCode::Or(_) => {
-                    // do nothing
-                }
-                _ => {
-                    return Some(idx);
-                }
+    fn run_point(&mut self, state: &mut State<'blk>) -> bool {
+        state.depth += 1;
+
+        let curr_blk = state.curr_blk.blk;
+        let curr_ctx = state.curr_blk.ctx;
+
+        for (var, atom) in curr_blk.eqs.iter() {
+            let var = var.tag_ctx(curr_ctx);
+            let atom = atom.tag_ctx(curr_ctx);
+            let res = self.sol.bind(var, atom.to_term()).is_ok();
+            if !res {
+                return false;
             }
         }
-        None
-    }
 
-    fn run_point(&mut self, curr_pnt: &Point, state: &mut State, saves: &mut Saves) -> bool {
-        state.cost += 1;
-
-        let (curr_addr, curr_idx) = (curr_pnt.addr, curr_pnt.idx);
-        let code = &self.codes[curr_addr];
-        match code {
-            LinearCode::Lit(_) => {
-                panic!("literal should be optimized!")
-            }
-            LinearCode::Eq(var, atom) => {
-                let var = var.tag_ctx(curr_idx);
-                let atom = atom.tag_ctx(curr_idx);
-                self.sol.bind(var, atom.to_term()).is_ok()
-            }
-            LinearCode::Cons(var, cons, flds) => {
-                let var = var.tag_ctx(curr_idx);
-                let flds = flds
-                    .iter()
-                    .map(|fld| fld.tag_ctx(curr_idx).to_term())
-                    .collect();
-                self.sol.bind(var, Term::Cons((), *cons, flds)).is_ok()
-            }
-            LinearCode::Prim(prim, args) => {
-                let args = args.iter().map(|arg| arg.tag_ctx(curr_idx)).collect();
-                self.sol.solve(*prim, args).is_ok()
-            }
-            LinearCode::Call(pred1, args, addr) => {
-                if let LinearCode::Label(pred2, pars, vars) = &self.codes[*addr] {
-                    assert_eq!(pred1, pred2);
-                    self.idx_cnt += 1;
-                    assert_eq!(pars.len(), args.len());
-                    for (par, arg) in pars.iter().zip(args.iter()) {
-                        self.sol.declare(&par.tag_ctx(self.idx_cnt));
-                        let par = par.tag_ctx(self.idx_cnt);
-                        let arg = arg.tag_ctx(curr_idx);
-                        self.sol.bind(par, arg.to_term()).unwrap(); // unify with a fresh variable cannot fail
-                    }
-                    for var in vars {
-                        self.sol.declare(&var.tag_ctx(self.idx_cnt));
-                    }
-                    let pnt = Point::new(addr + 1, self.idx_cnt);
-                    state.push(pnt);
-                    true
-                } else {
-                    panic!("addr of call not reference to a label!");
-                }
-            }
-            LinearCode::And(addrs) => {
-                assert!(addrs.len() >= 2);
-                for addr in addrs.iter().rev() {
-                    let pnt = Point::new(*addr, curr_idx);
-                    state.push(pnt)
-                }
-                true
-            }
-            LinearCode::Or(addrs) => {
-                assert!(addrs.len() >= 2);
-                for addr in addrs[1..].iter().rev() {
-                    let pnt = Point::new(*addr, curr_idx);
-                    state.push(pnt);
-                    saves.push(&mut self.sol, state.clone());
-                    state.stack.pop_back();
-                }
-                let pnt = Point::new(addrs[0], curr_idx);
-                state.push(pnt);
-                true
-            }
-            LinearCode::Label(_pred, args, vars) => {
-                assert!(state.stack.is_empty());
-                assert_eq!(self.idx_cnt, 0);
-                for arg in args {
-                    self.sol.declare(&arg.tag_ctx(self.idx_cnt));
-                }
-                for var in vars {
-                    self.sol.declare(&var.tag_ctx(self.idx_cnt));
-                }
-                let pnt = Point::new(curr_addr + 1, self.idx_cnt);
-                state.push(pnt);
-                true
+        for (var, cons, flds) in curr_blk.cons.iter() {
+            let var = var.tag_ctx(curr_ctx);
+            let flds = flds
+                .iter()
+                .map(|fld| fld.tag_ctx(curr_ctx).to_term())
+                .collect();
+            let res = self.sol.bind(var, Term::Cons((), *cons, flds)).is_ok();
+            if !res {
+                return false;
             }
         }
+
+        for (prim, args) in curr_blk.prims.iter() {
+            let args = args.iter().map(|arg| arg.tag_ctx(curr_ctx)).collect();
+            let res = self.sol.solve(*prim, args).is_ok();
+            if !res {
+                return false;
+            }
+        }
+
+        for (pred, args) in curr_blk.calls.iter() {
+            let callee = &self.dict[&pred];
+            assert_eq!(callee.name, *pred);
+            let (pars, vars) = (callee.pars.clone(), callee.vars.clone());
+            self.ctx_cnt += 1;
+            assert_eq!(pars.len(), args.len());
+            for (par, arg) in pars.iter().zip(args.iter()) {
+                self.sol.declare(&par.tag_ctx(self.ctx_cnt));
+                let par = par.tag_ctx(self.ctx_cnt);
+                let arg = arg.tag_ctx(curr_ctx);
+                self.sol.bind(par, arg.to_term()).unwrap(); // unify with a fresh variable cannot fail
+            }
+            for var in vars {
+                self.sol.declare(&var.tag_ctx(self.ctx_cnt));
+            }
+            state.curr_blk = callee.blk.tag_ctx(self.ctx_cnt);
+            let res = self.run_point(state);
+            if !res {
+                return false;
+            }
+        }
+
+        for brchs in curr_blk.brchss.iter() {
+            let mut vec = Vec::new();
+            for brch in brchs {
+                vec.push(brch.tag_ctx(curr_ctx));
+            }
+            state.queue.push_back(vec);
+        }
+
+        true
     }
 
-    pub fn run_loop(&mut self, entry: usize, start: usize, end: usize, step: usize) -> bool {
+    pub fn run_loop(&mut self, entry: PredIdent, start: usize, end: usize, step: usize) -> bool {
         // use std::io::Read;
         // let mut stdin = io::stdin();
         // self.write_code().unwrap();
@@ -345,19 +257,25 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
 
             self.reset();
 
-            let mut state = State::new();
+            let callee = &self.dict[&entry];
+            for par in &callee.pars {
+                self.sol.declare(&par.tag_ctx(self.ctx_cnt));
+            }
+            for var in &callee.vars {
+                self.sol.declare(&var.tag_ctx(self.ctx_cnt));
+            }
+            let state = State::new(callee.blk.tag_ctx(self.ctx_cnt));
+            self.push_state(state);
 
-            let pnt = Point::new(entry, self.idx_cnt);
-            state.push(pnt);
-            let mut saves = Saves::new();
-            saves.push(&mut self.sol, state);
-
-            let res = self.run_saves(depth, &mut saves);
+            let res = self.run_saves_loop(depth);
 
             let total = self.step_cnt + self.step_cnt_la;
             acc_total += total;
 
-            if res.is_ok() {
+            if res {
+                writeln!(self.log, "success! depth = {}", depth).unwrap();
+                return true;
+            } else {
                 writeln!(
                     self.log,
                     "fail. step = {}, step_la = {}(ratio {}), total = {}, acc_total = {} ",
@@ -368,12 +286,8 @@ impl<'sol, 'log, Log: io::Write> Walker<'log, Log> {
                     acc_total
                 )
                 .unwrap();
-            } else {
-                writeln!(self.log, "success! depth = {}", depth).unwrap();
-                return true;
             }
         }
-
         false
     }
 }
@@ -416,11 +330,11 @@ end
 
     let dict = crate::logic::transform::prog_to_dict(&prog);
     // println!("{:#?}", dict);
-    let (codes, map) = super::compile::compile_dict(&dict);
+    let dict = super::compile_new::compile_dict(&dict);
     // println!("{:?}", map);
 
     let mut log = std::io::empty();
-    let mut wlk = Walker::new(codes, &mut log);
-    let entry = map[&PredIdent::Pos(Ident::dummy(&"is_elem_after_append"))];
+    let mut wlk = Walker::new(&dict, &mut log);
+    let entry = PredIdent::Pos(Ident::dummy(&"is_elem_after_append"));
     assert!(!wlk.run_loop(entry, 10, 100, 10))
 }

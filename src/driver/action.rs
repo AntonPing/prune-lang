@@ -95,28 +95,38 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         (wlk, map)
     }
 
-    pub fn create_walker_new(
-        &'log mut self,
-        prog: &ast::Program,
-    ) -> (
-        walker::walker_new::Walker<'log, Log>,
-        HashMap<PredIdent, usize>,
-    ) {
-        let dict = crate::logic::transform::prog_to_dict(&prog);
-        let (codes, map) = compile::compile_dict(&dict);
-        let wlk = walker::walker_new::Walker::new(codes, self.log);
-        (wlk, map)
-    }
-
     pub fn test_prog(&'log mut self) -> Result<Vec<bool>, ()> {
         let mut prog = self.parse_program()?;
         let _rename_map = self.rename_pass(&mut prog)?;
         let _check_map = self.check_pass(&mut prog)?;
 
-        let (mut wlk, map) = self.create_walker_new(&prog);
+        let (mut wlk, map) = self.create_walker(&prog);
         let mut res_vec = Vec::new();
         for entry_decl in prog.entrys {
             let entry = map[&PredIdent::Pos(entry_decl.entry)];
+            let res = wlk.run_loop(
+                entry,
+                entry_decl.iter_start,
+                entry_decl.iter_end,
+                entry_decl.iter_step,
+            );
+            res_vec.push(res);
+        }
+        Ok(res_vec)
+    }
+
+    pub fn test_prog_new(&'log mut self) -> Result<Vec<bool>, ()> {
+        let mut prog = self.parse_program()?;
+        let _rename_map = self.rename_pass(&mut prog)?;
+        let _check_map = self.check_pass(&mut prog)?;
+
+        let dict = crate::logic::transform::prog_to_dict(&prog);
+        let dict = crate::walker::compile_new::compile_dict(&dict);
+        let mut wlk = walker::walker_new::Walker::new(&dict, self.log);
+
+        let mut res_vec = Vec::new();
+        for entry_decl in prog.entrys {
+            let entry = PredIdent::Pos(entry_decl.entry);
             let res = wlk.run_loop(
                 entry,
                 entry_decl.iter_start,
@@ -138,7 +148,7 @@ pub fn test_unsat_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
     let src = fs::read_to_string(path).map_err(|_err| ())?;
     let mut log = io::empty();
     let mut pipe = Pipeline::new(&src, &mut log);
-    let res_vec = pipe.test_prog()?;
+    let res_vec = pipe.test_prog_new()?;
     assert!(res_vec.iter().any(|p| !*p));
     Ok(())
 }
@@ -152,7 +162,7 @@ pub fn test_sat_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
     let src = fs::read_to_string(path).map_err(|_err| ())?;
     let mut log = io::empty();
     let mut pipe = Pipeline::new(&src, &mut log);
-    let res_vec = pipe.test_prog()?;
+    let res_vec = pipe.test_prog_new()?;
     assert!(res_vec.iter().all(|p| *p));
     Ok(())
 }
