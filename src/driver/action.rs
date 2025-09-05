@@ -1,5 +1,4 @@
 use crate::driver::diagnostic::Diagnostic;
-use crate::logic::ast::*;
 use crate::syntax::{self, ast};
 use crate::tych;
 use crate::walker::{self, compile, walker::Walker};
@@ -85,27 +84,19 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         }
     }
 
-    pub fn create_walker(
-        &'log mut self,
-        prog: &ast::Program,
-    ) -> (Walker<'log, Log>, HashMap<PredIdent, usize>) {
-        let dict = crate::logic::transform::prog_to_dict(&prog);
-        let (codes, map) = compile::compile_dict(&dict);
-        let wlk = Walker::new(codes, self.log);
-        (wlk, map)
-    }
-
     pub fn test_prog(&'log mut self) -> Result<Vec<bool>, ()> {
         let mut prog = self.parse_program()?;
         let _rename_map = self.rename_pass(&mut prog)?;
         let _check_map = self.check_pass(&mut prog)?;
 
-        let (mut wlk, map) = self.create_walker(&prog);
+        let prog = crate::logic::transform::logic_translation(&prog);
+        let (codes, map) = compile::compile_dict(&prog.preds);
+        let mut wlk = Walker::new(codes, self.log);
+
         let mut res_vec = Vec::new();
         for entry_decl in prog.entrys {
-            let entry = map[&PredIdent::Pos(entry_decl.entry)];
             let res = wlk.run_loop(
-                entry,
+                map[&entry_decl.entry],
                 entry_decl.iter_start,
                 entry_decl.iter_end,
                 entry_decl.iter_step,
@@ -120,15 +111,14 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         let _rename_map = self.rename_pass(&mut prog)?;
         let _check_map = self.check_pass(&mut prog)?;
 
-        let dict = crate::logic::transform::prog_to_dict(&prog);
-        let dict = crate::walker::compile_new::compile_dict(&dict);
+        let prog = crate::logic::transform::logic_translation(&prog);
+        let dict = crate::walker::compile_new::compile_dict(&prog.preds);
         let mut wlk = walker::walker_new::Walker::new(&dict, self.log);
 
         let mut res_vec = Vec::new();
         for entry_decl in prog.entrys {
-            let entry = PredIdent::Pos(entry_decl.entry);
             let res = wlk.run_loop(
-                entry,
+                entry_decl.entry,
                 entry_decl.iter_start,
                 entry_decl.iter_end,
                 entry_decl.iter_step,

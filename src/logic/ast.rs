@@ -26,12 +26,12 @@ impl std::fmt::Display for PredIdent {
     }
 }
 
-// #[derive(Clone, Debug, PartialEq, PartialOrd)]
-// pub struct Program {
-//     pub datas: Vec<DataDecl>,
-//     pub funcs: Vec<FuncDecl>,
-//     pub preds: Vec<PredDecl>,
-// }
+#[derive(Clone, Debug, PartialEq)]
+pub struct Program {
+    pub datas: HashMap<Ident, DataDecl>,
+    pub preds: HashMap<PredIdent, PredDecl>,
+    pub entrys: Vec<EntryDecl>,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Goal {
@@ -45,9 +45,28 @@ pub enum Goal {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Predicate {
+pub struct DataDecl {
+    pub name: Ident,
+    pub cons: Vec<Constructor>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Constructor {
+    pub name: Ident,
+    pub flds: Vec<TypeId>,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct PredDecl {
     pub name: PredIdent,
     pub pars: Vec<Ident>,
     pub vars: Vec<Ident>,
     pub goal: Goal,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct EntryDecl {
+    pub entry: PredIdent,
+    pub iter_start: usize,
+    pub iter_end: usize,
+    pub iter_step: usize,
 }

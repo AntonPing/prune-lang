@@ -330,9 +330,9 @@ end
     let (prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());
 
-    let dict = crate::logic::transform::prog_to_dict(&prog);
+    let prog = crate::logic::transform::logic_translation(&prog);
     // println!("{:#?}", dict);
-    let dict = super::compile_new::compile_dict(&dict);
+    let dict = super::compile_new::compile_dict(&prog.preds);
     // println!("{:?}", map);
 
     let mut log = std::io::empty();

@@ -118,7 +118,7 @@ impl std::fmt::Display for PredBlock {
 }
 
 impl PredBlock {
-    pub fn compile_pred(pred: &Predicate) -> PredBlock {
+    pub fn compile_pred(pred: &PredDecl) -> PredBlock {
         let blk = Block::compile_goal(&pred.goal);
         PredBlock {
             name: pred.name,
@@ -129,7 +129,7 @@ impl PredBlock {
     }
 }
 
-pub fn compile_dict(dict: &HashMap<PredIdent, Predicate>) -> HashMap<PredIdent, PredBlock> {
+pub fn compile_dict(dict: &HashMap<PredIdent, PredDecl>) -> HashMap<PredIdent, PredBlock> {
     dict.iter()
         .map(|(name, pred)| (*name, PredBlock::compile_pred(pred)))
         .collect()
@@ -185,8 +185,8 @@ end
     let (prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());
 
-    let dict = crate::logic::transform::prog_to_dict(&prog);
-    let map = compile_dict(&dict);
+    let prog = crate::logic::transform::logic_translation(&prog);
+    let map = compile_dict(&prog.preds);
 
     for (_pred, blk) in map {
         println!("{}", blk);

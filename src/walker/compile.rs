@@ -82,7 +82,7 @@ impl CompileState {
         }
     }
 
-    fn compile_pred(&mut self, pred: &Predicate) {
+    fn compile_pred(&mut self, pred: &PredDecl) {
         self.dict.insert(pred.name, self.codes.len());
         self.codes.push(LinearCode::Label(
             pred.name,
@@ -161,7 +161,7 @@ impl CompileState {
 }
 
 pub fn compile_dict(
-    dict: &HashMap<PredIdent, Predicate>,
+    dict: &HashMap<PredIdent, PredDecl>,
 ) -> (Vec<LinearCode>, HashMap<PredIdent, usize>) {
     let mut st = CompileState::new();
     for pred in dict.values() {
@@ -203,8 +203,8 @@ end
     let (prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());
 
-    let dict = crate::logic::transform::prog_to_dict(&prog);
-    let (codes, map) = compile_dict(&dict);
+    let prog = crate::logic::transform::logic_translation(&prog);
+    let (codes, map) = compile_dict(&prog.preds);
     for (i, code) in codes.iter().enumerate() {
         println!("{:03}: {}", &i, &code);
     }
