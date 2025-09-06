@@ -122,7 +122,8 @@ impl UnifySolver {
                 if self.arena[*cell].is_some() {
                     self.merge(self.arena[*cell].as_ref().unwrap())
                 } else {
-                    panic!("cell not assigned!");
+                    let var = Ident::dummy(&format!("?{cell}"));
+                    Term::Var(var)
                 }
             }
         }
