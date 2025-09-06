@@ -340,13 +340,10 @@ impl Renamer {
     }
 }
 
-pub fn rename_pass(prog: &mut Program) -> (HashMap<Ident, Ident>, Vec<RenameError>) {
+pub fn rename_pass(prog: &mut Program) -> Vec<RenameError> {
     let mut pass = Renamer::new();
     pass.visit_prog(prog);
-    (
-        pass.func_pred_map.iter().map(|(k, v)| (*k, *v)).collect(),
-        pass.errors,
-    )
+    pass.errors
 }
 
 #[test]
@@ -389,7 +386,7 @@ end
     let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());
 
-    let (_map, errs) = rename_pass(&mut prog);
+    let errs = rename_pass(&mut prog);
     assert!(errs.is_empty());
 
     // println!("{:#?}", prog);

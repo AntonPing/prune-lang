@@ -3,9 +3,6 @@ use crate::syntax::{self, ast};
 use crate::tych;
 use crate::walker::{self, compile, walker::Walker};
 
-use super::*;
-
-use std::collections::HashMap;
 use std::path::{self, PathBuf};
 use std::{fs, io};
 
@@ -58,10 +55,10 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         }
     }
 
-    pub fn rename_pass(&mut self, prog: &mut ast::Program) -> PipeResult<HashMap<Ident, Ident>> {
-        let (map, errs) = tych::rename::rename_pass(prog);
+    pub fn rename_pass(&mut self, prog: &mut ast::Program) -> PipeResult<()> {
+        let errs = tych::rename::rename_pass(prog);
         if errs.is_empty() {
-            Ok(map)
+            Ok(())
         } else {
             for err in errs {
                 let diag: Diagnostic = err.into();
@@ -71,10 +68,10 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         }
     }
 
-    pub fn check_pass(&mut self, prog: &mut ast::Program) -> PipeResult<HashMap<Ident, TypeId>> {
-        let (map, errs) = tych::check::check_pass(prog);
+    pub fn check_pass(&mut self, prog: &mut ast::Program) -> PipeResult<()> {
+        let errs = tych::check::check_pass(prog);
         if errs.is_empty() {
-            Ok(map)
+            Ok(())
         } else {
             for err in errs {
                 let diag: Diagnostic = err.into();
@@ -86,10 +83,11 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
 
     pub fn test_prog(&'log mut self) -> Result<Vec<bool>, ()> {
         let mut prog = self.parse_program()?;
-        let _rename_map = self.rename_pass(&mut prog)?;
-        let _check_map = self.check_pass(&mut prog)?;
+        self.rename_pass(&mut prog)?;
+        self.check_pass(&mut prog)?;
 
         let prog = crate::logic::transform::logic_translation(&prog);
+        let _ty_map = crate::tych::elab::elab_pass(&prog);
         let (codes, map) = compile::compile_dict(&prog.preds);
         let mut wlk = Walker::new(codes, self.log);
 
@@ -108,10 +106,11 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
 
     pub fn test_prog_new(&'log mut self) -> Result<Vec<bool>, ()> {
         let mut prog = self.parse_program()?;
-        let _rename_map = self.rename_pass(&mut prog)?;
-        let _check_map = self.check_pass(&mut prog)?;
+        self.rename_pass(&mut prog)?;
+        self.check_pass(&mut prog)?;
 
         let prog = crate::logic::transform::logic_translation(&prog);
+        let _ty_map = crate::tych::elab::elab_pass(&prog);
         let dict = crate::walker::compile_new::compile_dict(&prog.preds);
         let mut wlk = walker::walker_new::Walker::new(&dict, self.log);
 

@@ -289,13 +289,10 @@ impl Checker {
     }
 }
 
-pub fn check_pass(prog: &Program) -> (HashMap<Ident, TypeId>, Vec<UnifyError>) {
+pub fn check_pass(prog: &Program) -> Vec<UnifyError> {
     let mut pass = Checker::new();
     pass.check_prog(prog);
-    let map = pass.val_ctx;
-    let sol = pass.solver;
-    let map = map.into_iter().map(|(k, v)| (k, sol.merge(&v))).collect();
-    (map, pass.diag)
+    pass.diag
 }
 
 #[test]
@@ -336,12 +333,12 @@ end
     let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());
 
-    let (_map, errs) = crate::tych::rename::rename_pass(&mut prog);
+    let errs = crate::tych::rename::rename_pass(&mut prog);
     assert!(errs.is_empty());
 
     // println!("{:#?}", prog);
 
-    let (_map, errs) = check_pass(&prog);
+    let errs = check_pass(&prog);
     assert!(errs.is_empty());
 
     // println!("{:#?}", errs);

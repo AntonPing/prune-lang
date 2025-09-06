@@ -155,9 +155,12 @@ impl Elaborator {
 pub fn elab_pass(prog: &Program) -> HashMap<Ident, TypeId> {
     let mut pass = Elaborator::new();
     pass.elab_prog(prog);
-    let map = pass.val_ctx;
     let sol = pass.solver;
-    let map = map.into_iter().map(|(k, v)| (k, sol.merge(&v))).collect();
+    let map = pass
+        .val_ctx
+        .iter()
+        .map(|(k, v)| (*k, sol.merge(&v)))
+        .collect();
     map
 }
 
@@ -199,10 +202,10 @@ end
     let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());
 
-    let (_map, errs) = crate::tych::rename::rename_pass(&mut prog);
+    let errs = crate::tych::rename::rename_pass(&mut prog);
     assert!(errs.is_empty());
 
-    let (_map, errs) = crate::tych::check::check_pass(&prog);
+    let errs = crate::tych::check::check_pass(&prog);
     assert!(errs.is_empty());
 
     let prog = crate::logic::transform::logic_translation(&prog);
