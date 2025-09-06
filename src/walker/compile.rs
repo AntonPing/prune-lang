@@ -103,35 +103,44 @@ impl Block {
 #[derive(Clone, Debug)]
 pub struct PredBlock {
     pub name: PredIdent,
-    pub pars: Vec<Ident>,
-    pub vars: Vec<Ident>,
+    pub pars: Vec<(Ident, TypeId)>,
+    pub vars: Vec<(Ident, TypeId)>,
     pub blk: Block,
 }
 impl std::fmt::Display for PredBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let pars = self.pars.iter().format(&", ");
         let vars = self.vars.iter().format(&", ");
-        writeln!(f, "{}({}) fresh: {{{}}}", self.name, pars, vars)?;
+        writeln!(f, "{}({:?}) fresh: {{{:?}}}", self.name, pars, vars)?;
         writeln!(f, "{}", self.blk)?;
         Ok(())
     }
 }
 
-impl PredBlock {
-    pub fn compile_pred(pred: &PredDecl) -> PredBlock {
-        let blk = Block::compile_goal(&pred.goal);
-        PredBlock {
-            name: pred.name,
-            pars: pred.pars.clone(),
-            vars: pred.vars.clone(),
-            blk,
-        }
+pub fn compile_pred(pred: &PredDecl, map: &HashMap<Ident, TypeId>) -> PredBlock {
+    let pars = pred
+        .pars
+        .iter()
+        .map(|par| (*par, map[par].clone()))
+        .collect();
+    let vars = pred
+        .vars
+        .iter()
+        .map(|var| (*var, map[var].clone()))
+        .collect();
+    let blk = Block::compile_goal(&pred.goal);
+    PredBlock {
+        name: pred.name,
+        pars,
+        vars,
+        blk,
     }
 }
 
-pub fn compile_dict(dict: &HashMap<PredIdent, PredDecl>) -> HashMap<PredIdent, PredBlock> {
-    dict.iter()
-        .map(|(name, pred)| (*name, PredBlock::compile_pred(pred)))
+pub fn compile_dict(prog: &Program, map: &HashMap<Ident, TypeId>) -> HashMap<PredIdent, PredBlock> {
+    prog.preds
+        .iter()
+        .map(|(name, pred)| (*name, compile_pred(pred, map)))
         .collect()
 }
 
@@ -161,11 +170,11 @@ datatype IntList where
 | Nil
 end
 
-function append(xs: IntList, x: Int) -> Int
+function append(xs: IntList, x: Int) -> IntList
 begin
     match xs with
     | Cons(head, tail) => Cons(head, append(tail, x))
-    | Nil => Nil
+    | Nil => Cons(x, Nil)
     end
 end
 
@@ -179,16 +188,29 @@ end
 
 predicate is_elem_after_append(xs: IntList, x: Int)
 begin
-    is_elem(append(xs, x), x) = false
+    fresh(ys) (
+        and(
+            ys = append(xs, x),
+            is_elem(ys, x) = false,
+        )
+    )
 end
 "#;
-    let (prog, errs) = crate::syntax::parser::parse_program(&src);
+    let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
+    assert!(errs.is_empty());
+
+    let errs = crate::tych::rename::rename_pass(&mut prog);
+    assert!(errs.is_empty());
+
+    let errs = crate::tych::check::check_pass(&prog);
     assert!(errs.is_empty());
 
     let prog = crate::logic::transform::logic_translation(&prog);
-    let map = compile_dict(&prog.preds);
+    // println!("{:#?}", prog);
 
-    for (_pred, blk) in map {
-        println!("{}", blk);
-    }
+    let map = crate::tych::elab::elab_pass(&prog);
+    // println!("{:?}", map);
+
+    let dict = compile_dict(&prog, &map);
+    println!("{:#?}", dict);
 }

@@ -87,8 +87,8 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         self.check_pass(&mut prog)?;
 
         let prog = crate::logic::transform::logic_translation(&prog);
-        let _ty_map = crate::tych::elab::elab_pass(&prog);
-        let dict = crate::walker::compile::compile_dict(&prog.preds);
+        let map = crate::tych::elab::elab_pass(&prog);
+        let dict = crate::walker::compile::compile_dict(&prog, &map);
         let mut wlk = walker::walker::Walker::new(&dict, self.log);
 
         let mut res_vec = Vec::new();

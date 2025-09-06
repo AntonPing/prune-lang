@@ -134,6 +134,11 @@ impl Elaborator {
         for (par, par_ty) in pred_decl.pars.iter().zip(pars_ty) {
             self.val_ctx.insert(*par, par_ty);
         }
+
+        for var in pred_decl.vars.iter() {
+            let var_ty = self.elab_var(var);
+            self.val_ctx.insert(*var, var_ty);
+        }
         self.elab_goal(&pred_decl.goal);
     }
 

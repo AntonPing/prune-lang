@@ -219,13 +219,13 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
             let (pars, vars) = (callee.pars.clone(), callee.vars.clone());
             self.ctx_cnt += 1;
             assert_eq!(pars.len(), args.len());
-            for (par, arg) in pars.iter().zip(args.iter()) {
+            for ((par, _par_ty), arg) in pars.iter().zip(args.iter()) {
                 self.sol.declare(&par.tag_ctx(self.ctx_cnt));
                 let par = par.tag_ctx(self.ctx_cnt);
                 let arg = arg.tag_ctx(curr_ctx);
                 self.sol.bind(par, arg.to_term()).unwrap(); // unify with a fresh variable cannot fail
             }
-            for var in vars {
+            for (var, _var_ty) in vars {
                 self.sol.declare(&var.tag_ctx(self.ctx_cnt));
             }
             state.curr_blk = callee.blk.tag_ctx(self.ctx_cnt);
@@ -260,10 +260,10 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
             self.reset();
 
             let callee = &self.dict[&entry];
-            for par in &callee.pars {
+            for (par, _par_ty) in &callee.pars {
                 self.sol.declare(&par.tag_ctx(self.ctx_cnt));
             }
-            for var in &callee.vars {
+            for (var, _var_ty) in &callee.vars {
                 self.sol.declare(&var.tag_ctx(self.ctx_cnt));
             }
             let state = State::new(callee.blk.tag_ctx(self.ctx_cnt));
@@ -331,9 +331,12 @@ end
     assert!(errs.is_empty());
 
     let prog = crate::logic::transform::logic_translation(&prog);
-    // println!("{:#?}", dict);
-    let dict = super::compile::compile_dict(&prog.preds);
+    // println!("{:#?}", prog);
+
+    let map = crate::tych::elab::elab_pass(&prog);
     // println!("{:?}", map);
+
+    let dict = crate::walker::compile::compile_dict(&prog, &map);
 
     let mut log = std::io::empty();
     let mut wlk = Walker::new(&dict, &mut log);
