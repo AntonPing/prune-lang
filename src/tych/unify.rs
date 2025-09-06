@@ -56,11 +56,26 @@ impl UnifySolver {
         self.arena.len() - 1
     }
 
+    fn deref(&self, typ: &UnifyType) -> UnifyType {
+        match typ {
+            UnifyType::Lit(_) => typ.clone(),
+            UnifyType::Var(_) => typ.clone(),
+            UnifyType::Cons(_, _) => typ.clone(),
+            UnifyType::Cell(cell) => {
+                if let Some(typ2) = &self.arena[*cell] {
+                    self.deref(typ2)
+                } else {
+                    typ.clone()
+                }
+            }
+        }
+    }
+
     pub fn unify_many(&mut self, typs1: &Vec<UnifyType>, typs2: &Vec<UnifyType>) -> UnifyResult {
         if typs1.len() != typs2.len() {
             Err(UnifyError::VecDiffLen(typs1.clone(), typs2.clone()))
         } else {
-            for (typ1, typ2) in typs1.iter().zip(typs2.iter()) {
+            for (typ1, typ2) in typs1.into_iter().zip(typs2.into_iter()) {
                 self.unify(typ1, typ2)?;
             }
             Ok(())
@@ -68,33 +83,36 @@ impl UnifySolver {
     }
 
     pub fn unify(&mut self, typ1: &UnifyType, typ2: &UnifyType) -> UnifyResult {
+        let typ1 = self.deref(typ1);
+        let typ2 = self.deref(typ2);
         match (typ1, typ2) {
             (UnifyType::Lit(lit1), UnifyType::Lit(lit2)) if lit1 == lit2 => Ok(()),
             (UnifyType::Var(ident1), UnifyType::Var(ident2)) if ident1 == ident2 => Ok(()),
             (UnifyType::Cons(cons1, args1), UnifyType::Cons(cons2, args2)) if cons1 == cons2 => {
-                self.unify_many(args1, args2)?;
+                self.unify_many(&args1, &args2)?;
                 Ok(())
             }
-            (UnifyType::Cell(cell), typ) | (typ, UnifyType::Cell(cell)) => self.assign(*cell, typ),
+            (UnifyType::Cell(cell1), UnifyType::Cell(cell2)) => {
+                if cell1 == cell2 {
+                    Ok(())
+                } else {
+                    self.arena[cell1] = Some(UnifyType::Cell(cell2));
+                    Ok(())
+                }
+            }
+            (UnifyType::Cell(cell), typ) | (typ, UnifyType::Cell(cell)) => {
+                if self.occur_check(cell, &typ) {
+                    Err(UnifyError::OccurCheckFailed(cell, typ.clone()))
+                } else {
+                    self.arena[cell] = Some(typ.clone());
+                    Ok(())
+                }
+            }
             (typ1, typ2) => Err(UnifyError::CannotUnify(typ1.clone(), typ2.clone())),
         }
     }
 
-    pub fn assign(&mut self, cell: usize, typ: &UnifyType) -> UnifyResult {
-        if let Some(typ2) = &self.arena[cell] {
-            // todo: avoid clone somehow?
-            self.unify(typ, &typ2.clone())
-        } else {
-            if self.occur_check(cell, typ) {
-                Err(UnifyError::OccurCheckFailed(cell, typ.clone()))
-            } else {
-                self.arena[cell] = Some(typ.clone());
-                Ok(())
-            }
-        }
-    }
-
-    pub fn occur_check(&self, cell: usize, typ: &UnifyType) -> bool {
+    fn occur_check(&self, cell: usize, typ: &UnifyType) -> bool {
         match typ {
             UnifyType::Lit(_) => false,
             UnifyType::Var(_) => false,
