@@ -1,7 +1,7 @@
 use crate::driver::diagnostic::Diagnostic;
 use crate::syntax::{self, ast};
 use crate::tych;
-use crate::walker::{self, compile, walker::Walker};
+use crate::walker;
 
 use std::path::{self, PathBuf};
 use std::{fs, io};
@@ -88,31 +88,8 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
 
         let prog = crate::logic::transform::logic_translation(&prog);
         let _ty_map = crate::tych::elab::elab_pass(&prog);
-        let (codes, map) = compile::compile_dict(&prog.preds);
-        let mut wlk = Walker::new(codes, self.log);
-
-        let mut res_vec = Vec::new();
-        for entry_decl in prog.entrys {
-            let res = wlk.run_loop(
-                map[&entry_decl.entry],
-                entry_decl.iter_start,
-                entry_decl.iter_end,
-                entry_decl.iter_step,
-            );
-            res_vec.push(res);
-        }
-        Ok(res_vec)
-    }
-
-    pub fn test_prog_new(&'log mut self) -> Result<Vec<bool>, ()> {
-        let mut prog = self.parse_program()?;
-        self.rename_pass(&mut prog)?;
-        self.check_pass(&mut prog)?;
-
-        let prog = crate::logic::transform::logic_translation(&prog);
-        let _ty_map = crate::tych::elab::elab_pass(&prog);
-        let dict = crate::walker::compile_new::compile_dict(&prog.preds);
-        let mut wlk = walker::walker_new::Walker::new(&dict, self.log);
+        let dict = crate::walker::compile::compile_dict(&prog.preds);
+        let mut wlk = walker::walker::Walker::new(&dict, self.log);
 
         let mut res_vec = Vec::new();
         for entry_decl in prog.entrys {
@@ -137,7 +114,7 @@ pub fn test_unsat_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
     let src = fs::read_to_string(path).map_err(|_err| ())?;
     let mut log = io::empty();
     let mut pipe = Pipeline::new(&src, &mut log);
-    let res_vec = pipe.test_prog_new()?;
+    let res_vec = pipe.test_prog()?;
     assert!(res_vec.iter().any(|p| !*p));
     Ok(())
 }
@@ -151,7 +128,7 @@ pub fn test_sat_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
     let src = fs::read_to_string(path).map_err(|_err| ())?;
     let mut log = io::empty();
     let mut pipe = Pipeline::new(&src, &mut log);
-    let res_vec = pipe.test_prog_new()?;
+    let res_vec = pipe.test_prog()?;
     assert!(res_vec.iter().all(|p| *p));
     Ok(())
 }

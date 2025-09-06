@@ -1,174 +1,156 @@
 use super::*;
 use crate::logic::ast::*;
 
+use std::fmt;
+
 #[derive(Clone, Debug)]
-pub enum LinearCode {
-    Lit(bool),
-    Eq(Ident, AtomId),
-    Cons(Ident, Ident, Vec<AtomId>),
-    Prim(Prim, Vec<AtomId>),
-    And(Vec<usize>),
-    Or(Vec<usize>),
-    Call(PredIdent, Vec<AtomId>, usize),
-    Label(PredIdent, Vec<Ident>, Vec<Ident>),
+pub struct Block {
+    pub eqs: Vec<(Ident, AtomId)>,
+    pub cons: Vec<(Ident, Ident, Vec<AtomId>)>,
+    pub prims: Vec<(Prim, Vec<AtomId>)>,
+    pub calls: Vec<(PredIdent, Vec<AtomId>)>,
+    pub brchss: Vec<Vec<Block>>,
 }
 
-impl LinearCode {
-    pub fn tag(&self) -> i32 {
-        match self {
-            LinearCode::Lit(_) => 4,
-            LinearCode::Eq(_, _) => 4,
-            LinearCode::Cons(_, _, _) => 4,
-            LinearCode::Prim(_, _) => 4,
-            LinearCode::Call(_, _, _) => 2,
-            LinearCode::And(_) => 3,
-            LinearCode::Or(_) => 1,
-            LinearCode::Label(_, _, _) => 5,
+impl Block {
+    fn fmt_indented(&self, f: &mut fmt::Formatter, level: usize) -> fmt::Result {
+        let indent = "    ".repeat(level);
+
+        for (var, atom) in self.eqs.iter() {
+            writeln!(f, "{indent}{} = {}; ", var, atom)?;
+        }
+
+        for (var, cons, flds) in self.cons.iter() {
+            let flds = flds.iter().format(&", ");
+            writeln!(f, "{indent}{} = {}({})", var, cons, flds)?;
+        }
+
+        for (prim, args) in self.prims.iter() {
+            let args = args.iter().format(&", ");
+            writeln!(f, "{indent}{:?}({})", prim, args)?;
+        }
+
+        for (pred, args) in self.calls.iter() {
+            let args = args.iter().format(&", ");
+            writeln!(f, "{indent}{}({})", pred, args)?;
+        }
+
+        for brchs in self.brchss.iter() {
+            assert!(!brchs.is_empty());
+            writeln!(f, "{indent}{{")?;
+            brchs[0].fmt_indented(f, level + 1)?;
+            for brch in &brchs[1..] {
+                writeln!(f, "{indent}|")?;
+                brch.fmt_indented(f, level + 1)?;
+            }
+            writeln!(f, "{indent}}}")?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for Block {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fmt_indented(f, 0)
+    }
+}
+
+impl Block {
+    pub fn new() -> Block {
+        Block {
+            eqs: Vec::new(),
+            cons: Vec::new(),
+            prims: Vec::new(),
+            calls: Vec::new(),
+            brchss: Vec::new(),
         }
     }
-}
-
-impl std::fmt::Display for LinearCode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LinearCode::Lit(p) => write!(f, "Lit({})", p),
-            LinearCode::Eq(var, atom) => write!(f, "Eq({}, {})", var, atom),
-            LinearCode::Cons(var, cons, flds) => {
-                let flds = flds.iter().format(&", ");
-                write!(f, "Cons({}, {}, {})", var, cons, flds)
-            }
-            LinearCode::Prim(prim, args) => {
-                let args = args.iter().format(&", ");
-                write!(f, "Prim({:?}, {})", prim, args)
-            }
-            LinearCode::And(addrs) => write!(f, "And([{}])", addrs.iter().format(&", ")),
-            LinearCode::Or(addrs) => write!(f, "Or([{}])", addrs.iter().format(&", ")),
-            LinearCode::Call(label, args, addr) => {
-                write!(
-                    f,
-                    "Call({}, [{}], {})",
-                    label,
-                    args.iter().format(&", "),
-                    addr
-                )
-            }
-            LinearCode::Label(label, pars, vars) => {
-                write!(
-                    f,
-                    "Label({}, [{}], [{}])",
-                    label,
-                    pars.iter().format(&", "),
-                    vars.iter().format(&", ")
-                )
-            }
-        }
+    pub fn compile_goal(goal: &Goal) -> Block {
+        let mut blk = Block::new();
+        blk.emit_goal(goal);
+        blk
     }
-}
-
-struct CompileState {
-    dict: HashMap<PredIdent, usize>,
-    map: HashMap<usize, usize>,
-    counter: usize,
-    codes: Vec<LinearCode>,
-}
-
-impl CompileState {
-    fn new() -> CompileState {
-        CompileState {
-            dict: HashMap::new(),
-            map: HashMap::new(),
-            counter: 1,
-            codes: Vec::new(),
-        }
-    }
-
-    fn compile_pred(&mut self, pred: &PredDecl) {
-        self.dict.insert(pred.name, self.codes.len());
-        self.codes.push(LinearCode::Label(
-            pred.name,
-            pred.pars.clone(),
-            pred.vars.clone(),
-        ));
-        self.compile_goal(&pred.goal);
-    }
-
-    fn compile_goal(&mut self, goal: &Goal) {
+    pub fn emit_goal(&mut self, goal: &Goal) {
         match goal {
-            Goal::Lit(p) => {
-                self.codes.push(LinearCode::Lit(*p));
+            Goal::Lit(_) => {
+                panic!("no literal value after optimize!");
             }
             Goal::Eq(var, atom) => {
-                self.codes.push(LinearCode::Eq(*var, atom.clone()));
+                self.eqs.push((*var, atom.clone()));
             }
             Goal::Cons(var, cons, flds) => {
-                self.codes.push(LinearCode::Cons(*var, *cons, flds.clone()));
+                self.cons.push((*var, *cons, flds.clone()));
             }
             Goal::Prim(prim, args) => {
-                self.codes.push(LinearCode::Prim(*prim, args.clone()));
+                self.prims.push((*prim, args.clone()));
             }
             Goal::And(goals) => {
-                if goals.is_empty() {
-                    self.codes.push(LinearCode::Lit(true));
-                } else {
-                    let base: usize = self.counter;
-                    self.counter += goals.len();
-                    self.codes
-                        .push(LinearCode::And((base..self.counter).collect()));
-                    for (offset, goal) in goals.iter().enumerate() {
-                        self.map.insert(base + offset, self.codes.len());
-                        // self.codes.push(LinearCode::Label(base + offset));
-                        self.compile_goal(goal);
-                    }
+                for goal in goals {
+                    self.emit_goal(goal);
                 }
             }
             Goal::Or(goals) => {
-                if goals.is_empty() {
-                    self.codes.push(LinearCode::Lit(false));
-                } else {
-                    let base = self.counter;
-                    self.counter += goals.len();
-                    self.codes
-                        .push(LinearCode::Or((base..self.counter).collect()));
-                    for (offset, goal) in goals.iter().enumerate() {
-                        self.map.insert(base + offset, self.codes.len());
-                        // self.codes.push(LinearCode::Label(base + offset));
-                        self.compile_goal(goal);
-                    }
-                }
+                let blks: Vec<Block> = goals.iter().map(|goal| Block::compile_goal(goal)).collect();
+                self.brchss.push(blks);
             }
             Goal::Call(pred, args) => {
-                self.codes.push(LinearCode::Call(*pred, args.clone(), 0));
-            }
-        }
-    }
-
-    fn remap_addr(&mut self) {
-        for code in self.codes.iter_mut() {
-            match code {
-                LinearCode::And(addrs) => {
-                    addrs.iter_mut().for_each(|addr| *addr = self.map[addr]);
-                }
-                LinearCode::Or(addrs) => {
-                    addrs.iter_mut().for_each(|addr| *addr = self.map[addr]);
-                }
-                LinearCode::Call(pred, _args, addr) => {
-                    *addr = self.dict[pred];
-                }
-                _ => {}
+                self.calls.push((*pred, args.clone()));
             }
         }
     }
 }
 
-pub fn compile_dict(
-    dict: &HashMap<PredIdent, PredDecl>,
-) -> (Vec<LinearCode>, HashMap<PredIdent, usize>) {
-    let mut st = CompileState::new();
-    for pred in dict.values() {
-        st.compile_pred(pred);
+#[derive(Clone, Debug)]
+pub struct PredBlock {
+    pub name: PredIdent,
+    pub pars: Vec<Ident>,
+    pub vars: Vec<Ident>,
+    pub blk: Block,
+}
+impl std::fmt::Display for PredBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let pars = self.pars.iter().format(&", ");
+        let vars = self.vars.iter().format(&", ");
+        writeln!(f, "{}({}) fresh: {{{}}}", self.name, pars, vars)?;
+        writeln!(f, "{}", self.blk)?;
+        Ok(())
     }
-    st.remap_addr();
-    (st.codes, st.dict)
+}
+
+impl PredBlock {
+    pub fn compile_pred(pred: &PredDecl) -> PredBlock {
+        let blk = Block::compile_goal(&pred.goal);
+        PredBlock {
+            name: pred.name,
+            pars: pred.pars.clone(),
+            vars: pred.vars.clone(),
+            blk,
+        }
+    }
+}
+
+pub fn compile_dict(dict: &HashMap<PredIdent, PredDecl>) -> HashMap<PredIdent, PredBlock> {
+    dict.iter()
+        .map(|(name, pred)| (*name, PredBlock::compile_pred(pred)))
+        .collect()
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct BlockCtx<'blk> {
+    pub blk: &'blk Block,
+    pub ctx: usize,
+}
+
+impl<'blk> fmt::Display for BlockCtx<'blk> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{ctx = {}}} {}", self.ctx, self.blk)
+    }
+}
+
+impl<'blk> Block {
+    pub fn tag_ctx(&'blk self, ctx: usize) -> BlockCtx<'blk> {
+        BlockCtx { ctx, blk: self }
+    }
 }
 
 #[test]
@@ -204,9 +186,9 @@ end
     assert!(errs.is_empty());
 
     let prog = crate::logic::transform::logic_translation(&prog);
-    let (codes, map) = compile_dict(&prog.preds);
-    for (i, code) in codes.iter().enumerate() {
-        println!("{:03}: {}", &i, &code);
+    let map = compile_dict(&prog.preds);
+
+    for (_pred, blk) in map {
+        println!("{}", blk);
     }
-    println!("{:?}", map);
 }
