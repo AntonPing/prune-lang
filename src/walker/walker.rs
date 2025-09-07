@@ -219,14 +219,14 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
             let (pars, vars) = (callee.pars.clone(), callee.vars.clone());
             self.ctx_cnt += 1;
             assert_eq!(pars.len(), args.len());
-            for ((par, _par_ty), arg) in pars.iter().zip(args.iter()) {
-                self.sol.declare(&par.tag_ctx(self.ctx_cnt));
+            for ((par, par_ty), arg) in pars.iter().zip(args.iter()) {
+                self.sol.declare(&par.tag_ctx(self.ctx_cnt), par_ty);
                 let par = par.tag_ctx(self.ctx_cnt);
                 let arg = arg.tag_ctx(curr_ctx);
                 self.sol.bind(par, arg.to_term()).unwrap(); // unify with a fresh variable cannot fail
             }
-            for (var, _var_ty) in vars {
-                self.sol.declare(&var.tag_ctx(self.ctx_cnt));
+            for (var, var_ty) in vars.iter() {
+                self.sol.declare(&var.tag_ctx(self.ctx_cnt), var_ty);
             }
             state.curr_blk = callee.blk.tag_ctx(self.ctx_cnt);
             let res = self.run_block(state);
@@ -260,11 +260,11 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
             self.reset();
 
             let callee = &self.dict[&entry];
-            for (par, _par_ty) in &callee.pars {
-                self.sol.declare(&par.tag_ctx(self.ctx_cnt));
+            for (par, par_ty) in callee.pars.iter() {
+                self.sol.declare(&par.tag_ctx(self.ctx_cnt), par_ty);
             }
-            for (var, _var_ty) in &callee.vars {
-                self.sol.declare(&var.tag_ctx(self.ctx_cnt));
+            for (var, var_ty) in callee.vars.iter() {
+                self.sol.declare(&var.tag_ctx(self.ctx_cnt), var_ty);
             }
             let state = State::new(callee.blk.tag_ctx(self.ctx_cnt));
             self.push_state(state);
@@ -296,27 +296,24 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
 
 #[test]
 fn test_walker() {
-    use crate::logic::ast::*;
-    use crate::utils::ident::Ident;
-
     let src: &'static str = r#"
 datatype IntList where
 | Cons(Int, IntList)
 | Nil
 end
 
-function append(xs: IntList, x: Int) -> Int
+function append(xs: IntList, x: Int) -> IntList
 begin
     match xs with
     | Cons(head, tail) => Cons(head, append(tail, x))
-    | Nil => Cons(x, Nil)
+    | Nil => Nil
     end
 end
 
 function is_elem(xs: IntList, x: Int) -> Bool
 begin
     match xs with
-    | Cons(head, tail) => if @icmpeq(head, x) then true else is_elem(tail, x)
+    | Cons(head, tail) => if @icmpeq(head, x) then true else is_elem(tail, x) 
     | Nil => false
     end
 end
@@ -325,9 +322,17 @@ predicate is_elem_after_append(xs: IntList, x: Int)
 begin
     is_elem(append(xs, x), x) = false
 end
+
+entry is_elem_after_append(5, 1000, 5)
     "#;
 
-    let (prog, errs) = crate::syntax::parser::parse_program(&src);
+    let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
+    assert!(errs.is_empty());
+
+    let errs = crate::tych::rename::rename_pass(&mut prog);
+    assert!(errs.is_empty());
+
+    let errs = crate::tych::check::check_pass(&prog);
     assert!(errs.is_empty());
 
     let prog = crate::logic::transform::logic_translation(&prog);
@@ -337,9 +342,10 @@ end
     // println!("{:?}", map);
 
     let dict = crate::walker::compile::compile_dict(&prog, &map);
+    println!("{:#?}", dict);
 
     let mut log = std::io::empty();
     let mut wlk = Walker::new(&dict, &mut log);
-    let entry = PredIdent::Pos(Ident::dummy(&"is_elem_after_append"));
-    assert!(!wlk.run_loop(entry, 10, 100, 10))
+    let entry = prog.entrys[0].entry;
+    assert!(wlk.run_loop(entry, 10, 100, 10))
 }

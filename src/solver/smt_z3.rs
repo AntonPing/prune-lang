@@ -1,12 +1,10 @@
 use super::*;
-
+use crate::utils::env_map::EnvMap;
 use easy_smt::{Context, ContextBuilder, Response, SExpr};
 
 pub struct Constr {
     pub ctx: Context,
-    pub int_vars: Vec<(IdentCtx, SExpr)>,
-    pub bool_vars: Vec<(IdentCtx, SExpr)>,
-    pub saves: Vec<(usize, usize)>,
+    pub map: EnvMap<IdentCtx, SExpr>,
 }
 
 impl fmt::Debug for Constr {
@@ -26,14 +24,12 @@ impl Constr {
         ctx.push().unwrap();
         Constr {
             ctx,
-            int_vars: Vec::new(),
-            bool_vars: Vec::new(),
-            saves: Vec::new(),
+            map: EnvMap::new(),
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.saves.is_empty()
+        self.map.is_empty()
     }
 
     pub fn reset(&mut self) {
@@ -41,56 +37,53 @@ impl Constr {
         assert!(self.ctx.pop().is_err());
         // push an empty context for reset
         self.ctx.push().unwrap();
-
-        self.int_vars.clear();
-        self.bool_vars.clear();
-        self.saves.clear();
+        self.map.clear();
     }
 
     pub fn savepoint(&mut self) {
         self.ctx.push().unwrap();
-        self.saves.push((self.int_vars.len(), self.bool_vars.len()));
+        self.map.enter_scope();
     }
 
     pub fn backtrack(&mut self) {
         self.ctx.pop().unwrap();
-        let (int_len, bool_len) = self.saves.pop().unwrap();
-        for _ in 0..(self.int_vars.len() - int_len) {
-            self.int_vars.pop().unwrap();
-        }
-        for _ in 0..(self.bool_vars.len() - bool_len) {
-            self.bool_vars.pop().unwrap();
-        }
+        self.map.leave_scope();
     }
 }
 
 impl Constr {
+    pub fn declare_var(&mut self, var: &IdentCtx, typ: &LitType) {
+        match typ {
+            LitType::TyInt => self.declare_int(var),
+            LitType::TyFloat => unimplemented!(),
+            LitType::TyBool => self.declare_bool(var),
+            LitType::TyChar => unimplemented!(),
+        }
+    }
+
     pub fn declare_int(&mut self, var: &IdentCtx) {
+        assert!(!self.map.contains_key(var));
         let sexp = self
             .ctx
-            .declare_const(format!("{}_i", var).as_str(), self.ctx.int_sort())
+            .declare_const(var.to_string(), self.ctx.int_sort())
             .unwrap();
-        self.int_vars.push((*var, sexp));
+        self.map.insert(*var, sexp);
     }
 
     pub fn declare_bool(&mut self, var: &IdentCtx) {
+        assert!(!self.map.contains_key(var));
         let sexp = self
             .ctx
-            .declare_const(format!("{}_b", var).as_str(), self.ctx.bool_sort())
+            .declare_const(var.to_string(), self.ctx.bool_sort())
             .unwrap();
-        self.bool_vars.push((*var, sexp));
-    }
-
-    pub fn declare_var(&mut self, var: &IdentCtx) {
-        self.declare_int(var);
-        self.declare_bool(var);
+        self.map.insert(*var, sexp);
     }
 
     pub fn get_int(&mut self, atom: &AtomCtx) -> SExpr {
         match atom {
             Term::Var(x) => {
                 let res = self
-                    .int_vars
+                    .map
                     .iter()
                     .find_map(|(k, v)| if k == x { Some(*v) } else { None })
                     .expect(format!("integer variable {} not declared!", x).as_str());
@@ -105,7 +98,7 @@ impl Constr {
         match atom {
             Term::Var(x) => {
                 let res = self
-                    .bool_vars
+                    .map
                     .iter()
                     .find_map(|(k, v)| if k == x { Some(*v) } else { None })
                     .expect(format!("boolean variable {} not declared!", x).as_str());
@@ -179,34 +172,35 @@ impl Constr {
         }
     }
 
-    pub fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx) {
-        match atom {
-            Term::Var(_) => {
-                let lhs: SExpr = self.get_int(&Term::Var(x));
-                let rhs = self.get_int(&atom);
-                self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
+    pub fn get_var(&mut self, var: &IdentCtx) -> Option<SExpr> {
+        self.map
+            .iter()
+            .find_map(|(k, v)| if k == var { Some(*v) } else { None })
+    }
 
-                let lhs = self.get_bool(&Term::Var(x));
-                let rhs = self.get_bool(&atom);
+    pub fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx) -> Option<()> {
+        let lhs = self.get_var(&x)?;
+        match atom {
+            Term::Var(y) => {
+                let rhs = self.get_var(&y).unwrap();
                 self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
             }
             Term::Lit(LitVal::Int(_)) => {
-                let lhs = self.get_int(&Term::Var(x));
                 let rhs = self.get_int(&atom);
                 self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
             }
             Term::Lit(LitVal::Bool(_)) => {
-                let lhs = self.get_bool(&Term::Var(x));
                 let rhs = self.get_bool(&atom);
                 self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
             }
             Term::Lit(LitVal::Float(_)) => {
-                todo!()
+                unimplemented!()
             }
             Term::Lit(LitVal::Char(_)) => {
-                todo!()
+                unimplemented!()
             }
         }
+        Some(())
     }
 
     pub fn solve(&mut self) -> bool {

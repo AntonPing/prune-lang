@@ -79,15 +79,17 @@ impl Solver {
 }
 
 impl Solver {
-    pub fn declare(&mut self, var: &IdentCtx) {
-        self.constr.declare_var(var);
+    pub fn declare(&mut self, var: &IdentCtx, typ: &TypeId) {
+        if let Term::Lit(lit) = typ {
+            self.constr.declare_var(var, lit);
+        }
     }
 
     pub fn bind(&mut self, var: IdentCtx, term: TermCtx) -> Result<(), ()> {
         self.unify_vec.push((var.clone(), term.clone()));
         let mut subst = self.subst.bind(var, term)?;
         for (x, term) in subst.drain(..) {
-            self.constr.push_eq(x, term)
+            let _ = self.constr.push_eq(x, term);
         }
         if !self.constr.solve() {
             return Err(());
@@ -126,8 +128,8 @@ fn test_solver() {
 
     let mut sol = Solver::new();
 
-    sol.declare(&x.tag_ctx(0));
-    sol.declare(&y.tag_ctx(0));
+    sol.declare(&x.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
+    sol.declare(&y.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
 
     sol.solve(
         Prim::ICmp(Compare::Lt),
