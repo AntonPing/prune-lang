@@ -39,21 +39,36 @@ impl Subst {
 }
 
 impl Subst {
-    pub fn walk(&self, var: &IdentCtx) -> TermCtx {
-        self.walk_safe(var, 0)
-    }
-    pub fn walk_safe(&self, var: &IdentCtx, iter: usize) -> TermCtx {
-        assert!(iter < 1000);
-        for (k, v) in self.map.iter() {
-            if *k == *var {
-                if let Term::Var(var2) = v {
-                    return self.walk_safe(var2, iter + 1);
-                } else {
-                    return v.clone();
-                }
+    pub fn deref(&self, var: &IdentCtx) -> TermCtx {
+        let mut var = *var;
+        let mut overflow = 0;
+        while let Some(term) = self.map.get(&var) {
+            assert!(overflow < 100000); // avoid cyclic graph
+            if let Term::Var(var2) = term {
+                var = *var2;
+                overflow += 1;
+            } else {
+                return term.clone();
             }
         }
-        Term::Var(*var)
+        Term::Var(var)
+    }
+
+    pub fn merge(&self, term: &TermCtx) -> TermCtx {
+        match term {
+            Term::Var(var) => {
+                if let Some(term) = self.map.get(&var) {
+                    self.merge(term)
+                } else {
+                    Term::Var(*var)
+                }
+            }
+            Term::Lit(lit) => Term::Lit(*lit),
+            Term::Cons(c, cons, flds) => {
+                let flds = flds.iter().map(|fld| self.merge(fld)).collect();
+                Term::Cons(*c, *cons, flds)
+            }
+        }
     }
 
     pub fn bind(&mut self, x: IdentCtx, term: TermCtx) -> Result<Vec<(IdentCtx, AtomCtx)>, ()> {
@@ -75,12 +90,12 @@ impl Subst {
         rhs: TermCtx,
     ) -> Result<(), ()> {
         let lhs = if let Term::Var(var) = lhs {
-            self.walk(&var)
+            self.deref(&var)
         } else {
             lhs
         };
         let rhs = if let Term::Var(var) = rhs {
-            self.walk(&var)
+            self.deref(&var)
         } else {
             rhs
         };
