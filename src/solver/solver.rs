@@ -91,31 +91,28 @@ impl Solver {
         for (x, term) in subst.drain(..) {
             let _ = self.constr.push_eq(x, term);
         }
-        if !self.constr.solve() {
+        if !self.constr.check() {
             return Err(());
         }
         Ok(())
     }
 
-    // pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Result<(), ()> {
-    //     self.unify_vec.push((lhs.clone(), rhs.clone()));
-    //     let mut subst = self.subst.unify(lhs, rhs)?;
-    //     for (x, term) in subst.drain(..) {
-    //         self.constr.push_eq(x, term)
-    //     }
-    //     if !self.constr.solve() {
-    //         return Err(());
-    //     }
-    //     Ok(())
-    // }
-
     pub fn solve(&mut self, prim: Prim, args: Vec<AtomCtx>) -> Result<(), ()> {
         self.solve_vec.push((prim.clone(), args.clone()));
         self.constr.push_cons(prim, args);
-        if !self.constr.solve() {
+        if !self.constr.check() {
             return Err(());
         }
         Ok(())
+    }
+
+    pub fn get_value(&mut self, var: IdentCtx) -> TermCtx {
+        let term = self.subst.merge(&Term::Var(var));
+        // let vars = term.free_vars();
+        // let map = self.constr.get_value(&vars).unwrap();
+        // let map = map.into_iter().map(|(k, v)| (k, Term::Lit(v))).collect();
+        // let term = term.substitute(&map);
+        term
     }
 }
 

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::*;
 use crate::utils::env_map::EnvMap;
 use easy_smt::{Context, ContextBuilder, Response, SExpr};
@@ -203,12 +205,31 @@ impl Constr {
         Some(())
     }
 
-    pub fn solve(&mut self) -> bool {
+    pub fn check(&mut self) -> bool {
         let result = self.ctx.check().unwrap();
         match result {
             Response::Sat => true,
             Response::Unsat => false,
             Response::Unknown => panic!("smt solver returns unknown!"),
         }
+    }
+
+    pub fn get_value(&mut self, vars: &Vec<IdentCtx>) -> Option<HashMap<IdentCtx, LitVal>> {
+        let vars_sexp = vars.iter().map(|var| self.get_var(var).unwrap()).collect();
+        let map_sexp = self.ctx.get_value(vars_sexp).ok()?;
+        let map: HashMap<IdentCtx, LitVal> = vars
+            .iter()
+            .cloned()
+            .zip(map_sexp.iter().map(|(_var, val)| {
+                self.ctx
+                    .display(*val)
+                    .to_string()
+                    .as_str()
+                    .parse::<LitVal>()
+                    .unwrap()
+            }))
+            .collect();
+
+        Some(map)
     }
 }

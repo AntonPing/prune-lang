@@ -3,6 +3,7 @@ use super::*;
 use super::compile::{BlockCtx, PredBlock};
 use crate::logic::ast::PredIdent;
 use crate::solver::solver::Solver;
+use crate::utils::ident::IdentCtx;
 use std::collections::VecDeque;
 use std::io;
 
@@ -261,12 +262,12 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
 
             let callee = &self.dict[&entry];
             for (par, par_ty) in callee.pars.iter() {
-                self.sol.declare(&par.tag_ctx(self.ctx_cnt), par_ty);
+                self.sol.declare(&par.tag_ctx(0), par_ty);
             }
             for (var, var_ty) in callee.vars.iter() {
-                self.sol.declare(&var.tag_ctx(self.ctx_cnt), var_ty);
+                self.sol.declare(&var.tag_ctx(0), var_ty);
             }
-            let state = State::new(callee.blk.tag_ctx(self.ctx_cnt));
+            let state = State::new(callee.blk.tag_ctx(0));
             self.push_state(state);
 
             let res = self.run_stack_loop(depth);
@@ -276,6 +277,14 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
 
             if res {
                 writeln!(self.log, "success! depth = {}", depth).unwrap();
+                let pars: Vec<IdentCtx> = callee
+                    .pars
+                    .iter()
+                    .map(|(par, _par_ty)| par.tag_ctx(0))
+                    .collect();
+                for par in pars {
+                    writeln!(self.log, "{} = {}", par, self.sol.get_value(par)).unwrap();
+                }
                 return true;
             } else {
                 writeln!(
@@ -342,7 +351,7 @@ entry is_elem_after_append(5, 1000, 5)
     // println!("{:?}", map);
 
     let dict = crate::walker::compile::compile_dict(&prog, &map);
-    println!("{:#?}", dict);
+    // println!("{:#?}", dict);
 
     let mut log = std::io::empty();
     let mut wlk = Walker::new(&dict, &mut log);

@@ -3,6 +3,7 @@ use itertools::Itertools;
 use super::ident::{Ident, IdentCtx};
 use super::lit::{LitType, LitVal};
 
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fmt;
 
@@ -66,6 +67,47 @@ impl<V: Copy, L: Copy> Term<V, L, Infallible> {
             Term::Var(var) => Term::Var(*var),
             Term::Lit(lit) => Term::Lit(*lit),
             Term::Cons(_c, _cons, _flds) => unreachable!(),
+        }
+    }
+}
+
+impl<V: Copy + Eq, L, C> Term<V, L, C> {
+    pub fn free_vars(&self) -> Vec<V> {
+        let mut vec = Vec::new();
+        self.free_vars_help(&mut vec);
+        vec
+    }
+
+    fn free_vars_help(&self, vec: &mut Vec<V>) {
+        match self {
+            Term::Var(var) => {
+                if !vec.contains(var) {
+                    vec.push(*var);
+                }
+            }
+            Term::Lit(_lit) => {}
+            Term::Cons(_, _cons, flds) => {
+                flds.iter().for_each(|fld| fld.free_vars_help(vec));
+            }
+        }
+    }
+}
+
+impl<V: Copy + Eq + std::hash::Hash, L: Copy, C: Copy> Term<V, L, C> {
+    pub fn substitute(&self, map: &HashMap<V, Term<V, L, C>>) -> Term<V, L, C> {
+        match self {
+            Term::Var(var) => {
+                if let Some(term) = map.get(var) {
+                    term.clone()
+                } else {
+                    Term::Var(*var)
+                }
+            }
+            Term::Lit(lit) => Term::Lit(*lit),
+            Term::Cons(c, cons, flds) => {
+                let flds = flds.into_iter().map(|fld| fld.substitute(map)).collect();
+                Term::Cons(*c, *cons, flds)
+            }
         }
     }
 }
