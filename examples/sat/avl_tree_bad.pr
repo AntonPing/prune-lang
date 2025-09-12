@@ -3,122 +3,170 @@ datatype AVLTree where
 | Empty
 end
 
+datatype OptionInt where
+| Some(Int)
+| None
+end
+
 function insert(tree: AVLTree, x: Int) -> AVLTree
 begin
-	match tree with
-	| Node(left, y, right) =>
-		if @icmplt(x, y) then
-			rotate(Node(insert(left, x), y, right))
-		else if @icmpgt(x, y) then
-			rotate(Node(left, y, insert(right, x)))
-		else tree
-	| Empty => Node(Empty, x, Empty)
-	end
+    match tree with
+    | Node(left, y, right) =>
+        if @icmplt(x, y) then
+            rebalance(Node(insert(left, x), y, right))
+        else if @icmpgt(x, y) then
+            rebalance(Node(left, y, insert(right, x)))
+        else tree
+    | Empty => Node(Empty, x, Empty)
+    end
 end
 
 function depth(tree: AVLTree) -> Int
 begin
-	match tree with
-	| Node(left, x, right) => 
-		let l_d = depth(left);
-		let r_d = depth(right);
-		if @icmple(l_d, r_d) then @iadd(r_d, 1) else @iadd(l_d, 1)
-	| Empty => 0
-	end
+    match tree with
+    | Node(left, x, right) => 
+        let l_d = depth(left);
+        let r_d = depth(right);
+        if @icmplt(l_d, r_d) then @iadd(r_d, 1) else @iadd(l_d, 1)
+    | Empty => 0
+    end
 end
 
-function rotate(tree: AVLTree) -> AVLTree
+function balance_factor(tree: AVLTree) -> Int
 begin
-	match tree with
-	| Node(left, x, right) => 
-		let left2 = left;
-		let right2 = right;
-		let l_d = depth(left2);
-		let r_d = depth(right2);
-		let diff = @isub(l_d, r_d);
-		if @band(@icmpge(diff, -1), @icmple(diff, 1)) then
-			Node(left2, x, right2)
-		else if @icmpeq(diff, -2) then
-			match right2 with
-			| Node(r_left, r_x, r_right) =>
-				Node(Node(left2, r_x, r_left), x, r_right)
-			| Empty => tree
-			end
-		else if @icmpeq(diff, 2) then
-			match left2 with
-			| Node(l_left, l_x, l_right) =>
-				Node(l_left, l_x, Node(l_right, x, right2))
-			| Empty => Empty
-			end
-		else Empty
-	| Empty => Empty
-	end
+    match tree with
+    | Node(left, x, right) => @isub(depth(left), depth(right))
+    | Empty => 0
+    end
+end
+
+function rebalance(tree: AVLTree) -> AVLTree
+begin
+    let bf = balance_factor(tree);
+    if @band(@icmpge(bf, -1), @icmple(bf, 1)) then
+        tree
+    else if @icmpeq(bf, -2) then
+        rotate_left(tree)
+    else if @icmpeq(bf, 2) then
+        rotate_right(tree)
+    else Empty
+end
+
+function rotate_left(tree: AVLTree) -> AVLTree
+begin
+    match tree with
+    | Node(left, x, right) => 
+        match right with
+        | Node(r_left, r_x, r_right) =>
+            Node(Node(left, x, r_left), r_x, r_right)
+        | Empty => tree
+        end
+    | Empty => Empty
+    end
+end
+
+function rotate_right(tree: AVLTree) -> AVLTree
+begin
+    match tree with
+    | Node(left, x, right) => 
+        match left with
+        | Node(l_left, l_x, l_right) =>
+            Node(l_left, l_x, Node(l_right, x, right))
+        | Empty => Empty
+        end
+    | Empty => Empty
+    end
 end
 
 function is_balanced(tree: AVLTree) -> Bool
 begin
-	match tree with
-	| Node(left, x, right) => 
-		let p = is_balanced(left);
-		let q = is_balanced(right);
-		if @band(p, q) then
-			let l_d = depth(left);
-			let r_d = depth(right);
-			let diff = @isub(l_d, r_d);
-			@band(@icmpge(diff, -1), @icmple(diff, 1))
-		else false
-	| Empty => true
-	end
+    match is_balanced_help(tree) with
+    | Some(d) => true 
+    | None => false
+    end
+end
+
+function is_balanced_help(tree: AVLTree) -> OptionInt
+begin
+    match tree with
+    | Node(left, x, right) => 
+        match is_balanced_help(left) with
+        | Some(l_d) => match is_balanced_help(right) with
+            | Some(r_d) => 
+                let diff = @isub(l_d, r_d);
+                if @band(@icmpge(diff, -1), @icmple(diff, 1)) then
+                    if @icmplt(l_d, r_d) then 
+                        Some(@iadd(r_d, 1))
+                    else
+                        Some(@iadd(l_d, 1))
+                else
+                    None
+            | None => None
+            end
+        | None => None
+        end
+    | Empty => Some(0)
+    end
 end
 
 function is_sorted(tree: AVLTree) -> Bool
 begin
     match tree with
-    | Node(left, y, right) =>
-        @band(is_sorted_left(left, y), is_sorted_right(right, y))
+    | Node(left, x, right) =>
+        @band(is_sorted_max(left, x), is_sorted_min(right, x))
     | Empty => true
     end
 end
 
-function is_sorted_left(tree: AVLTree, x: Int) -> Bool
+function is_sorted_min(tree: AVLTree, min: Int)  -> Bool
 begin
     match tree with
-    | Node(left, y, right) =>
-        @band(@icmplt(y, x), @band(is_sorted_left(left, y), is_sorted_right(right, y)))
+    | Node(left, x, right) =>
+        @band(
+            @icmpge(x, min),
+            @band(is_sorted_min_max(left, min, x), is_sorted_min(right, x))
+        )
     | Empty => true
     end
 end
 
-function is_sorted_right(tree: AVLTree, x: Int) -> Bool
+function is_sorted_max(tree: AVLTree, max: Int)  -> Bool
 begin
     match tree with
-    | Node(left, y, right) =>
-        @band(@icmpgt(y, x), @band(is_sorted_left(left, y), is_sorted_right(right, y)))
+    | Node(left, x, right) =>
+        @band(
+            @icmple(x, max),
+            @band(is_sorted_max(left, x), is_sorted_min_max(right, x, max))
+        )
     | Empty => true
     end
 end
 
-predicate always_sorted_balanced(tree: AVLTree, x: Int)
+function is_sorted_min_max(tree: AVLTree, min: Int, max: Int)  -> Bool
 begin
-	fresh(res) (
-		and(
-			is_sorted(tree) = true,
-			is_balanced(tree) = true,
-			res = insert(tree, x),
-			or(
-				is_sorted(res) = false,
-				is_balanced(res) = false,
-			),
-		)
-	)
-end
+    match tree with
+    | Node(left, x, right) =>
+        @band(
+            @band(@icmpge(x, min), @icmple(x, max)),
+            @band(is_sorted_min_max(left, min, x), is_sorted_min_max(right, x, max))
+        )
+    | Empty => true
+    end
+end	
 
-predicate always_sorted(tree: AVLTree)
+predicate keep_sorted_and_balanced(tree: AVLTree, x: Int)
 begin
-    and(
-        is_sorted(tree) = true,
-		is_sorted(rotate(tree)) = false,
+    fresh(res) (
+        and(
+            is_sorted(tree) = true,
+            is_balanced(tree) = true,
+            res = insert(tree, x),
+            or(
+                is_sorted(res) = false,
+                is_balanced(res) = false,
+            ),
+        )
     )
 end
 
-entry always_sorted_balanced(5, 1000, 5)
+entry keep_sorted_and_balanced(5, 1000, 5)

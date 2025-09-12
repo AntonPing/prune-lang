@@ -19,31 +19,49 @@ end
 function is_sorted(tree: Tree) -> Bool
 begin
     match tree with
-    | Node(left, y, right) =>
-        @band(is_sorted_left(left, y), is_sorted_right(right, y))
+    | Node(left, x, right) =>
+        @band(is_sorted_max(left, x), is_sorted_min(right, x))
     | Empty => true
     end
 end
 
-function is_sorted_left(tree: Tree, x: Int) -> Bool
+function is_sorted_min(tree: Tree, min: Int)  -> Bool
 begin
     match tree with
-    | Node(left, y, right) =>
-        @band(@icmplt(y, x), @band(is_sorted_left(left, y), is_sorted_right(right, y)))
+    | Node(left, x, right) =>
+        @band(
+            @icmpge(x, min),
+            @band(is_sorted_min_max(left, min, x), is_sorted_min(right, x))
+        )
     | Empty => true
     end
 end
 
-function is_sorted_right(tree: Tree, x: Int) -> Bool
+function is_sorted_max(tree: Tree, max: Int)  -> Bool
 begin
     match tree with
-    | Node(left, y, right) =>
-        @band(@icmpgt(y, x), @band(is_sorted_left(left, y), is_sorted_right(right, y)))
+    | Node(left, x, right) =>
+        @band(
+            @icmple(x, max),
+            @band(is_sorted_max(left, x), is_sorted_min_max(right, x, max))
+        )
     | Empty => true
     end
 end
 
-predicate always_sorted(tree: Tree, x: Int)
+function is_sorted_min_max(tree: Tree, min: Int, max: Int)  -> Bool
+begin
+    match tree with
+    | Node(left, x, right) =>
+        @band(
+            @band(@icmpge(x, min), @icmple(x, max)),
+            @band(is_sorted_min_max(left, min, x), is_sorted_min_max(right, x, max))
+        )
+    | Empty => true
+    end
+end	
+
+predicate keep_sorted(tree: Tree, x: Int)
 begin
     and(
         is_sorted(tree) = true,
@@ -51,4 +69,4 @@ begin
     )
 end
 
-entry always_sorted(5, 30, 5)
+entry keep_sorted(5, 30, 5)
