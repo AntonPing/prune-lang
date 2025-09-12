@@ -105,10 +105,10 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
     }
 }
 
-pub fn test_unsat_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
+pub fn test_sym_exec_good_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
     let mut path = PathBuf::new();
     path.push("examples");
-    path.push("unsat");
+    path.push("sym_exec_good");
     path.push(prog_name);
     path.set_extension("pr");
     let src = fs::read_to_string(path).map_err(|_err| ())?;
@@ -119,10 +119,10 @@ pub fn test_unsat_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
     Ok(())
 }
 
-pub fn test_sat_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
+pub fn test_sym_exec_bad_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
     let mut path = PathBuf::new();
     path.push("examples");
-    path.push("sat");
+    path.push("sym_exec_bad");
     path.push(prog_name);
     path.set_extension("pr");
     let src = fs::read_to_string(path).map_err(|_err| ())?;
