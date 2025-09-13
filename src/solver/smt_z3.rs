@@ -1,7 +1,5 @@
-use std::collections::HashMap;
-
 use super::*;
-use crate::utils::env_map::EnvMap;
+
 use easy_smt::{Context, ContextBuilder, Response, SExpr};
 
 pub struct Constr {
@@ -83,14 +81,11 @@ impl Constr {
 
     pub fn get_int(&mut self, atom: &AtomCtx) -> SExpr {
         match atom {
-            Term::Var(x) => {
-                let res = self
-                    .map
-                    .iter()
-                    .find_map(|(k, v)| if k == x { Some(*v) } else { None })
-                    .expect(format!("integer variable {} not declared!", x).as_str());
-                res
-            }
+            Term::Var(x) => self
+                .map
+                .get(x)
+                .expect(format!("integer variable {} not declared!", x).as_str())
+                .clone(),
             Term::Lit(LitVal::Int(x)) => self.ctx.numeral(*x),
             _ => panic!("atom is not an integer!"),
         }
@@ -98,14 +93,11 @@ impl Constr {
 
     pub fn get_bool(&mut self, atom: &AtomCtx) -> SExpr {
         match atom {
-            Term::Var(x) => {
-                let res = self
-                    .map
-                    .iter()
-                    .find_map(|(k, v)| if k == x { Some(*v) } else { None })
-                    .expect(format!("boolean variable {} not declared!", x).as_str());
-                res
-            }
+            Term::Var(x) => self
+                .map
+                .get(x)
+                .expect(format!("boolean variable {} not declared!", x).as_str())
+                .clone(),
             Term::Lit(LitVal::Bool(true)) => self.ctx.true_(),
             Term::Lit(LitVal::Bool(false)) => self.ctx.false_(),
             _ => panic!("atom is not a boolean!"),
@@ -174,17 +166,11 @@ impl Constr {
         }
     }
 
-    pub fn get_var(&mut self, var: &IdentCtx) -> Option<SExpr> {
-        self.map
-            .iter()
-            .find_map(|(k, v)| if k == var { Some(*v) } else { None })
-    }
-
-    pub fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx) -> Option<()> {
-        let lhs = self.get_var(&x)?;
+    pub fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx) {
+        let lhs = self.map[&x].clone();
         match atom {
             Term::Var(y) => {
-                let rhs = self.get_var(&y).unwrap();
+                let rhs = self.map[&y].clone();
                 self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
             }
             Term::Lit(LitVal::Int(_)) => {
@@ -202,7 +188,6 @@ impl Constr {
                 unimplemented!()
             }
         }
-        Some(())
     }
 
     pub fn check(&mut self) -> bool {
@@ -215,7 +200,7 @@ impl Constr {
     }
 
     pub fn get_value(&mut self, vars: &Vec<IdentCtx>) -> Option<HashMap<IdentCtx, LitVal>> {
-        let vars_sexp = vars.iter().map(|var| self.get_var(var).unwrap()).collect();
+        let vars_sexp = vars.iter().map(|var| self.map[var]).collect();
         let map_sexp = self.ctx.get_value(vars_sexp).ok()?;
         let map: HashMap<IdentCtx, LitVal> = vars
             .iter()
@@ -229,7 +214,6 @@ impl Constr {
                     .unwrap()
             }))
             .collect();
-
         Some(map)
     }
 }

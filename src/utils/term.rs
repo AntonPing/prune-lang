@@ -38,6 +38,20 @@ pub type AtomCtx = Term<IdentCtx, LitVal, Infallible>;
 
 pub type TypeId = Term<Ident, LitType, ()>;
 
+impl<V, L, C> Term<V, L, C> {
+    pub fn is_var(&self) -> bool {
+        matches!(self, Term::Var(_))
+    }
+
+    pub fn is_lit(&self) -> bool {
+        matches!(self, Term::Lit(_))
+    }
+
+    pub fn is_cons(&self) -> bool {
+        matches!(self, Term::Cons(_, _, _))
+    }
+}
+
 impl<L: Copy, C: Copy> Term<Ident, L, C> {
     pub fn tag_ctx(&self, ctx: usize) -> Term<IdentCtx, L, C> {
         match self {

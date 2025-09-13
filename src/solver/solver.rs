@@ -5,6 +5,7 @@ use super::subst::*;
 
 #[derive(Debug)]
 pub struct Solver {
+    ty_map: EnvMap<IdentCtx, TypeId>,
     subst: Subst,
     constr: Constr,
     unify_vec: Vec<(IdentCtx, TermCtx)>,
@@ -36,6 +37,7 @@ impl Solver {
         let subst = Subst::new();
         let constr = Constr::new();
         Solver {
+            ty_map: EnvMap::new(),
             subst,
             constr,
             unify_vec: Vec::new(),
@@ -49,6 +51,7 @@ impl Solver {
     }
 
     pub fn reset(&mut self) {
+        self.ty_map.clear();
         self.subst.reset();
         self.constr.reset();
         self.unify_vec.clear();
@@ -57,6 +60,7 @@ impl Solver {
     }
 
     pub fn savepoint(&mut self) {
+        self.ty_map.enter_scope();
         self.subst.savepoint();
         self.constr.savepoint();
         self.saves
@@ -65,9 +69,9 @@ impl Solver {
 
     pub fn backtrack(&mut self) {
         assert!(!self.saves.is_empty());
+        self.ty_map.leave_scope();
         self.subst.backtrack();
         self.constr.backtrack();
-
         let (len1, len2) = self.saves.pop().unwrap();
         for _ in 0..(self.unify_vec.len() - len1) {
             self.unify_vec.pop().unwrap();
@@ -80,6 +84,8 @@ impl Solver {
 
 impl Solver {
     pub fn declare(&mut self, var: &IdentCtx, typ: &TypeId) {
+        assert!(!self.ty_map.contains_key(var));
+        self.ty_map.insert(*var, typ.clone());
         if let Term::Lit(lit) = typ {
             self.constr.declare_var(var, lit);
         }
@@ -89,7 +95,9 @@ impl Solver {
         self.unify_vec.push((var.clone(), term.clone()));
         let mut subst = self.subst.bind(var, term)?;
         for (x, term) in subst.drain(..) {
-            let _ = self.constr.push_eq(x, term);
+            if self.ty_map[&x].is_lit() {
+                self.constr.push_eq(x, term);
+            }
         }
         if !self.constr.check() {
             return Err(());
@@ -108,10 +116,15 @@ impl Solver {
 
     pub fn get_value(&mut self, var: IdentCtx) -> TermCtx {
         let term = self.subst.merge(&Term::Var(var));
-        // let vars = term.free_vars();
-        // let map = self.constr.get_value(&vars).unwrap();
-        // let map = map.into_iter().map(|(k, v)| (k, Term::Lit(v))).collect();
-        // let term = term.substitute(&map);
+        let vars = term.free_vars();
+        let lit_vars: Vec<IdentCtx> = vars
+            .iter()
+            .filter(|var| self.ty_map[var].is_lit())
+            .cloned()
+            .collect();
+        let map = self.constr.get_value(&lit_vars).unwrap();
+        let map = map.into_iter().map(|(k, v)| (k, Term::Lit(v))).collect();
+        let term = term.substitute(&map);
         term
     }
 }
