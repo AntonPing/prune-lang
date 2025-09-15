@@ -81,7 +81,7 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         }
     }
 
-    pub fn test_prog(&'log mut self) -> Result<Vec<bool>, ()> {
+    pub fn test_prog(&'log mut self) -> Result<Vec<usize>, ()> {
         let mut prog = self.parse_program()?;
         self.rename_pass(&mut prog)?;
         self.check_pass(&mut prog)?;
@@ -115,7 +115,7 @@ pub fn test_sym_exec_good_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(),
     let mut log = io::empty();
     let mut pipe = Pipeline::new(&src, &mut log);
     let res_vec = pipe.test_prog()?;
-    assert!(res_vec.iter().any(|p| !*p));
+    assert!(res_vec.iter().all(|p| *p == 0));
     Ok(())
 }
 
@@ -129,6 +129,6 @@ pub fn test_sym_exec_bad_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), 
     let mut log = io::empty();
     let mut pipe = Pipeline::new(&src, &mut log);
     let res_vec = pipe.test_prog()?;
-    assert!(res_vec.iter().all(|p| *p));
+    assert!(res_vec.iter().any(|p| *p > 0));
     Ok(())
 }

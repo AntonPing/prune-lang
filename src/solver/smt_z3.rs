@@ -33,8 +33,11 @@ impl Constr {
     }
 
     pub fn reset(&mut self) {
-        self.ctx.pop().unwrap();
-        assert!(self.ctx.pop().is_err());
+        loop {
+            if self.ctx.pop().is_err() {
+                break;
+            }
+        }
         // push an empty context for reset
         self.ctx.push().unwrap();
         self.map.clear();
@@ -199,20 +202,43 @@ impl Constr {
         }
     }
 
+    fn sexp_to_lit_val(&self, sexpr: SExpr) -> Option<LitVal> {
+        if let Some(res) = self.ctx.get_i64(sexpr) {
+            return Some(LitVal::Int(res));
+        }
+        if let Some(res) = self.ctx.get_f64(sexpr) {
+            return Some(LitVal::Float(res));
+        }
+        if let Some(res) = self.ctx.get_atom(sexpr) {
+            match res {
+                "true" => {
+                    return Some(LitVal::Bool(true));
+                }
+                "false" => {
+                    return Some(LitVal::Bool(false));
+                }
+                _ => {
+                    return None;
+                }
+            }
+        }
+
+        // todo: basic type `Char``
+
+        None
+    }
+
     pub fn get_value(&mut self, vars: &Vec<IdentCtx>) -> Option<HashMap<IdentCtx, LitVal>> {
         let vars_sexp = vars.iter().map(|var| self.map[var]).collect();
         let map_sexp = self.ctx.get_value(vars_sexp).ok()?;
         let map: HashMap<IdentCtx, LitVal> = vars
             .iter()
             .cloned()
-            .zip(map_sexp.iter().map(|(_var, val)| {
-                self.ctx
-                    .display(*val)
-                    .to_string()
-                    .as_str()
-                    .parse::<LitVal>()
-                    .unwrap()
-            }))
+            .zip(
+                map_sexp
+                    .iter()
+                    .map(|(_var, val)| self.sexp_to_lit_val(*val).unwrap()),
+            )
             .collect();
         Some(map)
     }

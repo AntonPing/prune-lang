@@ -5,7 +5,7 @@ use crate::logic::ast::PredIdent;
 use crate::solver::solver::Solver;
 use crate::utils::ident::IdentCtx;
 use std::collections::VecDeque;
-use std::io;
+use std::{io, usize};
 
 #[derive(Clone, Debug)]
 struct State<'blk> {
@@ -31,6 +31,8 @@ pub struct Walker<'blk, 'log, Log: io::Write> {
     ctx_cnt: usize,
     step_cnt: usize,
     step_cnt_la: usize,
+    answer_cnt: usize,
+    answer_max: Option<usize>,
     sol: Solver,
     log: &'log mut Log,
 }
@@ -46,6 +48,8 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
             ctx_cnt: 0,
             step_cnt: 0,
             step_cnt_la: 0,
+            answer_cnt: 0,
+            answer_max: Some(1),
             sol: Solver::new(),
             log,
         }
@@ -86,14 +90,23 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
         writeln!(self.log, "{}", self.sol)
     }
 
-    fn run_stack_loop(&mut self, depth: usize) -> bool {
+    fn run_stack_loop(&mut self, depth_last: usize, depth: usize, pars: Vec<IdentCtx>) {
         while !self.stack.is_empty() {
             let mut state = self.pop_state();
-            if self.run_state_loop(depth, &mut state) {
-                return true;
+            if self.run_state_loop(depth, &mut state)
+                && state.depth >= depth_last
+                && state.depth < depth
+            {
+                writeln!(self.log, "[ANSWER]: depth = {}", state.depth).unwrap();
+                for par in pars.iter() {
+                    writeln!(self.log, "{} = {}", par.ident, self.sol.get_value(*par)).unwrap();
+                }
+                self.answer_cnt += 1;
+                if self.answer_cnt == self.answer_max.unwrap_or(usize::MAX) {
+                    break;
+                }
             }
         }
-        false
     }
 
     fn run_state_loop(&mut self, depth: usize, state: &mut State<'blk>) -> bool {
@@ -221,8 +234,8 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
             self.ctx_cnt += 1;
             assert_eq!(pars.len(), args.len());
             for ((par, par_ty), arg) in pars.iter().zip(args.iter()) {
-                self.sol.declare(&par.tag_ctx(self.ctx_cnt), par_ty);
                 let par = par.tag_ctx(self.ctx_cnt);
+                self.sol.declare(&par, par_ty);
                 let arg = arg.tag_ctx(curr_ctx);
                 self.sol.bind(par, arg.to_term()).unwrap(); // unify with a fresh variable cannot fail
             }
@@ -247,15 +260,11 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
         true
     }
 
-    pub fn run_loop(&mut self, entry: PredIdent, start: usize, end: usize, step: usize) -> bool {
-        // use std::io::Read;
-        // let mut stdin = io::stdin();
-        // self.write_code().unwrap();
-
+    pub fn run_loop(&mut self, entry: PredIdent, _start: usize, end: usize, step: usize) -> usize {
         let mut acc_total: usize = 0;
 
-        for depth in (start..end).into_iter().step_by(step) {
-            write!(self.log, "try depth = {}...", depth).unwrap();
+        for depth in (step..end).into_iter().step_by(step) {
+            writeln!(self.log, "[RUN]: try depth = {}...", depth).unwrap();
             self.log.flush().unwrap();
 
             self.reset();
@@ -270,36 +279,34 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
             let state = State::new(callee.blk.tag_ctx(0));
             self.push_state(state);
 
-            let res = self.run_stack_loop(depth);
+            let pars: Vec<IdentCtx> = callee
+                .pars
+                .iter()
+                .map(|(par, _par_ty)| par.tag_ctx(0))
+                .collect();
+
+            self.run_stack_loop(depth - step, depth, pars);
 
             let total = self.step_cnt + self.step_cnt_la;
             acc_total += total;
 
-            if res {
-                writeln!(self.log, "success! depth = {}", depth).unwrap();
-                let pars: Vec<IdentCtx> = callee
-                    .pars
-                    .iter()
-                    .map(|(par, _par_ty)| par.tag_ctx(0))
-                    .collect();
-                for par in pars {
-                    writeln!(self.log, "{} = {}", par, self.sol.get_value(par)).unwrap();
-                }
-                return true;
-            } else {
-                writeln!(
-                    self.log,
-                    "fail. step = {}, step_la = {}(ratio {}), total = {}, acc_total = {} ",
-                    self.step_cnt,
-                    self.step_cnt_la,
-                    (self.step_cnt_la as f32) / (self.step_cnt as f32 + 0.001),
-                    total,
-                    acc_total
-                )
-                .unwrap();
+            writeln!(
+                self.log,
+                "[STAT]: answers: {}, step = {}, step_la = {}(ratio {}), total = {}, acc_total = {} ",
+                self.answer_cnt,
+                self.step_cnt,
+                self.step_cnt_la,
+                (self.step_cnt_la as f32) / (self.step_cnt as f32 + 0.001),
+                total,
+                acc_total
+            )
+            .unwrap();
+
+            if self.answer_cnt >= self.answer_max.unwrap_or(usize::MAX) {
+                return self.answer_cnt;
             }
         }
-        false
+        return self.answer_cnt;
     }
 }
 
@@ -356,5 +363,5 @@ entry is_elem_after_append(5, 1000, 5)
     let mut log = std::io::empty();
     let mut wlk = Walker::new(&dict, &mut log);
     let entry = prog.entrys[0].entry;
-    assert!(wlk.run_loop(entry, 10, 100, 10))
+    assert!(wlk.run_loop(entry, 10, 100, 10) > 0)
 }
