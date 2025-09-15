@@ -1,9 +1,12 @@
+use super::config::WalkerStat;
 use super::*;
 
 use super::compile::{BlockCtx, PredBlock};
 use crate::logic::ast::PredIdent;
 use crate::solver::solver::Solver;
 use crate::utils::ident::IdentCtx;
+use crate::walker::config::WalkerConfig;
+
 use std::collections::VecDeque;
 use std::{io, usize};
 
@@ -27,12 +30,11 @@ impl<'blk> State<'blk> {
 #[derive(Debug)]
 pub struct Walker<'blk, 'log, Log: io::Write> {
     dict: &'blk HashMap<PredIdent, PredBlock>,
+    pub config: WalkerConfig,
+    stats: WalkerStat,
     stack: Vec<State<'blk>>,
+    ansr_cnt: usize,
     ctx_cnt: usize,
-    step_cnt: usize,
-    step_cnt_la: usize,
-    answer_cnt: usize,
-    answer_max: Option<usize>,
     sol: Solver,
     log: &'log mut Log,
 }
@@ -44,21 +46,20 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
     ) -> Walker<'blk, 'log, Log> {
         Walker {
             dict,
+            config: WalkerConfig::new(),
+            stats: WalkerStat::new(),
             stack: Vec::new(),
+            ansr_cnt: 0,
             ctx_cnt: 0,
-            step_cnt: 0,
-            step_cnt_la: 0,
-            answer_cnt: 0,
-            answer_max: Some(1),
             sol: Solver::new(),
             log,
         }
     }
 
     fn reset(&mut self) {
+        self.stats.reset();
+        assert!(self.stack.is_empty());
         self.ctx_cnt = 0;
-        self.step_cnt = 0;
-        self.step_cnt_la = 0;
         self.sol.reset();
     }
 
@@ -97,12 +98,12 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
                 && state.depth >= depth_last
                 && state.depth < depth
             {
-                writeln!(self.log, "[ANSWER]: depth = {}", state.depth).unwrap();
+                writeln!(self.log, "[ANSWER]: (depth = {})", state.depth).unwrap();
                 for par in pars.iter() {
                     writeln!(self.log, "{} = {}", par.ident, self.sol.get_value(*par)).unwrap();
                 }
-                self.answer_cnt += 1;
-                if self.answer_cnt == self.answer_max.unwrap_or(usize::MAX) {
+                self.ansr_cnt += 1;
+                if self.ansr_cnt == self.config.answer_limit {
                     break;
                 }
             }
@@ -111,10 +112,10 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
 
     fn run_state_loop(&mut self, depth: usize, state: &mut State<'blk>) -> bool {
         loop {
-            if state.depth + state.queue.len() > depth {
+            if state.depth + state.queue.len() >= depth {
                 return false;
             }
-            self.step_cnt += 1;
+            self.stats.step();
             if !self.run_block(state) {
                 return false;
             }
@@ -182,7 +183,7 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
 
                 let mut new_state = state.clone();
                 new_state.curr_blk = *brch;
-                self.step_cnt_la += 1;
+                self.stats.step_la();
                 let res = self.run_block(&mut new_state);
 
                 self.sol.backtrack();
@@ -260,11 +261,17 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
         true
     }
 
-    pub fn run_loop(&mut self, entry: PredIdent, _start: usize, end: usize, step: usize) -> usize {
-        let mut acc_total: usize = 0;
-
-        for depth in (step..end).into_iter().step_by(step) {
-            writeln!(self.log, "[RUN]: try depth = {}...", depth).unwrap();
+    pub fn run_loop(&mut self, entry: PredIdent) -> usize {
+        for depth in (self.config.depth_step..self.config.depth_limit)
+            .into_iter()
+            .step_by(self.config.depth_step)
+        {
+            writeln!(
+                self.log,
+                "[RUN]: try depth = {}... (found answer: {})",
+                depth, self.ansr_cnt
+            )
+            .unwrap();
             self.log.flush().unwrap();
 
             self.reset();
@@ -285,28 +292,17 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
                 .map(|(par, _par_ty)| par.tag_ctx(0))
                 .collect();
 
-            self.run_stack_loop(depth - step, depth, pars);
+            self.run_stack_loop(depth - self.config.depth_step, depth, pars);
 
-            let total = self.step_cnt + self.step_cnt_la;
-            acc_total += total;
+            let stat_res = self.stats.print_stat();
 
-            writeln!(
-                self.log,
-                "[STAT]: answers: {}, step = {}, step_la = {}(ratio {}), total = {}, acc_total = {} ",
-                self.answer_cnt,
-                self.step_cnt,
-                self.step_cnt_la,
-                (self.step_cnt_la as f32) / (self.step_cnt as f32 + 0.001),
-                total,
-                acc_total
-            )
-            .unwrap();
+            writeln!(self.log, "{}", stat_res).unwrap();
 
-            if self.answer_cnt >= self.answer_max.unwrap_or(usize::MAX) {
-                return self.answer_cnt;
+            if self.ansr_cnt >= self.config.answer_limit {
+                return self.ansr_cnt;
             }
         }
-        return self.answer_cnt;
+        return self.ansr_cnt;
     }
 }
 
@@ -362,6 +358,9 @@ entry is_elem_after_append(5, 1000, 5)
 
     let mut log = std::io::empty();
     let mut wlk = Walker::new(&dict, &mut log);
-    let entry = prog.entrys[0].entry;
-    assert!(wlk.run_loop(entry, 10, 100, 10) > 0)
+    let entry = &prog.entrys[0];
+    wlk.config.depth_step = entry.iter_step;
+    wlk.config.depth_limit = entry.iter_end;
+    wlk.config.answer_limit = 1;
+    assert!(wlk.run_loop(entry.entry) > 0)
 }

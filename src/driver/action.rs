@@ -93,12 +93,10 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
 
         let mut res_vec = Vec::new();
         for entry_decl in prog.entrys {
-            let res = wlk.run_loop(
-                entry_decl.entry,
-                entry_decl.iter_start,
-                entry_decl.iter_end,
-                entry_decl.iter_step,
-            );
+            wlk.config.depth_step = entry_decl.iter_step;
+            wlk.config.depth_limit = entry_decl.iter_end;
+            wlk.config.answer_limit = 1;
+            let res = wlk.run_loop(entry_decl.entry);
             res_vec.push(res);
         }
         Ok(res_vec)
