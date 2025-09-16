@@ -5,7 +5,7 @@ pub struct Program {
     pub datas: Vec<DataDecl>,
     pub funcs: Vec<FuncDecl>,
     pub preds: Vec<PredDecl>,
-    pub entrys: Vec<EntryDecl>,
+    pub querys: Vec<QueryDecl>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -13,7 +13,7 @@ pub enum Declaration {
     Data(DataDecl),
     Func(FuncDecl),
     Pred(PredDecl),
-    Entry(EntryDecl),
+    Query(QueryDecl),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -132,10 +132,16 @@ pub enum Goal {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct EntryDecl {
+pub struct QueryDecl {
     pub entry: Ident,
-    pub iter_start: usize,
-    pub iter_end: usize,
-    pub iter_step: usize,
+    pub params: Vec<(QueryParam, Span)>,
     pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum QueryParam {
+    DepthStep(usize),
+    DepthLimit(usize),
+    AnswerLimit(usize),
+    AnswerPause(bool),
 }

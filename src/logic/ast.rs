@@ -30,7 +30,7 @@ impl std::fmt::Display for PredIdent {
 pub struct Program {
     pub datas: HashMap<Ident, DataDecl>,
     pub preds: HashMap<PredIdent, PredDecl>,
-    pub entrys: Vec<EntryDecl>,
+    pub querys: Vec<QueryDecl>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -64,9 +64,15 @@ pub struct PredDecl {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct EntryDecl {
+pub struct QueryDecl {
     pub entry: PredIdent,
-    pub iter_start: usize,
-    pub iter_end: usize,
-    pub iter_step: usize,
+    pub params: Vec<QueryParam>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum QueryParam {
+    DepthStep(usize),
+    DepthLimit(usize),
+    AnswerLimit(usize),
+    AnswerPause(bool),
 }

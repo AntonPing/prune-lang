@@ -101,8 +101,8 @@ pub enum Token {
     Function,
     #[token("predicate")]
     Predicate,
-    #[token("entry")]
-    Entry,
+    #[token("query")]
+    Query,
     #[token("where")]
     Where,
     #[token("_")]

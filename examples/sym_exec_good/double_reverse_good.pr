@@ -35,4 +35,4 @@ begin
     intlist_eq(reverse(reverse(xs)), xs) = false
 end
 
-entry double_reverse_same(5, 30, 5)
+query double_reverse_same(depth_step=5, depth_limit=50, answer_limit=1)

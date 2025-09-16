@@ -1,3 +1,5 @@
+use super::*;
+
 #[derive(Debug)]
 pub struct WalkerConfig {
     pub depth_step: usize,
@@ -13,10 +15,36 @@ impl WalkerConfig {
         WalkerConfig {
             depth_step: 5,
             depth_limit: 100,
-            answer_limit: usize::MAX,
+            answer_limit: std::usize::MAX,
             print_iter: true,
             print_stat: true,
             answer_pause: false,
+        }
+    }
+
+    pub fn reset_default(&mut self) {
+        self.depth_step = 5;
+        self.depth_limit = 100;
+        self.answer_limit = std::usize::MAX;
+        self.print_iter = true;
+        self.print_stat = true;
+        self.answer_pause = true;
+    }
+
+    pub fn set_param(&mut self, param: &QueryParam) {
+        match param {
+            QueryParam::DepthStep(x) => {
+                self.depth_step = *x;
+            }
+            QueryParam::DepthLimit(x) => {
+                self.depth_limit = *x;
+            }
+            QueryParam::AnswerLimit(x) => {
+                self.answer_limit = *x;
+            }
+            QueryParam::AnswerPause(x) => {
+                self.answer_pause = *x;
+            }
         }
     }
 }

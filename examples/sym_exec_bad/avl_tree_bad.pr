@@ -169,4 +169,4 @@ begin
     )
 end
 
-entry keep_sorted_and_balanced(5, 1000, 5)
+query keep_sorted_and_balanced(depth_step=5, depth_limit=1000, answer_limit=1)

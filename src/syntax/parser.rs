@@ -620,7 +620,7 @@ impl<'src> Parser<'src> {
         })
     }
 
-    fn parse_int(&mut self) -> ParseResult<usize> {
+    fn parse_pos_int(&mut self) -> ParseResult<usize> {
         match self.peek_token() {
             Token::Int => {
                 let x = self.peek_slice().parse::<i64>().unwrap();
@@ -643,26 +643,82 @@ impl<'src> Parser<'src> {
         }
     }
 
-    fn parse_entry_decl(&mut self) -> ParseResult<EntryDecl> {
+    fn parse_bool(&mut self) -> ParseResult<bool> {
+        match self.peek_token() {
+            Token::Bool => {
+                let x = self.peek_slice().parse::<bool>().unwrap();
+                self.next_token()?;
+                Ok(x)
+            }
+            _ => Err(ParseError::FailedToParse(
+                "boolean literal",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
+        }
+    }
+
+    fn parse_query_decl(&mut self) -> ParseResult<QueryDecl> {
         let start = self.start_pos();
-        self.match_token(Token::Entry)?;
+        self.match_token(Token::Query)?;
         let entry = self.parse_lident()?;
-        self.match_token(Token::LParen)?;
-        let iter_start = self.parse_int()?;
-        self.match_token(Token::Comma)?;
-        let iter_end = self.parse_int()?;
-        self.match_token(Token::Comma)?;
-        let iter_step = self.parse_int()?;
-        self.match_token(Token::RParen)?;
+        let params = self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+            par.parse_query_param()
+        })?;
         let end = self.end_pos();
         let span = Span { start, end };
-        Ok(EntryDecl {
+        Ok(QueryDecl {
             entry,
-            iter_start,
-            iter_end,
-            iter_step,
+            params,
             span,
         })
+    }
+
+    fn parse_query_param(&mut self) -> ParseResult<(QueryParam, Span)> {
+        let start = self.start_pos();
+        let name = self.parse_lident()?;
+
+        match name.as_str() {
+            "depth_step" => {
+                self.match_token(Token::Equal)?;
+                let val = self.parse_pos_int()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok((QueryParam::DepthStep(val), span))
+            }
+
+            "depth_limit" => {
+                self.match_token(Token::Equal)?;
+                let val = self.parse_pos_int()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok((QueryParam::DepthLimit(val), span))
+            }
+
+            "answer_limit" => {
+                self.match_token(Token::Equal)?;
+                let val = self.parse_pos_int()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok((QueryParam::AnswerLimit(val), span))
+            }
+            "answer_pause" => {
+                self.match_token(Token::Equal)?;
+                let val = self.parse_bool()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok((QueryParam::AnswerPause(val), span))
+            }
+            _ => {
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Err(ParseError::FailedToParse(
+                    "query parameter",
+                    Token::LowerIdent,
+                    span,
+                ))
+            }
+        }
     }
 
     fn parse_decl(&mut self) -> ParseResult<Declaration> {
@@ -679,9 +735,9 @@ impl<'src> Parser<'src> {
                 let decl = self.parse_pred_decl()?;
                 Ok(Declaration::Pred(decl))
             }
-            Token::Entry => {
-                let decl = self.parse_entry_decl()?;
-                Ok(Declaration::Entry(decl))
+            Token::Query => {
+                let decl = self.parse_query_decl()?;
+                Ok(Declaration::Query(decl))
             }
             _tok => Err(ParseError::FailedToParse(
                 "declaration",
@@ -695,7 +751,7 @@ impl<'src> Parser<'src> {
         let mut decls: Vec<Declaration> = Vec::new();
         loop {
             match self.peek_token() {
-                Token::Datatype | Token::Function | Token::Predicate | Token::Entry => {
+                Token::Datatype | Token::Function | Token::Predicate | Token::Query => {
                     // toplevel error recovering
                     match self.parse_decl() {
                         Ok(res) => decls.push(res),
@@ -718,14 +774,14 @@ impl<'src> Parser<'src> {
         let mut datas = Vec::new();
         let mut funcs = Vec::new();
         let mut preds = Vec::new();
-        let mut entrys = Vec::new();
+        let mut querys = Vec::new();
 
         for decl in decls.into_iter() {
             match decl {
                 Declaration::Data(data) => datas.push(data),
                 Declaration::Func(func) => funcs.push(func),
                 Declaration::Pred(pred) => preds.push(pred),
-                Declaration::Entry(entry) => entrys.push(entry),
+                Declaration::Query(query) => querys.push(query),
             }
         }
 
@@ -733,7 +789,7 @@ impl<'src> Parser<'src> {
             datas,
             funcs,
             preds,
-            entrys,
+            querys,
         }
     }
 }
@@ -753,16 +809,17 @@ fn parser_test() {
         test block comment
     */
 */
+
 datatype IntList where
 | Cons(Int, IntList)
 | Nil
 end
 
-function append(xs: IntList, x: Int) -> Int
+function append(xs: IntList, x: Int) -> IntList
 begin
     match xs with
     | Cons(head, tail) => Cons(head, append(tail, x))
-    | Nil => Cons(x, Nil)
+    | Nil => Nil
     end
 end
 
@@ -778,6 +835,8 @@ predicate is_elem_after_append(xs: IntList, x: Int)
 begin
     is_elem(append(xs, x), x) = false
 end
+
+query is_elem_after_append(depth_step=5, depth_limit=1000, answer_limit=1)
 "#;
     let (_prog, errs) = parse_program(&src);
     // println!("{:#?}", prog);

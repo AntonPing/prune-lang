@@ -1,8 +1,7 @@
+use super::compile::{BlockCtx, PredBlock};
 use super::config::WalkerStat;
 use super::*;
 
-use super::compile::{BlockCtx, PredBlock};
-use crate::logic::ast::PredIdent;
 use crate::solver::solver::Solver;
 use crate::utils::ident::IdentCtx;
 use crate::walker::config::WalkerConfig;
@@ -29,7 +28,7 @@ impl<'blk> State<'blk> {
 #[derive(Debug)]
 pub struct Walker<'blk> {
     dict: &'blk HashMap<PredIdent, PredBlock>,
-    pub config: WalkerConfig,
+    config: WalkerConfig,
     stats: WalkerStat,
     stack: Vec<State<'blk>>,
     ansr_cnt: usize,
@@ -52,6 +51,14 @@ impl<'blk> Walker<'blk> {
             ctx_cnt: 0,
             sol: Solver::new(),
         }
+    }
+
+    pub fn config_reset_default(&mut self) {
+        self.config.reset_default();
+    }
+
+    pub fn config_set_param(&mut self, param: &QueryParam) {
+        self.config.set_param(param);
     }
 
     fn reset(&mut self) {
@@ -312,7 +319,7 @@ begin
     is_elem(append(xs, x), x) = false
 end
 
-entry is_elem_after_append(5, 1000, 5)
+query is_elem_after_append(depth_step=5, depth_limit=1000, answer_limit=1)
     "#;
 
     let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
@@ -334,9 +341,10 @@ entry is_elem_after_append(5, 1000, 5)
     // println!("{:#?}", dict);
 
     let mut wlk = Walker::new(&dict);
-    let entry = &prog.entrys[0];
-    wlk.config.depth_step = entry.iter_step;
-    wlk.config.depth_limit = entry.iter_end;
-    wlk.config.answer_limit = 1;
-    assert!(wlk.run_loop(entry.entry) > 0)
+    let query = &prog.querys[0];
+
+    for param in query.params.iter() {
+        wlk.config_set_param(param);
+    }
+    assert!(wlk.run_loop(query.entry) > 0)
 }

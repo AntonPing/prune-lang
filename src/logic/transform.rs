@@ -285,12 +285,23 @@ fn translate_goal(vars: &mut Vec<Ident>, goal: &ast::Goal) -> Goal {
     }
 }
 
-fn translate_entry(entry: &ast::EntryDecl) -> logic::ast::EntryDecl {
-    logic::ast::EntryDecl {
-        entry: PredIdent::Pos(entry.entry),
-        iter_start: entry.iter_start,
-        iter_end: entry.iter_end,
-        iter_step: entry.iter_step,
+fn translate_query(query: &ast::QueryDecl) -> logic::ast::QueryDecl {
+    logic::ast::QueryDecl {
+        entry: PredIdent::Pos(query.entry),
+        params: query
+            .params
+            .iter()
+            .map(|(param, _span)| translate_query_param(param))
+            .collect(),
+    }
+}
+
+fn translate_query_param(param: &ast::QueryParam) -> logic::ast::QueryParam {
+    match param {
+        ast::QueryParam::DepthStep(x) => logic::ast::QueryParam::DepthStep(*x),
+        ast::QueryParam::DepthLimit(x) => logic::ast::QueryParam::DepthLimit(*x),
+        ast::QueryParam::AnswerLimit(x) => logic::ast::QueryParam::AnswerLimit(*x),
+        ast::QueryParam::AnswerPause(x) => logic::ast::QueryParam::AnswerPause(*x),
     }
 }
 
@@ -311,15 +322,15 @@ pub fn logic_translation(prog: &ast::Program) -> logic::ast::Program {
         preds.insert(PredIdent::Pos(pred.name), res);
     }
 
-    let mut entrys = Vec::new();
-    for entry in prog.entrys.iter() {
-        let res = translate_entry(entry);
-        entrys.push(res);
+    let mut querys = Vec::new();
+    for query in prog.querys.iter() {
+        let res = translate_query(query);
+        querys.push(res);
     }
     logic::ast::Program {
         datas,
         preds,
-        entrys,
+        querys,
     }
 }
 

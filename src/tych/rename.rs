@@ -308,8 +308,8 @@ impl Renamer {
         self.leave_scope();
     }
 
-    fn visit_entry_decl(&mut self, entry_decl: &mut EntryDecl) {
-        self.update_func_pred_var(&mut entry_decl.entry);
+    fn visit_query_decl(&mut self, query_decl: &mut QueryDecl) {
+        self.update_func_pred_var(&mut query_decl.entry);
     }
 
     fn visit_prog(&mut self, prog: &mut Program) {
@@ -334,9 +334,9 @@ impl Renamer {
         prog.preds
             .iter_mut()
             .for_each(|pred_decl| self.visit_pred_decl(pred_decl));
-        prog.entrys
+        prog.querys
             .iter_mut()
-            .for_each(|entry_decl| self.visit_entry_decl(entry_decl));
+            .for_each(|query_decl| self.visit_query_decl(query_decl));
     }
 }
 
@@ -354,13 +354,11 @@ datatype IntList where
 | Nil
 end
 
-entry is_elem_after_append(10, 20, 5)
-
-function append(xs: IntList, x: Int) -> Int
+function append(xs: IntList, x: Int) -> IntList
 begin
     match xs with
     | Cons(head, tail) => Cons(head, append(tail, x))
-    | Nil => Cons(x, Nil)
+    | Nil => Nil
     end
 end
 
@@ -374,13 +372,10 @@ end
 
 predicate is_elem_after_append(xs: IntList, x: Int)
 begin
-    fresh(ys) (
-        and(
-            ys = append(xs, x),
-            is_elem(ys, x) = false,
-        )
-    )
+    is_elem(append(xs, x), x) = false
 end
+
+query is_elem_after_append(depth_step=5, depth_limit=1000, answer_limit=1)
 "#;
 
     let (mut prog, errs) = crate::syntax::parser::parse_program(&src);

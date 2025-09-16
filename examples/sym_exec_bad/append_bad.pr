@@ -24,4 +24,4 @@ begin
     is_elem(append(xs, x), x) = false
 end
 
-entry is_elem_after_append(5, 1000, 5)
+query is_elem_after_append(depth_step=5, depth_limit=1000, answer_limit=1)
