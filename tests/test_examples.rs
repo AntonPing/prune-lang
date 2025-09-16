@@ -1,7 +1,7 @@
 use prune_lang::driver::action;
 
 #[test]
-fn test_append() {
+fn test_append_good() {
     action::test_sym_exec_good_prog("append_good").unwrap()
 }
 
@@ -11,7 +11,7 @@ fn test_append_bad() {
 }
 
 #[test]
-fn test_double_reverse() {
+fn test_double_reverse_good() {
     action::test_sym_exec_good_prog("double_reverse_good").unwrap()
 }
 
@@ -21,7 +21,7 @@ fn test_double_reverse_bad() {
 }
 
 #[test]
-fn test_reverse_length() {
+fn test_reverse_length_good() {
     action::test_sym_exec_good_prog("reverse_length_good").unwrap()
 }
 
@@ -31,7 +31,7 @@ fn test_reverse_length_bad() {
 }
 
 #[test]
-fn test_tree_insert() {
+fn test_tree_insert_good() {
     action::test_sym_exec_good_prog("tree_insert_good").unwrap()
 }
 
@@ -41,7 +41,7 @@ fn test_tree_insert_bad() {
 }
 
 #[test]
-fn test_avl_tree() {
+fn test_avl_tree_good() {
     action::test_sym_exec_good_prog("avl_tree_good").unwrap()
 }
 

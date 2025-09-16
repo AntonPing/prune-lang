@@ -8,7 +8,6 @@ use crate::utils::ident::IdentCtx;
 use crate::walker::config::WalkerConfig;
 
 use std::collections::VecDeque;
-use std::{io, usize};
 
 #[derive(Clone, Debug)]
 struct State<'blk> {
@@ -28,7 +27,7 @@ impl<'blk> State<'blk> {
 }
 
 #[derive(Debug)]
-pub struct Walker<'blk, 'log, Log: io::Write> {
+pub struct Walker<'blk> {
     dict: &'blk HashMap<PredIdent, PredBlock>,
     pub config: WalkerConfig,
     stats: WalkerStat,
@@ -36,14 +35,14 @@ pub struct Walker<'blk, 'log, Log: io::Write> {
     ansr_cnt: usize,
     ctx_cnt: usize,
     sol: Solver,
-    log: &'log mut Log,
+    // log: &'log mut Log,
 }
 
-impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
+impl<'blk> Walker<'blk> {
     pub fn new(
         dict: &'blk HashMap<PredIdent, PredBlock>,
-        log: &'log mut Log,
-    ) -> Walker<'blk, 'log, Log> {
+        // log: &'log mut Log,
+    ) -> Walker<'blk> {
         Walker {
             dict,
             config: WalkerConfig::new(),
@@ -52,7 +51,6 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
             ansr_cnt: 0,
             ctx_cnt: 0,
             sol: Solver::new(),
-            log,
         }
     }
 
@@ -73,24 +71,6 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
         self.stack.pop().unwrap()
     }
 
-    pub fn write_stack(&mut self, stack: &Vec<BlockCtx>) -> io::Result<()> {
-        let stack = stack.iter().format(&", ");
-        writeln!(self.log, "stack = [{}]", stack)?;
-        Ok(())
-    }
-
-    pub fn write_saves(&mut self, saves: &Vec<Vec<BlockCtx>>) -> io::Result<()> {
-        for (i, stack) in saves.iter().rev().enumerate() {
-            let stack = stack.iter().format(&", ");
-            writeln!(self.log, "save{} = [{}]", i, stack)?;
-        }
-        Ok(())
-    }
-
-    pub fn write_solver(&mut self) -> io::Result<()> {
-        writeln!(self.log, "{}", self.sol)
-    }
-
     fn run_stack_loop(&mut self, depth_last: usize, depth: usize, pars: Vec<IdentCtx>) {
         while !self.stack.is_empty() {
             let mut state = self.pop_state();
@@ -98,9 +78,9 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
                 && state.depth >= depth_last
                 && state.depth < depth
             {
-                writeln!(self.log, "[ANSWER]: (depth = {})", state.depth).unwrap();
+                println!("[ANSWER]: (depth = {})", state.depth);
                 for par in pars.iter() {
-                    writeln!(self.log, "{} = {}", par.ident, self.sol.get_value(*par)).unwrap();
+                    println!("{} = {}", par.ident, self.sol.get_value(*par));
                 }
                 self.ansr_cnt += 1;
                 if self.ansr_cnt == self.config.answer_limit {
@@ -266,13 +246,10 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
             .into_iter()
             .step_by(self.config.depth_step)
         {
-            writeln!(
-                self.log,
+            eprintln!(
                 "[RUN]: try depth = {}... (found answer: {})",
                 depth, self.ansr_cnt
-            )
-            .unwrap();
-            self.log.flush().unwrap();
+            );
 
             self.reset();
 
@@ -296,7 +273,7 @@ impl<'blk, 'log, Log: io::Write> Walker<'blk, 'log, Log> {
 
             let stat_res = self.stats.print_stat();
 
-            writeln!(self.log, "{}", stat_res).unwrap();
+            eprintln!("{}", stat_res);
 
             if self.ansr_cnt >= self.config.answer_limit {
                 return self.ansr_cnt;
@@ -356,8 +333,7 @@ entry is_elem_after_append(5, 1000, 5)
     let dict = crate::walker::compile::compile_dict(&prog, &map);
     // println!("{:#?}", dict);
 
-    let mut log = std::io::empty();
-    let mut wlk = Walker::new(&dict, &mut log);
+    let mut wlk = Walker::new(&dict);
     let entry = &prog.entrys[0];
     wlk.config.depth_step = entry.iter_step;
     wlk.config.depth_limit = entry.iter_end;

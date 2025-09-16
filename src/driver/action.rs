@@ -3,23 +3,21 @@ use crate::syntax::{self, ast};
 use crate::tych;
 use crate::walker;
 
+use std::fs;
 use std::path::{self, PathBuf};
-use std::{fs, io};
 
-pub struct Pipeline<'src, 'log, Log: io::Write> {
+pub struct Pipeline<'src> {
     src: &'src str,
-    log: &'log mut Log,
     verbosity: u8,
     diags: Vec<Diagnostic>,
 }
 
 type PipeResult<T> = Result<T, ()>;
 
-impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
-    pub fn new(src: &'src str, log: &'log mut Log) -> Pipeline<'src, 'log, Log> {
+impl<'src> Pipeline<'src> {
+    pub fn new(src: &'src str) -> Pipeline<'src> {
         Pipeline {
             src,
-            log,
             verbosity: 10,
             diags: Vec::new(),
         }
@@ -30,7 +28,7 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
             return Ok(());
         }
         for diag in &self.diags {
-            write!(&mut self.log, "{}", diag.report(self.src, 10)).unwrap();
+            eprintln!("{}", diag.report(self.src, 10));
         }
         Err(())
     }
@@ -49,7 +47,7 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         } else {
             for err in errs {
                 let diag: Diagnostic = err.into();
-                write!(&mut self.log, "{}", diag.report(self.src, self.verbosity)).unwrap();
+                eprintln!("{}", diag.report(self.src, self.verbosity));
             }
             Err(())
         }
@@ -62,7 +60,7 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         } else {
             for err in errs {
                 let diag: Diagnostic = err.into();
-                write!(&mut self.log, "{}", diag.report(self.src, self.verbosity)).unwrap();
+                eprintln!("{}", diag.report(self.src, self.verbosity));
             }
             Err(())
         }
@@ -75,13 +73,13 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         } else {
             for err in errs {
                 let diag: Diagnostic = err.into();
-                write!(&mut self.log, "{}", diag.report(self.src, self.verbosity)).unwrap();
+                eprintln!("{}", diag.report(self.src, self.verbosity));
             }
             Err(())
         }
     }
 
-    pub fn test_prog(&'log mut self) -> Result<Vec<usize>, ()> {
+    pub fn test_prog(&mut self) -> Result<Vec<usize>, ()> {
         let mut prog = self.parse_program()?;
         self.rename_pass(&mut prog)?;
         self.check_pass(&mut prog)?;
@@ -89,7 +87,7 @@ impl<'src, 'log, Log: io::Write> Pipeline<'src, 'log, Log> {
         let prog = crate::logic::transform::logic_translation(&prog);
         let map = crate::tych::elab::elab_pass(&prog);
         let dict = crate::walker::compile::compile_dict(&prog, &map);
-        let mut wlk = walker::walker::Walker::new(&dict, self.log);
+        let mut wlk = walker::walker::Walker::new(&dict);
 
         let mut res_vec = Vec::new();
         for entry_decl in prog.entrys {
@@ -110,8 +108,7 @@ pub fn test_sym_exec_good_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(),
     path.push(prog_name);
     path.set_extension("pr");
     let src = fs::read_to_string(path).map_err(|_err| ())?;
-    let mut log = io::empty();
-    let mut pipe = Pipeline::new(&src, &mut log);
+    let mut pipe = Pipeline::new(&src);
     let res_vec = pipe.test_prog()?;
     assert!(res_vec.iter().all(|p| *p == 0));
     Ok(())
@@ -124,8 +121,7 @@ pub fn test_sym_exec_bad_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), 
     path.push(prog_name);
     path.set_extension("pr");
     let src = fs::read_to_string(path).map_err(|_err| ())?;
-    let mut log = io::empty();
-    let mut pipe = Pipeline::new(&src, &mut log);
+    let mut pipe = Pipeline::new(&src);
     let res_vec = pipe.test_prog()?;
     assert!(res_vec.iter().any(|p| *p > 0));
     Ok(())
