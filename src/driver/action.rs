@@ -127,3 +127,16 @@ pub fn test_sym_exec_bad_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), 
     assert!(res_vec.iter().any(|p| *p > 0));
     Ok(())
 }
+
+pub fn test_test_gen_prog<P: AsRef<path::Path>>(prog_name: P) -> Result<(), ()> {
+    let mut path = PathBuf::new();
+    path.push("examples");
+    path.push("test_gen");
+    path.push(prog_name);
+    path.set_extension("pr");
+    let src = fs::read_to_string(path).map_err(|_err| ())?;
+    let mut pipe = Pipeline::new(&src);
+    let _res_vec = pipe.test_prog()?;
+    // assert!(res_vec.iter().any(|p| *p > 0));
+    Ok(())
+}

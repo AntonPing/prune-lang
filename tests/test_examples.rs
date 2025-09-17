@@ -49,3 +49,13 @@ fn test_avl_tree_good() {
 // fn test_avl_tree_bad() {
 //     action::test_sym_exec_bad_prog("avl_tree_bad").unwrap()
 // }
+
+#[test]
+fn test_avl_tree_gen() {
+    action::test_test_gen_prog("avl_tree_gen").unwrap()
+}
+
+#[test]
+fn test_lambda_free_gen() {
+    action::test_test_gen_prog("lambda_free_gen").unwrap()
+}

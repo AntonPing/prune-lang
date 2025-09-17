@@ -1,0 +1,43 @@
+datatype Expr where
+| Var(Int)
+| Abs(Int, Expr)
+| App(Expr, Expr)
+end
+
+datatype IntList where
+| Cons(Int, IntList)
+| Nil
+end
+
+function remove(xs: IntList, x: Int) -> IntList
+begin
+    match xs with
+    | Cons(head, tail) =>
+        if @icmpeq(head, x) then
+            remove(tail, x)
+        else
+            Cons(head, remove(tail, x))
+    | Nil => Nil
+    end
+end
+
+function free_vars(expr: Expr) -> IntList
+begin
+    free_vars_help(expr, Nil)
+end
+
+function free_vars_help(expr: Expr, acc: IntList) -> IntList
+begin
+    match expr with
+    | Var(x) => Cons(x, acc)
+    | Abs(x, e) => remove(free_vars_help(e, acc), x)
+    | App(e1, e2) => free_vars_help(e2, free_vars_help(e1, acc))
+    end
+end
+
+predicate gen_lambda_free(expr: Expr)
+begin
+    free_vars(expr) = Nil
+end
+
+query gen_lambda_free(depth_step=5, depth_limit=200, answer_limit=100)

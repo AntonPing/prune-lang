@@ -137,7 +137,7 @@ begin
     match tree with
     | Node(left, x, right) =>
         @band(
-            @icmpge(x, min),
+            @icmpgt(x, min),
             @band(is_sorted_min_max(left, min, x), is_sorted_min(right, x))
         )
     | Empty => true
@@ -149,7 +149,7 @@ begin
     match tree with
     | Node(left, x, right) =>
         @band(
-            @icmple(x, max),
+            @icmplt(x, max),
             @band(is_sorted_max(left, x), is_sorted_min_max(right, x, max))
         )
     | Empty => true
@@ -161,12 +161,12 @@ begin
     match tree with
     | Node(left, x, right) =>
         @band(
-            @band(@icmpge(x, min), @icmple(x, max)),
+            @band(@icmpgt(x, min), @icmplt(x, max)),
             @band(is_sorted_min_max(left, min, x), is_sorted_min_max(right, x, max))
         )
     | Empty => true
     end
-end	
+end
 
 predicate keep_sorted_and_balanced(tree: AVLTree, x: Int)
 begin
