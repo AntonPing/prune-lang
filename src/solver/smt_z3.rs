@@ -16,8 +16,8 @@ impl fmt::Debug for Constr {
 impl Constr {
     pub fn new() -> Constr {
         let mut ctx = ContextBuilder::new()
-            .solver("z3")
-            .solver_args(["-smt2", "-in"])
+            .with_z3_defaults()
+            // .replay_file(Some(std::fs::File::create("replay.smt2").unwrap()))
             .build()
             .unwrap();
         // push an empty context for reset
@@ -228,9 +228,11 @@ impl Constr {
         None
     }
 
-    pub fn get_value(&mut self, vars: &Vec<IdentCtx>) -> Option<HashMap<IdentCtx, LitVal>> {
+    pub fn get_value(&mut self, vars: &Vec<IdentCtx>) -> HashMap<IdentCtx, LitVal> {
+        let res = self.ctx.check().unwrap();
+        assert_eq!(res, Response::Sat);
         let vars_sexp = vars.iter().map(|var| self.map[var]).collect();
-        let map_sexp = self.ctx.get_value(vars_sexp).ok()?;
+        let map_sexp = self.ctx.get_value(vars_sexp).unwrap();
         let map: HashMap<IdentCtx, LitVal> = vars
             .iter()
             .cloned()
@@ -240,6 +242,6 @@ impl Constr {
                     .map(|(_var, val)| self.sexp_to_lit_val(*val).unwrap()),
             )
             .collect();
-        Some(map)
+        map
     }
 }

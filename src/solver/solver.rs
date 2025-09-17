@@ -97,10 +97,10 @@ impl Solver {
         for (x, term) in subst.drain(..) {
             if self.ty_map[&x].is_lit() {
                 self.constr.push_eq(x, term);
+                if !self.constr.check() {
+                    return Err(());
+                }
             }
-        }
-        if !self.constr.check() {
-            return Err(());
         }
         Ok(())
     }
@@ -122,7 +122,7 @@ impl Solver {
             .filter(|var| self.ty_map[var].is_lit())
             .cloned()
             .collect();
-        let map = self.constr.get_value(&lit_vars).unwrap();
+        let map = self.constr.get_value(&lit_vars);
         let map = map.into_iter().map(|(k, v)| (k, Term::Lit(v))).collect();
         let term = term.substitute(&map);
         term
