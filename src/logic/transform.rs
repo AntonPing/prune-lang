@@ -220,6 +220,36 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
                 }
             }
         }
+        ast::Expr::Cond { brchs, span: _ } => {
+            let x = Ident::fresh(&"res_cond");
+            vars.push(x);
+
+            let mut goals = Vec::new();
+            for (cond, body) in brchs {
+                let (atom0, goal0) = translate_expr(vars, cond);
+                let (atom1, goal1) = translate_expr(vars, body);
+                match atom0 {
+                    Term::Var(var) => {
+                        let goal = Goal::And(vec![
+                            goal0,
+                            Goal::Eq(var, Term::Lit(LitVal::Bool(true))),
+                            goal1,
+                            Goal::Eq(x, atom1),
+                        ]);
+                        goals.push(goal);
+                    }
+                    Term::Lit(LitVal::Bool(true)) => {
+                        let goal = Goal::And(vec![goal0, goal1, Goal::Eq(x, atom1)]);
+                        goals.push(goal);
+                    }
+                    Term::Lit(LitVal::Bool(false)) => {}
+                    _ => {
+                        unreachable!();
+                    }
+                }
+            }
+            (Term::Var(x), Goal::Or(goals))
+        }
         ast::Expr::GoalFail { span: _ } => (Term::Var(Ident::dummy(&"@phoney")), Goal::Lit(false)),
     }
 }

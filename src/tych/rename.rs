@@ -228,6 +228,12 @@ impl Renamer {
                 self.visit_expr(then);
                 self.visit_expr(els);
             }
+            Expr::Cond { brchs, span: _ } => {
+                for (cond, body) in brchs {
+                    self.visit_expr(cond);
+                    self.visit_expr(body);
+                }
+            }
             Expr::GoalFail { span: _ } => {}
         }
     }

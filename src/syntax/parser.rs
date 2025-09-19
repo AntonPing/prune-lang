@@ -406,11 +406,21 @@ impl<'src> Parser<'src> {
             Token::Match => {
                 self.match_token(Token::Match)?;
                 let expr = Box::new(self.parse_expr()?);
-                let brchs = self
-                    .delimited_list(Token::With, Token::Bar, Token::End, |par| par.parse_brch())?;
+                let brchs = self.delimited_list(Token::With, Token::Bar, Token::End, |par| {
+                    par.parse_match_brch()
+                })?;
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Ok(Expr::Match { expr, brchs, span })
+            }
+            Token::Condition => {
+                let brchs =
+                    self.delimited_list(Token::Condition, Token::Bar, Token::End, |par| {
+                        par.parse_cond_brch()
+                    })?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Expr::Cond { brchs, span })
             }
             Token::Fail => {
                 self.match_token(Token::Fail)?;
@@ -432,7 +442,7 @@ impl<'src> Parser<'src> {
         }
     }
 
-    fn parse_brch(&mut self) -> ParseResult<(Pattern, Expr)> {
+    fn parse_match_brch(&mut self) -> ParseResult<(Pattern, Expr)> {
         let start = self.start_pos();
         let patn = self.parse_pattern()?;
         self.match_token(Token::FatArrow)?;
@@ -440,6 +450,16 @@ impl<'src> Parser<'src> {
         let end = self.end_pos();
         let _span = Span { start, end };
         Ok((patn, body))
+    }
+
+    fn parse_cond_brch(&mut self) -> ParseResult<(Expr, Expr)> {
+        let start = self.start_pos();
+        let cond = self.parse_expr()?;
+        self.match_token(Token::FatArrow)?;
+        let body = self.parse_expr()?;
+        let end = self.end_pos();
+        let _span = Span { start, end };
+        Ok((cond, body))
     }
 
     fn parse_pattern(&mut self) -> ParseResult<Pattern> {

@@ -156,11 +156,21 @@ impl Checker {
                 span: _,
             } => {
                 let cond = self.check_expr(cond);
+                self.unify(&cond, &UnifyType::Lit(LitType::TyBool));
                 let then = self.check_expr(then);
                 let els = self.check_expr(els);
-                self.unify(&UnifyType::Lit(LitType::TyBool), &cond);
                 self.unify(&then, &els);
                 then
+            }
+            Expr::Cond { brchs, span: _ } => {
+                let res = self.fresh();
+                for (cond, body) in brchs {
+                    let cond = self.check_expr(cond);
+                    let body = self.check_expr(body);
+                    self.unify(&cond, &UnifyType::Lit(LitType::TyBool));
+                    self.unify(&body, &res);
+                }
+                res
             }
             Expr::GoalFail { span: _ } => {
                 let res = self.fresh();

@@ -94,6 +94,10 @@ pub enum Expr {
         els: Box<Expr>,
         span: Span,
     },
+    Cond {
+        brchs: Vec<(Expr, Expr)>,
+        span: Span,
+    },
     GoalFail {
         span: Span,
     },

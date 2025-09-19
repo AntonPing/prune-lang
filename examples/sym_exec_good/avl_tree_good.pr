@@ -12,11 +12,14 @@ function insert(tree: AVLTree, x: Int) -> AVLTree
 begin
     match tree with
     | Node(left, y, right) =>
-        if @icmplt(x, y) then
+        condition
+        | @icmplt(x, y) =>
             rebalance(Node(insert(left, x), y, right))
-        else if @icmpgt(x, y) then
+        | @icmpgt(x, y) =>
             rebalance(Node(left, y, insert(right, x)))
-        else tree
+        | @icmpeq(x, y) =>
+            tree
+        end
     | Empty => Node(Empty, x, Empty)
     end
 end
@@ -43,9 +46,10 @@ end
 function rebalance(tree: AVLTree) -> AVLTree
 begin
     let bf = balance_factor(tree);
-    if @band(@icmpge(bf, -1), @icmple(bf, 1)) then
+    condition
+    | @band(@icmpge(bf, -1), @icmple(bf, 1)) =>
         tree
-    else if @icmpeq(bf, -2) then
+    | @icmpeq(bf, -2) =>
         match tree with
         | Node(left, x, right) => 
             if @icmple(balance_factor(right),0) then
@@ -53,8 +57,8 @@ begin
             else
                 rotate_left(Node(left, x, rotate_right(right)))
         | Empty => fail!
-        end 
-    else if @icmpeq(bf, 2) then
+        end
+    | @icmpeq(bf, 2) =>
         match tree with
         | Node(left, x, right) => 
             if @icmpge(balance_factor(left),0) then
@@ -63,7 +67,7 @@ begin
                 rotate_right(Node(rotate_left(left), x, right))
         | Empty => fail!
         end
-    else Empty
+    end
 end
 
 function rotate_left(tree: AVLTree) -> AVLTree
