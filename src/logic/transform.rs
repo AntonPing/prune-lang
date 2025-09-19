@@ -220,6 +220,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
                 }
             }
         }
+        ast::Expr::GoalFail { span: _ } => (Term::Var(Ident::dummy(&"@phoney")), Goal::Lit(false)),
     }
 }
 
@@ -282,6 +283,7 @@ fn translate_goal(vars: &mut Vec<Ident>, goal: &ast::Goal) -> Goal {
                 .collect();
             Goal::Or(goals)
         }
+        ast::Goal::Lit { val, span: _ } => Goal::Lit(*val),
     }
 }
 

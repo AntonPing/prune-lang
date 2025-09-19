@@ -412,6 +412,12 @@ impl<'src> Parser<'src> {
                 let span = Span { start, end };
                 Ok(Expr::Match { expr, brchs, span })
             }
+            Token::Fail => {
+                self.match_token(Token::Fail)?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Expr::GoalFail { span })
+            }
             Token::LParen => {
                 self.match_token(Token::LParen)?;
                 let expr = self.parse_expr()?;
@@ -494,6 +500,12 @@ impl<'src> Parser<'src> {
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Ok(Goal::Or { goals, span })
+            }
+            Token::Fail => {
+                self.match_token(Token::Fail)?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Goal::Lit { val: false, span })
             }
             Token::LParen => {
                 let body = self.parse_goal_seq(Token::LParen, Token::RParen)?;

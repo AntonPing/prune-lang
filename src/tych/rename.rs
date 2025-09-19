@@ -228,6 +228,7 @@ impl Renamer {
                 self.visit_expr(then);
                 self.visit_expr(els);
             }
+            Expr::GoalFail { span: _ } => {}
         }
     }
 
@@ -261,6 +262,7 @@ impl Renamer {
             Goal::Or { goals, span: _ } => {
                 goals.iter_mut().for_each(|goal| self.visit_goal(goal));
             }
+            Goal::Lit { val: _, span: _ } => {}
         }
     }
 

@@ -94,6 +94,9 @@ pub enum Expr {
         els: Box<Expr>,
         span: Span,
     },
+    GoalFail {
+        span: Span,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -127,6 +130,10 @@ pub enum Goal {
     },
     Or {
         goals: Vec<Goal>,
+        span: Span,
+    },
+    Lit {
+        val: bool,
         span: Span,
     },
 }

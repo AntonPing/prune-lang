@@ -162,6 +162,10 @@ impl Checker {
                 self.unify(&then, &els);
                 then
             }
+            Expr::GoalFail { span: _ } => {
+                let res = self.fresh();
+                res
+            }
         }
     }
 
@@ -202,6 +206,7 @@ impl Checker {
                     self.check_goal(goal);
                 }
             }
+            Goal::Lit { val: _, span: _ } => {}
         }
     }
 
