@@ -1,4 +1,4 @@
-use super::compile::{BlockCtx, PredBlock};
+use super::compile::{BlockCtx, PredDef};
 use super::config::WalkerStat;
 use super::*;
 
@@ -27,7 +27,7 @@ impl<'blk> State<'blk> {
 
 #[derive(Debug)]
 pub struct Walker<'blk> {
-    dict: &'blk HashMap<PredIdent, PredBlock>,
+    dict: &'blk HashMap<PredIdent, PredDef>,
     config: WalkerConfig,
     stats: WalkerStat,
     stack: Vec<State<'blk>>,
@@ -37,7 +37,7 @@ pub struct Walker<'blk> {
 }
 
 impl<'blk> Walker<'blk> {
-    pub fn new(dict: &'blk HashMap<PredIdent, PredBlock>) -> Walker<'blk> {
+    pub fn new(dict: &'blk HashMap<PredIdent, PredDef>) -> Walker<'blk> {
         Walker {
             dict,
             config: WalkerConfig::new(),
@@ -237,7 +237,7 @@ impl<'blk> Walker<'blk> {
             for (var, var_ty) in vars.iter() {
                 self.sol.declare(&var.tag_ctx(self.ctx_cnt), var_ty);
             }
-            state.curr_blk = callee.blk.tag_ctx(self.ctx_cnt);
+            state.curr_blk = callee.blks[0].tag_ctx(self.ctx_cnt);
             let res = self.run_block(state);
             if !res {
                 return false;
@@ -247,7 +247,8 @@ impl<'blk> Walker<'blk> {
         for brchs in curr_blk.brchss.iter() {
             let mut vec = Vec::new();
             for brch in brchs {
-                vec.push(brch.tag_ctx(curr_ctx));
+                let blk = self.dict[&curr_blk.pred.0].blks[*brch].tag_ctx(curr_ctx);
+                vec.push(blk);
             }
             state.queue.push_back(vec);
         }
@@ -274,7 +275,7 @@ impl<'blk> Walker<'blk> {
             for (var, var_ty) in callee.vars.iter() {
                 self.sol.declare(&var.tag_ctx(0), var_ty);
             }
-            let state = State::new(callee.blk.tag_ctx(0));
+            let state = State::new(callee.blks[0].tag_ctx(0));
             self.push_state(state);
 
             let pars: Vec<IdentCtx> = callee

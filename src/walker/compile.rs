@@ -5,59 +5,48 @@ use std::fmt;
 
 #[derive(Clone, Debug)]
 pub struct Block {
+    pub pred: (PredIdent, usize),
     pub eqs: Vec<(Ident, AtomId)>,
     pub cons: Vec<(Ident, Ident, Vec<AtomId>)>,
     pub prims: Vec<(Prim, Vec<AtomId>)>,
     pub calls: Vec<(PredIdent, Vec<AtomId>)>,
-    pub brchss: Vec<Vec<Block>>,
-}
-
-impl Block {
-    fn fmt_indented(&self, f: &mut fmt::Formatter, level: usize) -> fmt::Result {
-        let indent = "    ".repeat(level);
-
-        for (var, atom) in self.eqs.iter() {
-            writeln!(f, "{indent}{} = {}; ", var, atom)?;
-        }
-
-        for (var, cons, flds) in self.cons.iter() {
-            let flds = flds.iter().format(&", ");
-            writeln!(f, "{indent}{} = {}({})", var, cons, flds)?;
-        }
-
-        for (prim, args) in self.prims.iter() {
-            let args = args.iter().format(&", ");
-            writeln!(f, "{indent}{:?}({})", prim, args)?;
-        }
-
-        for (pred, args) in self.calls.iter() {
-            let args = args.iter().format(&", ");
-            writeln!(f, "{indent}{}({})", pred, args)?;
-        }
-
-        for brchs in self.brchss.iter() {
-            assert!(!brchs.is_empty());
-            writeln!(f, "{indent}{{")?;
-            brchs[0].fmt_indented(f, level + 1)?;
-            for brch in &brchs[1..] {
-                writeln!(f, "{indent}|")?;
-                brch.fmt_indented(f, level + 1)?;
-            }
-            writeln!(f, "{indent}}}")?;
-        }
-        Ok(())
-    }
+    pub brchss: Vec<Vec<usize>>,
 }
 
 impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        self.fmt_indented(f, 0)
+        writeln!(f, "block {} {{{}}}:", self.pred.0, self.pred.1)?;
+
+        for (var, atom) in self.eqs.iter() {
+            writeln!(f, "    {} = {}; ", var, atom)?;
+        }
+
+        for (var, cons, flds) in self.cons.iter() {
+            let flds = flds.iter().format(&", ");
+            writeln!(f, "    {} = {}({})", var, cons, flds)?;
+        }
+
+        for (prim, args) in self.prims.iter() {
+            let args = args.iter().format(&", ");
+            writeln!(f, "    {:?}({})", prim, args)?;
+        }
+
+        for (pred, args) in self.calls.iter() {
+            let args = args.iter().format(&", ");
+            writeln!(f, "    {}({})", pred, args)?;
+        }
+
+        if !self.brchss.is_empty() {
+            writeln!(f, "    {:?}", self.brchss)?;
+        }
+        Ok(())
     }
 }
 
 impl Block {
     pub fn new() -> Block {
         Block {
+            pred: (PredIdent::Pos(Ident::dummy(&"?")), 0),
             eqs: Vec::new(),
             cons: Vec::new(),
             prims: Vec::new(),
@@ -65,59 +54,86 @@ impl Block {
             brchss: Vec::new(),
         }
     }
-    pub fn compile_goal(goal: &Goal) -> Block {
-        let mut blk = Block::new();
-        blk.emit_goal(goal);
-        blk
+}
+
+pub fn compile_goal(pred: PredIdent, goal: &Goal) -> Vec<Block> {
+    let mut blks = Vec::new();
+    compile_goal_help(goal, &mut blks);
+    for (i, blk) in blks.iter_mut().enumerate() {
+        blk.pred = (pred, i)
     }
-    pub fn emit_goal(&mut self, goal: &Goal) {
-        match goal {
-            Goal::Lit(_) => {
-                panic!("no literal value after optimize!");
+    blks
+}
+
+pub fn compile_goal_help(goal: &Goal, blks: &mut Vec<Block>) -> usize {
+    // push a placeholder
+    blks.push(Block::new());
+    let idx = blks.len() - 1;
+    let mut blk = Block::new();
+    emit_goal(goal, blks, &mut blk);
+    blks[idx] = blk;
+    idx
+}
+
+pub fn emit_goal(goal: &Goal, blks: &mut Vec<Block>, blk: &mut Block) {
+    match goal {
+        Goal::Lit(_) => {
+            panic!("no literal value after optimize!");
+        }
+        Goal::Eq(var, atom) => {
+            blk.eqs.push((*var, atom.clone()));
+        }
+        Goal::Cons(var, cons, flds) => {
+            blk.cons.push((*var, *cons, flds.clone()));
+        }
+        Goal::Prim(prim, args) => {
+            blk.prims.push((*prim, args.clone()));
+        }
+        Goal::And(goals) => {
+            for goal in goals {
+                emit_goal(goal, blks, blk);
             }
-            Goal::Eq(var, atom) => {
-                self.eqs.push((*var, atom.clone()));
-            }
-            Goal::Cons(var, cons, flds) => {
-                self.cons.push((*var, *cons, flds.clone()));
-            }
-            Goal::Prim(prim, args) => {
-                self.prims.push((*prim, args.clone()));
-            }
-            Goal::And(goals) => {
-                for goal in goals {
-                    self.emit_goal(goal);
-                }
-            }
-            Goal::Or(goals) => {
-                let blks: Vec<Block> = goals.iter().map(|goal| Block::compile_goal(goal)).collect();
-                self.brchss.push(blks);
-            }
-            Goal::Call(pred, args) => {
-                self.calls.push((*pred, args.clone()));
-            }
+        }
+        Goal::Or(goals) => {
+            let blks: Vec<usize> = goals
+                .iter()
+                .map(|goal| compile_goal_help(goal, blks))
+                .collect();
+            blk.brchss.push(blks);
+        }
+        Goal::Call(pred, args) => {
+            blk.calls.push((*pred, args.clone()));
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct PredBlock {
+pub struct PredDef {
     pub name: PredIdent,
     pub pars: Vec<(Ident, TypeId)>,
     pub vars: Vec<(Ident, TypeId)>,
-    pub blk: Block,
+    pub blks: Vec<Block>,
 }
-impl std::fmt::Display for PredBlock {
+impl std::fmt::Display for PredDef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let pars = self.pars.iter().format(&", ");
-        let vars = self.vars.iter().format(&", ");
-        writeln!(f, "{}({:?}) fresh: {{{:?}}}", self.name, pars, vars)?;
-        writeln!(f, "{}", self.blk)?;
+        writeln!(f, "define {}:", self.name)?;
+
+        for (par, par_ty) in self.pars.iter() {
+            writeln!(f, "par {par}: {par_ty:?}")?;
+        }
+
+        for (var, var_ty) in self.vars.iter() {
+            writeln!(f, "var {var}: {var_ty:?}")?;
+        }
+
+        for blk in self.blks.iter() {
+            write!(f, "{blk}")?;
+        }
         Ok(())
     }
 }
 
-pub fn compile_pred(pred: &PredDecl, map: &HashMap<Ident, TypeId>) -> PredBlock {
+pub fn compile_pred(pred: &PredDecl, map: &HashMap<Ident, TypeId>) -> PredDef {
     let pars = pred
         .pars
         .iter()
@@ -128,16 +144,18 @@ pub fn compile_pred(pred: &PredDecl, map: &HashMap<Ident, TypeId>) -> PredBlock 
         .iter()
         .map(|var| (*var, map[var].clone()))
         .collect();
-    let blk = Block::compile_goal(&pred.goal);
-    PredBlock {
+
+    let blks = compile_goal(pred.name, &pred.goal);
+
+    PredDef {
         name: pred.name,
         pars,
         vars,
-        blk,
+        blks,
     }
 }
 
-pub fn compile_dict(prog: &Program, map: &HashMap<Ident, TypeId>) -> HashMap<PredIdent, PredBlock> {
+pub fn compile_dict(prog: &Program, map: &HashMap<Ident, TypeId>) -> HashMap<PredIdent, PredDef> {
     prog.preds
         .iter()
         .map(|(name, pred)| (*name, compile_pred(pred, map)))
@@ -212,5 +230,7 @@ end
     // println!("{:?}", map);
 
     let dict = compile_dict(&prog, &map);
-    println!("{:#?}", dict);
+    for (_pred, blk) in dict.iter() {
+        println!("{}", blk);
+    }
 }
