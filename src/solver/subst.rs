@@ -39,19 +39,20 @@ impl Subst {
 }
 
 impl Subst {
-    pub fn deref(&self, var: &IdentCtx) -> TermCtx {
-        let mut var = *var;
-        let mut overflow = 0;
-        while let Some(term) = self.map.get(&var) {
-            assert!(overflow < 100000); // avoid cyclic graph
-            if let Term::Var(var2) = term {
-                var = *var2;
-                overflow += 1;
+    pub fn deref<'a>(&'a self, term: &'a TermCtx) -> &'a TermCtx {
+        let mut term = term;
+        loop {
+            if let Term::Var(var) = term {
+                if let Some(term2) = self.map.get(&var) {
+                    term = term2;
+                    continue;
+                } else {
+                    return term;
+                }
             } else {
-                return term.clone();
+                return term;
             }
         }
-        Term::Var(var)
     }
 
     pub fn merge(&self, term: &TermCtx) -> TermCtx {
@@ -68,6 +69,15 @@ impl Subst {
                 let flds = flds.iter().map(|fld| self.merge(fld)).collect();
                 Term::Cons(*c, *cons, flds)
             }
+        }
+    }
+
+    fn occur_check(&self, x: &IdentCtx, term: &TermCtx) -> bool {
+        let term = self.deref(term);
+        match term {
+            Term::Var(y) => x == y,
+            Term::Lit(_) => false,
+            Term::Cons(_, _cons, flds) => flds.iter().any(|fld| self.occur_check(x, fld)),
         }
     }
 
@@ -89,30 +99,26 @@ impl Subst {
         lhs: TermCtx,
         rhs: TermCtx,
     ) -> Result<(), ()> {
-        let lhs = if let Term::Var(var) = lhs {
-            self.deref(&var)
-        } else {
-            lhs
-        };
-        let rhs = if let Term::Var(var) = rhs {
-            self.deref(&var)
-        } else {
-            rhs
-        };
+        let lhs = self.deref(&lhs).clone();
+        let rhs = self.deref(&rhs).clone();
         match (lhs, rhs) {
             (Term::Var(x1), Term::Var(x2)) if x1 == x2 => Ok(()),
             (Term::Var(x), term) | (term, Term::Var(x)) => {
-                match term {
-                    Term::Var(var) => {
-                        subst.push((x, Term::Var(var)));
+                if self.occur_check(&x, &term) {
+                    Err(())
+                } else {
+                    match term {
+                        Term::Var(var) => {
+                            subst.push((x, Term::Var(var)));
+                        }
+                        Term::Lit(lit) => {
+                            subst.push((x, Term::Lit(lit)));
+                        }
+                        Term::Cons(_, _, _) => {}
                     }
-                    Term::Lit(lit) => {
-                        subst.push((x, Term::Lit(lit)));
-                    }
-                    Term::Cons(_, _, _) => {}
+                    self.map.insert(x, term.clone());
+                    Ok(())
                 }
-                self.map.insert(x, term);
-                Ok(())
             }
             (Term::Lit(lit1), Term::Lit(lit2)) => {
                 if lit1 == lit2 {

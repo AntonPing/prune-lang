@@ -86,6 +86,14 @@ impl<V: Copy, L: Copy> Term<V, L, Infallible> {
 }
 
 impl<V: Copy + Eq, L, C> Term<V, L, C> {
+    pub fn occurs(&self, x: &V) -> bool {
+        match self {
+            Term::Var(y) => x == y,
+            Term::Lit(_) => false,
+            Term::Cons(_, _cons, flds) => flds.iter().any(|fld| fld.occurs(x)),
+        }
+    }
+
     pub fn free_vars(&self) -> Vec<V> {
         let mut vec = Vec::new();
         self.free_vars_help(&mut vec);
