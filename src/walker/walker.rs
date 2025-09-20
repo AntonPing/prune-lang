@@ -34,14 +34,10 @@ pub struct Walker<'blk> {
     ansr_cnt: usize,
     ctx_cnt: usize,
     sol: Solver,
-    // log: &'log mut Log,
 }
 
 impl<'blk> Walker<'blk> {
-    pub fn new(
-        dict: &'blk HashMap<PredIdent, PredBlock>,
-        // log: &'log mut Log,
-    ) -> Walker<'blk> {
+    pub fn new(dict: &'blk HashMap<PredIdent, PredBlock>) -> Walker<'blk> {
         Walker {
             dict,
             config: WalkerConfig::new(),
@@ -124,8 +120,11 @@ impl<'blk> Walker<'blk> {
         // BFS branching strategy
         // let brchs = state.queue.pop_front().unwrap();
 
+        // random branching heuristic
+        // let brchs = self.random_branching(state);
+
         // look-ahead branching heuristic
-        let brchs = self.look_ahead(state);
+        let brchs = self.look_ahead_branching(state);
 
         for brch in brchs {
             let mut new_state = state.clone();
@@ -134,7 +133,15 @@ impl<'blk> Walker<'blk> {
         }
     }
 
-    fn look_ahead(&mut self, state: &mut State<'blk>) -> Vec<BlockCtx<'blk>> {
+    #[allow(dead_code)]
+    fn random_branching(&mut self, state: &mut State<'blk>) -> Vec<BlockCtx<'blk>> {
+        assert!(!state.queue.is_empty());
+        let idx = rand::random::<u32>().rem_euclid(state.queue.len() as u32);
+        state.queue.remove(idx as usize).unwrap()
+    }
+
+    #[allow(dead_code)]
+    fn look_ahead_branching(&mut self, state: &mut State<'blk>) -> Vec<BlockCtx<'blk>> {
         assert!(!state.queue.is_empty());
 
         // look-ahead for the first point with branching factor 0 or 1
