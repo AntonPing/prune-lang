@@ -1,22 +1,23 @@
-use super::compile::{BlockCtx, PredDef};
+use super::block::{BlockCtx, PredDef};
 use super::config::WalkerStat;
 use super::*;
 
 use crate::solver::solver::Solver;
 use crate::utils::ident::IdentCtx;
+use crate::walker::block::Block;
 use crate::walker::config::WalkerConfig;
 
 use std::collections::VecDeque;
 
 #[derive(Clone, Debug)]
-struct State<'blk> {
+struct State {
     depth: usize,
-    curr_blk: BlockCtx<'blk>,
-    queue: VecDeque<Vec<BlockCtx<'blk>>>,
+    curr_blk: BlockCtx,
+    queue: VecDeque<Vec<BlockCtx>>,
 }
 
-impl<'blk> State<'blk> {
-    fn new(curr_blk: BlockCtx<'blk>) -> State<'blk> {
+impl State {
+    fn new(curr_blk: BlockCtx) -> State {
         State {
             depth: 0,
             curr_blk,
@@ -30,7 +31,7 @@ pub struct Walker<'blk> {
     dict: &'blk HashMap<PredIdent, PredDef>,
     config: WalkerConfig,
     stats: WalkerStat,
-    stack: Vec<State<'blk>>,
+    stack: Vec<State>,
     ansr_cnt: usize,
     ctx_cnt: usize,
     sol: Solver,
@@ -57,6 +58,10 @@ impl<'blk> Walker<'blk> {
         self.config.set_param(param);
     }
 
+    fn get_block(&self, pred: &PredIdent, idx: usize) -> &'blk Block {
+        &self.dict[pred].blks[idx]
+    }
+
     fn reset(&mut self) {
         self.stats.reset();
         assert!(self.stack.is_empty());
@@ -64,12 +69,12 @@ impl<'blk> Walker<'blk> {
         self.sol.reset();
     }
 
-    fn push_state(&mut self, state: State<'blk>) {
+    fn push_state(&mut self, state: State) {
         self.sol.savepoint();
         self.stack.push(state);
     }
 
-    fn pop_state(&mut self) -> State<'blk> {
+    fn pop_state(&mut self) -> State {
         self.sol.backtrack();
         self.stack.pop().unwrap()
     }
@@ -93,7 +98,7 @@ impl<'blk> Walker<'blk> {
         }
     }
 
-    fn run_state_loop(&mut self, depth: usize, state: &mut State<'blk>) -> bool {
+    fn run_state_loop(&mut self, depth: usize, state: &mut State) -> bool {
         loop {
             if state.depth + state.queue.len() >= depth {
                 return false;
@@ -111,7 +116,7 @@ impl<'blk> Walker<'blk> {
         }
     }
 
-    fn split_branch(&mut self, state: &mut State<'blk>) {
+    fn split_branch(&mut self, state: &mut State) {
         assert!(!state.queue.is_empty());
 
         // DFS branching strategy
@@ -134,14 +139,14 @@ impl<'blk> Walker<'blk> {
     }
 
     #[allow(dead_code)]
-    fn random_branching(&mut self, state: &mut State<'blk>) -> Vec<BlockCtx<'blk>> {
+    fn random_branching(&mut self, state: &mut State) -> Vec<BlockCtx> {
         assert!(!state.queue.is_empty());
         let idx = rand::random::<u32>().rem_euclid(state.queue.len() as u32);
         state.queue.remove(idx as usize).unwrap()
     }
 
     #[allow(dead_code)]
-    fn look_ahead_branching(&mut self, state: &mut State<'blk>) -> Vec<BlockCtx<'blk>> {
+    fn look_ahead_branching(&mut self, state: &mut State) -> Vec<BlockCtx> {
         assert!(!state.queue.is_empty());
 
         // look-ahead for the first point with branching factor 0 or 1
@@ -165,18 +170,14 @@ impl<'blk> Walker<'blk> {
         state.queue.pop_front().unwrap()
     }
 
-    fn look_ahead_filter(
-        &mut self,
-        state: &State<'blk>,
-        brchs: Vec<BlockCtx<'blk>>,
-    ) -> Vec<BlockCtx<'blk>> {
+    fn look_ahead_filter(&mut self, state: &State, brchs: Vec<BlockCtx>) -> Vec<BlockCtx> {
         brchs
             .into_iter()
             .filter(|brch| {
                 self.sol.savepoint();
 
                 let mut new_state = state.clone();
-                new_state.curr_blk = *brch;
+                new_state.curr_blk = brch.clone();
                 self.stats.step_la();
                 let res = self.run_block(&mut new_state);
 
@@ -187,10 +188,10 @@ impl<'blk> Walker<'blk> {
             .collect()
     }
 
-    fn run_block(&mut self, state: &mut State<'blk>) -> bool {
+    fn run_block(&mut self, state: &mut State) -> bool {
         state.depth += 1;
 
-        let curr_blk = state.curr_blk.blk;
+        let curr_blk = self.get_block(&state.curr_blk.pred, state.curr_blk.idx);
         let curr_ctx = state.curr_blk.ctx;
 
         for (var, atom) in curr_blk.eqs.iter() {
@@ -222,6 +223,15 @@ impl<'blk> Walker<'blk> {
             }
         }
 
+        for brchs in curr_blk.brchss.iter() {
+            let mut vec = Vec::new();
+            for brch in brchs {
+                let new_blk = state.curr_blk.jump(*brch);
+                vec.push(new_blk);
+            }
+            state.queue.push_back(vec);
+        }
+
         for (pred, args) in curr_blk.calls.iter() {
             let callee = &self.dict[&pred];
             assert_eq!(callee.name, *pred);
@@ -237,20 +247,14 @@ impl<'blk> Walker<'blk> {
             for (var, var_ty) in vars.iter() {
                 self.sol.declare(&var.tag_ctx(self.ctx_cnt), var_ty);
             }
-            state.curr_blk = callee.blks[0].tag_ctx(self.ctx_cnt);
+
+            let new_blk = state.curr_blk.call(*pred, self.ctx_cnt);
+            state.curr_blk = new_blk;
+
             let res = self.run_block(state);
             if !res {
                 return false;
             }
-        }
-
-        for brchs in curr_blk.brchss.iter() {
-            let mut vec = Vec::new();
-            for brch in brchs {
-                let blk = self.dict[&curr_blk.pred.0].blks[*brch].tag_ctx(curr_ctx);
-                vec.push(blk);
-            }
-            state.queue.push_back(vec);
         }
 
         true
@@ -275,8 +279,8 @@ impl<'blk> Walker<'blk> {
             for (var, var_ty) in callee.vars.iter() {
                 self.sol.declare(&var.tag_ctx(0), var_ty);
             }
-            let state = State::new(callee.blks[0].tag_ctx(0));
-            self.push_state(state);
+
+            self.push_state(State::new(BlockCtx::new(entry)));
 
             let pars: Vec<IdentCtx> = callee
                 .pars
@@ -345,7 +349,7 @@ query is_elem_after_append(depth_step=5, depth_limit=1000, answer_limit=1)
     let map = crate::tych::elab::elab_pass(&prog);
     // println!("{:?}", map);
 
-    let dict = crate::walker::compile::compile_dict(&prog, &map);
+    let dict = crate::walker::block::compile_dict(&prog, &map);
     // println!("{:#?}", dict);
 
     let mut wlk = Walker::new(&dict);

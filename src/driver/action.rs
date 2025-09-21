@@ -86,7 +86,7 @@ impl<'src> Pipeline<'src> {
 
         let prog = crate::logic::transform::logic_translation(&prog);
         let map = crate::tych::elab::elab_pass(&prog);
-        let dict = crate::walker::compile::compile_dict(&prog, &map);
+        let dict = crate::walker::block::compile_dict(&prog, &map);
         let mut wlk = walker::walker::Walker::new(&dict);
 
         let mut res_vec = Vec::new();

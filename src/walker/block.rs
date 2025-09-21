@@ -5,17 +5,18 @@ use std::fmt;
 
 #[derive(Clone, Debug)]
 pub struct Block {
-    pub pred: (PredIdent, usize),
+    pub blk_pred: PredIdent,
+    pub blk_idx: usize,
     pub eqs: Vec<(Ident, AtomId)>,
     pub cons: Vec<(Ident, Ident, Vec<AtomId>)>,
     pub prims: Vec<(Prim, Vec<AtomId>)>,
-    pub calls: Vec<(PredIdent, Vec<AtomId>)>,
     pub brchss: Vec<Vec<usize>>,
+    pub calls: Vec<(PredIdent, Vec<AtomId>)>,
 }
 
 impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "block {} {{{}}}:", self.pred.0, self.pred.1)?;
+        writeln!(f, "block {} {{{}}}:", self.blk_pred, self.blk_idx)?;
 
         for (var, atom) in self.eqs.iter() {
             writeln!(f, "    {} = {}; ", var, atom)?;
@@ -31,13 +32,13 @@ impl fmt::Display for Block {
             writeln!(f, "    {:?}({})", prim, args)?;
         }
 
-        for (pred, args) in self.calls.iter() {
-            let args = args.iter().format(&", ");
-            writeln!(f, "    {}({})", pred, args)?;
+        if !self.brchss.is_empty() {
+            writeln!(f, "    brch {:?}", self.brchss)?;
         }
 
-        if !self.brchss.is_empty() {
-            writeln!(f, "    {:?}", self.brchss)?;
+        for (pred, args) in self.calls.iter() {
+            let args = args.iter().format(&", ");
+            writeln!(f, "    call {}({})", pred, args)?;
         }
         Ok(())
     }
@@ -46,12 +47,13 @@ impl fmt::Display for Block {
 impl Block {
     pub fn new() -> Block {
         Block {
-            pred: (PredIdent::Pred(Ident::dummy(&"?")), 0),
+            blk_pred: PredIdent::Pred(Ident::dummy(&"?")),
+            blk_idx: 0,
             eqs: Vec::new(),
             cons: Vec::new(),
             prims: Vec::new(),
-            calls: Vec::new(),
             brchss: Vec::new(),
+            calls: Vec::new(),
         }
     }
 }
@@ -59,8 +61,9 @@ impl Block {
 pub fn compile_goal(pred: PredIdent, goal: &Goal) -> Vec<Block> {
     let mut blks = Vec::new();
     compile_goal_help(goal, &mut blks);
-    for (i, blk) in blks.iter_mut().enumerate() {
-        blk.pred = (pred, i)
+    for (idx, blk) in blks.iter_mut().enumerate() {
+        blk.blk_pred = pred;
+        blk.blk_idx = idx;
     }
     blks
 }
@@ -162,21 +165,34 @@ pub fn compile_dict(prog: &Program, map: &HashMap<Ident, TypeId>) -> HashMap<Pre
         .collect()
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct BlockCtx<'blk> {
-    pub blk: &'blk Block,
+#[derive(Clone, Debug)]
+pub struct BlockCtx {
+    pub pred: PredIdent,
+    pub idx: usize,
     pub ctx: usize,
 }
 
-impl<'blk> fmt::Display for BlockCtx<'blk> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{ctx = {}}} {}", self.ctx, self.blk)
+impl BlockCtx {
+    pub fn new(pred: PredIdent) -> BlockCtx {
+        BlockCtx {
+            pred,
+            idx: 0,
+            ctx: 0,
+        }
     }
-}
 
-impl<'blk> Block {
-    pub fn tag_ctx(&'blk self, ctx: usize) -> BlockCtx<'blk> {
-        BlockCtx { ctx, blk: self }
+    pub fn jump(&self, idx: usize) -> BlockCtx {
+        let mut res = self.clone();
+        res.idx = idx;
+        res
+    }
+
+    pub fn call(&self, pred: PredIdent, ctx: usize) -> BlockCtx {
+        let mut res = self.clone();
+        res.pred = pred;
+        res.idx = 0;
+        res.ctx = ctx;
+        res
     }
 }
 

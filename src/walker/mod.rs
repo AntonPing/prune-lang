@@ -7,6 +7,6 @@ use crate::logic::ast::{PredIdent, QueryParam};
 use itertools::Itertools;
 use std::collections::HashMap;
 
-pub mod compile;
+pub mod block;
 pub mod config;
 pub mod walker;
