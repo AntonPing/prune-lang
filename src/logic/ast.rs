@@ -1,27 +1,14 @@
 use super::*;
 
-// This enum is for supporting non-monotonic logic in the future
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub enum PredIdent {
-    Pos(Ident),
-    Neg(Ident),
-}
-
-impl PredIdent {
-    pub fn is_pos(&self) -> bool {
-        matches!(self, PredIdent::Pos(_))
-    }
-
-    pub fn is_neg(&self) -> bool {
-        matches!(self, PredIdent::Neg(_))
-    }
+    Pred(Ident),
 }
 
 impl std::fmt::Display for PredIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PredIdent::Pos(ident) => write!(f, "(+){}", ident),
-            PredIdent::Neg(ident) => write!(f, "(-){}", ident),
+            PredIdent::Pred(ident) => write!(f, "{}", ident),
         }
     }
 }

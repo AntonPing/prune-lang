@@ -88,7 +88,7 @@ fn translate_func(func: &ast::FuncDecl) -> PredDecl {
     pars.push(x);
     let goal = Goal::And(vec![Goal::Eq(x, term), goal]);
     PredDecl {
-        name: PredIdent::Pos(name),
+        name: PredIdent::Pred(name),
         pars,
         vars,
         goal: optimize::goal_optimize(goal),
@@ -174,7 +174,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             let (mut atoms, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 args.iter().map(|arg| translate_expr(vars, arg)).unzip();
             atoms.push(Term::Var(x));
-            goals.push(Goal::Call(PredIdent::Pos(*func), atoms));
+            goals.push(Goal::Call(PredIdent::Pred(*func), atoms));
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Ifte {
@@ -259,7 +259,7 @@ fn translate_pred(pred: &ast::PredDecl) -> PredDecl {
     let body = translate_goal(&mut vars, &pred.body);
     let pars: Vec<Ident> = pred.pars.iter().map(|(id, _typ)| *id).collect();
     PredDecl {
-        name: PredIdent::Pos(pred.name),
+        name: PredIdent::Pred(pred.name),
         pars,
         vars,
         goal: optimize::goal_optimize(body),
@@ -285,9 +285,9 @@ fn translate_goal(vars: &mut Vec<Ident>, goal: &ast::Goal) -> Goal {
             let (args, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 args.iter().map(|arg| translate_expr(vars, arg)).unzip();
             if goals.is_empty() {
-                Goal::Call(PredIdent::Pos(*pred), args)
+                Goal::Call(PredIdent::Pred(*pred), args)
             } else {
-                goals.push(Goal::Call(PredIdent::Pos(*pred), args));
+                goals.push(Goal::Call(PredIdent::Pred(*pred), args));
                 Goal::And(goals)
             }
         }
@@ -319,7 +319,7 @@ fn translate_goal(vars: &mut Vec<Ident>, goal: &ast::Goal) -> Goal {
 
 fn translate_query(query: &ast::QueryDecl) -> logic::ast::QueryDecl {
     logic::ast::QueryDecl {
-        entry: PredIdent::Pos(query.entry),
+        entry: PredIdent::Pred(query.entry),
         params: query
             .params
             .iter()
@@ -347,11 +347,11 @@ pub fn logic_translation(prog: &ast::Program) -> logic::ast::Program {
     let mut preds = HashMap::new();
     for func in prog.funcs.iter() {
         let res = translate_func(func);
-        preds.insert(PredIdent::Pos(func.name), res);
+        preds.insert(PredIdent::Pred(func.name), res);
     }
     for pred in prog.preds.iter() {
         let res = translate_pred(pred);
-        preds.insert(PredIdent::Pos(pred.name), res);
+        preds.insert(PredIdent::Pred(pred.name), res);
     }
 
     let mut querys = Vec::new();

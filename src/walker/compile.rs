@@ -46,7 +46,7 @@ impl fmt::Display for Block {
 impl Block {
     pub fn new() -> Block {
         Block {
-            pred: (PredIdent::Pos(Ident::dummy(&"?")), 0),
+            pred: (PredIdent::Pred(Ident::dummy(&"?")), 0),
             eqs: Vec::new(),
             cons: Vec::new(),
             prims: Vec::new(),
