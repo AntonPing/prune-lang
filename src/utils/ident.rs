@@ -7,8 +7,8 @@ static COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(1);
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Ident {
-    name: InternStr,
-    index: usize,
+    pub name: InternStr,
+    pub index: usize,
 }
 
 impl Ident {

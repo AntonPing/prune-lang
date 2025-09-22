@@ -165,37 +165,6 @@ pub fn compile_dict(prog: &Program, map: &HashMap<Ident, TypeId>) -> HashMap<Pre
         .collect()
 }
 
-#[derive(Clone, Debug)]
-pub struct BlockCtx {
-    pub pred: PredIdent,
-    pub idx: usize,
-    pub ctx: usize,
-}
-
-impl BlockCtx {
-    pub fn new(pred: PredIdent) -> BlockCtx {
-        BlockCtx {
-            pred,
-            idx: 0,
-            ctx: 0,
-        }
-    }
-
-    pub fn jump(&self, idx: usize) -> BlockCtx {
-        let mut res = self.clone();
-        res.idx = idx;
-        res
-    }
-
-    pub fn call(&self, pred: PredIdent, ctx: usize) -> BlockCtx {
-        let mut res = self.clone();
-        res.pred = pred;
-        res.idx = 0;
-        res.ctx = ctx;
-        res
-    }
-}
-
 #[test]
 fn compile_pred_test() {
     let src: &'static str = r#"

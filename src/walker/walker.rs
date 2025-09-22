@@ -1,4 +1,4 @@
-use super::block::{BlockCtx, PredDef};
+use super::block::PredDef;
 use super::config::WalkerStat;
 use super::*;
 
@@ -6,21 +6,22 @@ use crate::solver::solver::Solver;
 use crate::utils::ident::IdentCtx;
 use crate::walker::block::Block;
 use crate::walker::config::WalkerConfig;
+use crate::walker::path::{Path, PathTree};
 
 use std::collections::VecDeque;
 
 #[derive(Clone, Debug)]
 struct State {
     depth: usize,
-    curr_blk: BlockCtx,
-    queue: VecDeque<Vec<BlockCtx>>,
+    path: Path,
+    queue: VecDeque<Vec<Path>>,
 }
 
 impl State {
-    fn new(curr_blk: BlockCtx) -> State {
+    fn new(path: Path) -> State {
         State {
             depth: 0,
-            curr_blk,
+            path,
             queue: VecDeque::new(),
         }
     }
@@ -29,6 +30,7 @@ impl State {
 #[derive(Debug)]
 pub struct Walker<'blk> {
     dict: &'blk HashMap<PredIdent, PredDef>,
+    path_tree: PathTree,
     config: WalkerConfig,
     stats: WalkerStat,
     stack: Vec<State>,
@@ -41,6 +43,7 @@ impl<'blk> Walker<'blk> {
     pub fn new(dict: &'blk HashMap<PredIdent, PredDef>) -> Walker<'blk> {
         Walker {
             dict,
+            path_tree: PathTree::new(),
             config: WalkerConfig::new(),
             stats: WalkerStat::new(),
             stack: Vec::new(),
@@ -133,20 +136,20 @@ impl<'blk> Walker<'blk> {
 
         for brch in brchs {
             let mut new_state = state.clone();
-            new_state.curr_blk = brch;
+            new_state.path = brch;
             self.push_state(new_state);
         }
     }
 
     #[allow(dead_code)]
-    fn random_branching(&mut self, state: &mut State) -> Vec<BlockCtx> {
+    fn random_branching(&mut self, state: &mut State) -> Vec<Path> {
         assert!(!state.queue.is_empty());
         let idx = rand::random::<u32>().rem_euclid(state.queue.len() as u32);
         state.queue.remove(idx as usize).unwrap()
     }
 
     #[allow(dead_code)]
-    fn look_ahead_branching(&mut self, state: &mut State) -> Vec<BlockCtx> {
+    fn look_ahead_branching(&mut self, state: &mut State) -> Vec<Path> {
         assert!(!state.queue.is_empty());
 
         // look-ahead for the first point with branching factor 0 or 1
@@ -170,14 +173,14 @@ impl<'blk> Walker<'blk> {
         state.queue.pop_front().unwrap()
     }
 
-    fn look_ahead_filter(&mut self, state: &State, brchs: Vec<BlockCtx>) -> Vec<BlockCtx> {
+    fn look_ahead_filter(&mut self, state: &State, brchs: Vec<Path>) -> Vec<Path> {
         brchs
             .into_iter()
             .filter(|brch| {
                 self.sol.savepoint();
 
                 let mut new_state = state.clone();
-                new_state.curr_blk = brch.clone();
+                new_state.path = brch.clone();
                 self.stats.step_la();
                 let res = self.run_block(&mut new_state);
 
@@ -191,8 +194,8 @@ impl<'blk> Walker<'blk> {
     fn run_block(&mut self, state: &mut State) -> bool {
         state.depth += 1;
 
-        let curr_blk = self.get_block(&state.curr_blk.pred, state.curr_blk.idx);
-        let curr_ctx = state.curr_blk.ctx;
+        let curr_blk = self.get_block(&state.path.pred, state.path.idx);
+        let curr_ctx = state.path.ctx;
 
         for (var, atom) in curr_blk.eqs.iter() {
             let var = var.tag_ctx(curr_ctx);
@@ -224,12 +227,11 @@ impl<'blk> Walker<'blk> {
         }
 
         for brchs in curr_blk.brchss.iter() {
-            let mut vec = Vec::new();
+            let mut paths = Vec::new();
             for brch in brchs {
-                let new_blk = state.curr_blk.jump(*brch);
-                vec.push(new_blk);
+                paths.push(state.path.jump(*brch));
             }
-            state.queue.push_back(vec);
+            state.queue.push_back(paths);
         }
 
         for (pred, args) in curr_blk.calls.iter() {
@@ -248,10 +250,13 @@ impl<'blk> Walker<'blk> {
                 self.sol.declare(&var.tag_ctx(self.ctx_cnt), var_ty);
             }
 
-            let new_blk = state.curr_blk.call(*pred, self.ctx_cnt);
-            state.curr_blk = new_blk;
+            let curr_path = state.path.clone();
+            let call_path = state.path.call(*pred, self.ctx_cnt);
 
+            state.path = call_path;
             let res = self.run_block(state);
+            state.path = curr_path;
+
             if !res {
                 return false;
             }
@@ -280,7 +285,7 @@ impl<'blk> Walker<'blk> {
                 self.sol.declare(&var.tag_ctx(0), var_ty);
             }
 
-            self.push_state(State::new(BlockCtx::new(entry)));
+            self.push_state(State::new(Path::new(entry)));
 
             let pars: Vec<IdentCtx> = callee
                 .pars

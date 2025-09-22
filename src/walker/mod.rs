@@ -9,4 +9,5 @@ use std::collections::HashMap;
 
 pub mod block;
 pub mod config;
+pub mod path;
 pub mod walker;
