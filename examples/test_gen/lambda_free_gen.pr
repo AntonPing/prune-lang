@@ -21,6 +21,14 @@ begin
     end
 end
 
+function reverse_concat(xs: IntList, ys: IntList) -> IntList
+begin
+    match ys with
+    | Cons(head, tail) => reverse_concat(Cons(head, xs), tail)
+    | Nil => xs
+    end
+end
+
 function free_vars(expr: Expr) -> IntList
 begin
     free_vars_help(expr, Nil)
@@ -31,7 +39,9 @@ begin
     match expr with
     | Var(x) => Cons(x, acc)
     | Abs(x, e) => remove(free_vars_help(e, acc), x)
-    | App(e1, e2) => free_vars_help(e2, free_vars_help(e1, acc))
+    | App(e1, e2) => 
+        let vs = free_vars_help(e1, acc);
+        free_vars_help(e2, reverse_concat(acc, vs))
     end
 end
 
