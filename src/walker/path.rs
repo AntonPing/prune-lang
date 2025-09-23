@@ -89,27 +89,55 @@ impl PathLink {
 #[derive(Debug, Clone)]
 pub struct PathTree {
     map: Trie<Vec<usize>, usize>,
-    count: usize,
 }
 
 impl PathTree {
     pub fn new() -> PathTree {
         let map = Trie::new();
-        PathTree { map, count: 0 }
+        PathTree { map }
     }
 
-    pub fn update_path(&mut self, path: &Path) {
+    pub fn update_path_inc(&mut self, path: &Path) {
         let mut vec = path.link.to_usize_vec();
         assert_eq!(vec.len() % 2, 0);
 
-        self.count += 1;
+        let mut count = 4;
 
         while !vec.is_empty() {
-            self.map.insert(vec.clone(), self.count);
+            self.map.map_with_default(
+                vec.clone(),
+                |val| {
+                    if *val < count {
+                        *val = count
+                    }
+                },
+                count,
+            );
 
             vec.pop().unwrap();
             vec.pop().unwrap();
+
+            if count == 1 {
+                break;
+            } else {
+                count /= 2;
+            }
         }
+    }
+
+    pub fn update_path_dec(&mut self, path: &Path) {
+        let vec = path.link.to_usize_vec();
+        assert_eq!(vec.len() % 2, 0);
+
+        self.map.map_with_default(
+            vec,
+            |val| {
+                if *val > 0 {
+                    *val -= 1;
+                }
+            },
+            0,
+        );
     }
 
     pub fn get(&self, path: &Path) -> usize {

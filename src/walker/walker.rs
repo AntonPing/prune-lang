@@ -108,6 +108,8 @@ impl<'blk> Walker<'blk> {
             }
             self.stats.step();
             if !self.run_block(state) {
+                // conflict-driven update weight
+                self.path_tree.update_path_inc(&state.path);
                 return false;
             }
             if state.queue.is_empty() {
@@ -131,8 +133,11 @@ impl<'blk> Walker<'blk> {
         // random branching heuristic
         // let brchs = self.random_branching(state);
 
+        // conflict-driven branching heuristic
+        let brchs = self.conflict_driven_branching(state);
+
         // look-ahead branching heuristic
-        let brchs = self.look_ahead_branching(state);
+        // let brchs = self.look_ahead_branching(state);
 
         for brch in brchs {
             let mut new_state = state.clone();
@@ -146,6 +151,46 @@ impl<'blk> Walker<'blk> {
         assert!(!state.queue.is_empty());
         let idx = rand::random::<u32>().rem_euclid(state.queue.len() as u32);
         state.queue.remove(idx as usize).unwrap()
+    }
+
+    #[allow(dead_code)]
+    fn conflict_driven_branching(&mut self, state: &mut State) -> Vec<Path> {
+        assert!(!state.queue.is_empty());
+
+        let mut len_vec = Vec::new();
+        for paths in state.queue.iter() {
+            len_vec.push(paths.len());
+        }
+        assert!(len_vec.iter().all(|len| *len > 1));
+
+        let conj_vals: Vec<(usize, usize)> = state
+            .queue
+            .iter()
+            .enumerate()
+            .map(|(conj, paths)| {
+                let mut vec: Vec<usize> = Vec::new();
+                for path in paths {
+                    vec.push(self.path_tree.get(path));
+                }
+                vec.iter().map(|val| (conj, *val)).collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect();
+
+        // println!("{:?}", conj_vals);
+
+        let (conj, _val) = conj_vals
+            .iter()
+            .rev()
+            .max_by_key(|(_conj, val)| if *val > 0 { 1 } else { 0 })
+            .unwrap();
+
+        let paths = state.queue.remove(*conj).unwrap();
+        for path in paths.iter() {
+            self.path_tree.update_path_dec(&path);
+        }
+
+        paths
     }
 
     #[allow(dead_code)]
@@ -181,10 +226,15 @@ impl<'blk> Walker<'blk> {
 
                 let mut new_state = state.clone();
                 new_state.path = brch.clone();
-                self.stats.step_la();
                 let res = self.run_block(&mut new_state);
 
                 self.sol.backtrack();
+
+                if res {
+                    self.stats.step_la();
+                } else {
+                    self.stats.step();
+                }
 
                 res
             })
