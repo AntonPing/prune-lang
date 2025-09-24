@@ -1,0 +1,37 @@
+datatype IntList where
+| Cons(Int, IntList)
+| Nil
+end
+
+function reverse(xs: IntList) -> IntList
+begin
+    reverse_help(xs, Nil)
+end
+
+function reverse_help(xs: IntList, ys: IntList) -> IntList
+begin
+    match xs with
+    | Cons(head, tail) => reverse_help(tail, Cons(head, ys))
+    | Nil => ys
+    end
+end
+
+function rev_nat_list(n: Int) -> IntList
+begin
+    if @icmpeq(n, 0) then
+        Nil
+    else
+        Cons(n, rev_nat_list(@isub(n, 1)))
+end
+
+predicate reverse_backward(xs: IntList)
+begin
+    fresh(ys) (
+        and(
+            ys = reverse(xs),
+            ys = rev_nat_list(50),
+        ) 
+    )
+end
+
+query reverse_backward(depth_step=50, depth_limit=1000, answer_limit=1)

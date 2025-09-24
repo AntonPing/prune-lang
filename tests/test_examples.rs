@@ -59,3 +59,13 @@ fn test_avl_tree_gen() {
 fn test_lambda_free_gen() {
     action::test_test_gen_prog("lambda_free_gen").unwrap()
 }
+
+#[test]
+fn test_reverse_forward() {
+    action::test_basic_prog("reverse_forward").unwrap()
+}
+
+#[test]
+fn test_reverse_backward() {
+    action::test_basic_prog("reverse_backward").unwrap()
+}
