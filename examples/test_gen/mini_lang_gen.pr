@@ -1,0 +1,130 @@
+datatype Type where
+| TyInt
+| TyBool
+end
+
+function type_eq(ty1: Type, ty2: Type) -> Bool
+begin
+    match ty1 with
+    | TyInt =>
+        match ty2 with
+        | TyInt => true
+        | TyBool => false
+        end
+    | TyBool =>
+        match ty2 with
+        | TyInt => false
+        | TyBool => true
+        end
+    end
+end
+
+datatype OptionType where
+| SomeType(Type)
+| NoneType
+end
+
+datatype Context where
+| ConsCtx(Int, Type, Context)
+| NilCtx
+end
+
+function context_lookup(ctx: Context, x: Int) -> OptionType
+begin
+    match ctx with
+    | ConsCtx(y, ty, tail) =>
+        if @icmpeq(x, y) then
+            SomeType(ty)
+        else
+            context_lookup(tail, x)
+    | NilCtx => NoneType
+    end
+end
+
+datatype Value where
+| VInt(Int)
+| VBool(Bool)
+end
+
+function value_type(val: Value) -> Type
+begin
+    match val with
+    | VInt(x) => TyInt
+    | VBool(x) => TyBool
+    end
+end
+
+datatype Expr where
+| Cst(Value)
+| Var(Int)
+end
+
+function well_type_expr(ctx: Context, expr: Expr) -> OptionType
+begin
+    match expr with
+    | Cst(val) => SomeType(value_type(val))
+    | Var(x) => context_lookup(ctx, x)
+    end
+end
+
+datatype Stmts where
+| Def(Type, Int)
+| Set(Int, Value)
+| Ifte(Expr, Stmts, Stmts)
+| Seq(Stmts, Stmts)
+end
+
+datatype OptionCtx where
+| SomeCtx(Context)
+| NoneCtx
+end
+
+function well_type_stmts(ctx: Context, stmt: Stmts) -> OptionCtx
+begin
+    match stmt with
+    | Def(ty, x) =>
+        SomeCtx(ConsCtx(x, ty, ctx))
+    | Set(x, val) =>
+        match context_lookup(ctx, x) with
+        | SomeType(ty) =>
+            if type_eq(value_type(val), ty) then
+                SomeCtx(ctx)
+            else
+                NoneCtx
+        | NoneType => NoneCtx
+        end
+    | Ifte(cond, th_br, el_br) =>
+        match well_type_expr(ctx, cond) with
+        | SomeType(cond_ty) =>
+            if type_eq(cond_ty, TyBool) then
+                match well_type_stmts(ctx, th_br) with
+                | SomeCtx(ctx_th) =>
+                    match well_type_stmts(ctx, el_br) with
+                    | SomeCtx(ctx_el) => SomeCtx(ctx)
+                    | NoneCtx => NoneCtx
+                    end
+                | NoneCtx => NoneCtx
+                end
+            else
+                NoneCtx
+        | NoneType => NoneCtx
+        end
+    | Seq(left, right) =>
+        match well_type_stmts(ctx, left) with
+        | SomeCtx(ctx2) => well_type_stmts(ctx2, right) 
+        | NoneCtx => NoneCtx
+        end
+    end
+end
+
+predicate well_type_expr_gen(expr: Expr, ty: Type)
+begin
+    well_type_expr(NilCtx, expr) = SomeType(ty)
+end
+
+predicate well_type_stmts_gen(stmt: Stmts, ctx: Context)
+begin
+    well_type_stmts(NilCtx, stmt) = SomeCtx(ctx)
+end
+
+query well_type_stmts_gen(depth_step=5, depth_limit=200, answer_limit=100)

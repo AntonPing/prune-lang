@@ -1,0 +1,110 @@
+datatype Expr where
+| Cst(Value)
+| Var(Int)
+| Abs(Int, Type, Expr)
+| App(Expr, Expr)
+end
+
+datatype Value where
+| VInt(Int)
+| VBool(Bool)
+end
+
+datatype Type where
+| TyInt
+| TyBool
+| TyArr(Type, Type)
+end
+
+function value_type(val: Value) -> Type
+begin
+    match val with
+    | VInt(x) => TyInt
+    | VBool(x) => TyBool
+    end
+end
+
+function type_eq(ty1: Type, ty2: Type) -> Bool
+begin
+    match ty1 with
+    | TyInt =>
+        match ty2 with
+        | TyInt => true
+        | TyBool => false
+        | TyArr(lhs, rhs) => false
+        end
+    | TyBool =>
+        match ty2 with
+        | TyInt => false
+        | TyBool => true
+        | TyArr(lhs, rhs) => false
+        end
+    | TyArr(lhs, rhs) =>
+        match ty2 with
+        | TyInt => false
+        | TyBool => false
+        | TyArr(lhs2, rhs2) =>
+            @band(type_eq(lhs, lhs2), type_eq(rhs, rhs2))
+        end
+    end
+end
+
+datatype OptionType where
+| SomeType(Type)
+| NoneType
+end
+
+datatype Context where
+| ConsCtx(Int, Type, Context)
+| NilCtx
+end
+
+function context_lookup(ctx: Context, x: Int) -> OptionType
+begin
+    match ctx with
+    | ConsCtx(y, ty, tail) =>
+        if @icmpeq(x, y) then
+            SomeType(ty)
+        else
+            context_lookup(tail, x)
+    | NilCtx => NoneType
+    end
+end
+
+function type_infer(ctx: Context, expr: Expr) -> OptionType
+begin
+    match expr with
+    | Cst(x) => SomeType(value_type(x))
+    | Var(x) => context_lookup(ctx, x)
+    | Abs(x, ty, e) =>
+        match type_infer(ConsCtx(x, ty, ctx), e) with
+        | SomeType(ty2) => SomeType(TyArr(ty, ty2))
+        | NoneType => NoneType
+        end
+    | App(e1, e2) =>
+        match type_infer(ctx, e1) with
+        | SomeType(ty1) =>
+            match ty1 with
+            | TyInt => NoneType
+            | TyBool => NoneType
+            | TyArr(lhs, rhs) =>
+                match type_infer(ctx, e2) with
+                | SomeType(ty2) =>
+                    if type_eq(lhs, ty2) then
+                        SomeType(rhs)
+                    else
+                        NoneType
+                | NoneType => NoneType
+                end
+            end
+        | NoneType => NoneType
+        end
+    end
+end
+
+predicate gen_stlc_term(expr: Expr, ty: Type)
+begin
+    type_infer(NilCtx, expr) = SomeType(ty)
+end
+
+query gen_stlc_term(depth_step=5, depth_limit=200, answer_limit=100)

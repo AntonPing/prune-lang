@@ -61,6 +61,16 @@ fn test_lambda_free_gen() {
 }
 
 #[test]
+fn test_stlc_term_gen() {
+    action::test_test_gen_prog("stlc_term_gen").unwrap()
+}
+
+#[test]
+fn test_mini_lang_gen() {
+    action::test_test_gen_prog("mini_lang_gen").unwrap()
+}
+
+#[test]
 fn test_reverse_forward() {
     action::test_basic_prog("reverse_forward").unwrap()
 }
