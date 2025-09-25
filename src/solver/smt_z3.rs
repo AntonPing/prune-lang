@@ -68,7 +68,7 @@ impl Constr {
         assert!(!self.map.contains_key(var));
         let sexp = self
             .ctx
-            .declare_const(var.to_string(), self.ctx.int_sort())
+            .declare_const(format!("{:?}", var), self.ctx.int_sort())
             .unwrap();
         self.map.insert(*var, sexp);
     }
@@ -77,7 +77,7 @@ impl Constr {
         assert!(!self.map.contains_key(var));
         let sexp = self
             .ctx
-            .declare_const(var.to_string(), self.ctx.bool_sort())
+            .declare_const(format!("{:?}", var), self.ctx.bool_sort())
             .unwrap();
         self.map.insert(*var, sexp);
     }

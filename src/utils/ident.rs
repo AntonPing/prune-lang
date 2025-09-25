@@ -45,20 +45,16 @@ impl Ident {
 impl fmt::Debug for Ident {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.is_dummy() {
-            write!(f, "{}", self.name)
+            write!(f, "{:?}", self.name)
         } else {
-            write!(f, "{}_{}", self.name, self.index)
+            write!(f, "{:?}_{:?}", self.name, self.index)
         }
     }
 }
 
 impl fmt::Display for Ident {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.is_dummy() {
-            write!(f, "{}", self.name)
-        } else {
-            write!(f, "{}_{}", self.name, self.index)
-        }
+        write!(f, "{}", self.name)
     }
 }
 
@@ -68,15 +64,21 @@ impl AsRef<str> for Ident {
     }
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct IdentCtx {
     pub ident: Ident,
     pub ctx: usize,
 }
 
+impl fmt::Debug for IdentCtx {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}_{:?}", self.ident, self.ctx)
+    }
+}
+
 impl fmt::Display for IdentCtx {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}_ctx_{}", self.ident, self.ctx)
+        write!(f, "{}_{}", self.ident, self.ctx)
     }
 }
 
