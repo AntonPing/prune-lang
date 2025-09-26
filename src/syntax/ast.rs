@@ -98,6 +98,11 @@ pub enum Expr {
         brchs: Vec<(Expr, Expr)>,
         span: Span,
     },
+    Guard {
+        goal: Box<Goal>,
+        cont: Box<Expr>,
+        span: Span,
+    },
     GoalFail {
         span: Span,
     },

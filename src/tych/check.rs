@@ -172,6 +172,14 @@ impl Checker {
                 }
                 res
             }
+            Expr::Guard {
+                goal,
+                cont,
+                span: _,
+            } => {
+                self.check_goal(goal);
+                self.check_expr(cont)
+            }
             Expr::GoalFail { span: _ } => {
                 let res = self.fresh();
                 res

@@ -39,6 +39,28 @@ begin
     end
 end
 
+function is_balanced2(tree: AVLTree) -> Bool
+begin
+    let d = is_balanced_help2(tree);
+    true
+end
+
+function is_balanced_help2(tree: AVLTree) -> Int
+begin
+    match tree with
+    | Node(left, x, right) => 
+        let l_d = is_balanced_help2(left);
+        let r_d = is_balanced_help2(right);
+        let diff = @isub(l_d, r_d);
+        guard @band(@icmpge(diff, -1), @icmple(diff, 1)) = true;
+        if @icmplt(l_d, r_d) then
+            @iadd(r_d, 1)
+        else
+            @iadd(l_d, 1)
+    | Empty => 0
+    end
+end
+
 function is_sorted(tree: AVLTree) -> Bool
 begin
     match tree with
@@ -88,8 +110,8 @@ predicate gen_sorted_balanced(tree: AVLTree)
 begin
     and(
         is_sorted(tree) = true,
-        is_balanced(tree) = true,
+        is_balanced2(tree) = true,
     )
 end
 
-query gen_sorted_balanced(depth_step=5, depth_limit=200, answer_limit=100)
+query gen_sorted_balanced(depth_step=5, depth_limit=200, answer_limit=40)

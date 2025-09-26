@@ -234,6 +234,14 @@ impl Renamer {
                     self.visit_expr(body);
                 }
             }
+            Expr::Guard {
+                goal,
+                cont,
+                span: _,
+            } => {
+                self.visit_goal(goal);
+                self.visit_expr(cont);
+            }
             Expr::GoalFail { span: _ } => {}
         }
     }

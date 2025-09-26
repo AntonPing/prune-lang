@@ -97,8 +97,12 @@ pub enum Token {
     And,
     #[token("or")]
     Or,
+    #[token("guard")]
+    Guard,
     #[token("fail!")]
     Fail,
+    #[token("success!")]
+    Success,
     #[token("datatype")]
     Datatype,
     #[token("function")]

@@ -250,6 +250,16 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             }
             (Term::Var(x), Goal::Or(goals))
         }
+
+        ast::Expr::Guard {
+            goal,
+            cont,
+            span: _,
+        } => {
+            let goal1 = translate_goal(vars, goal);
+            let (atom, goal2) = translate_expr(vars, cont);
+            (atom, Goal::And(vec![goal1, goal2]))
+        }
         ast::Expr::GoalFail { span: _ } => (Term::Var(Ident::dummy(&"@phoney")), Goal::Lit(false)),
     }
 }
