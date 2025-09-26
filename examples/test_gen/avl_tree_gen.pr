@@ -39,10 +39,10 @@ begin
     end
 end
 
-function is_balanced2(tree: AVLTree) -> Bool
+function is_balanced2(tree: AVLTree) -> Unit
 begin
     let d = is_balanced_help2(tree);
-    true
+    ()
 end
 
 function is_balanced_help2(tree: AVLTree) -> Int
@@ -110,7 +110,7 @@ predicate gen_sorted_balanced(tree: AVLTree)
 begin
     and(
         is_sorted(tree) = true,
-        is_balanced2(tree) = true,
+        is_balanced2(tree) = (),
     )
 end
 

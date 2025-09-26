@@ -61,6 +61,7 @@ impl Constr {
             LitType::TyFloat => unimplemented!(),
             LitType::TyBool => self.declare_bool(var),
             LitType::TyChar => unimplemented!(),
+            LitType::TyUnit => self.declare_unit(var),
         }
     }
 
@@ -80,6 +81,11 @@ impl Constr {
             .declare_const(format!("{:?}", var), self.ctx.bool_sort())
             .unwrap();
         self.map.insert(*var, sexp);
+    }
+
+    pub fn declare_unit(&mut self, var: &IdentCtx) {
+        assert!(!self.map.contains_key(var));
+        self.map.insert(*var, self.ctx.true_());
     }
 
     pub fn get_int(&mut self, atom: &AtomCtx) -> SExpr {
@@ -189,6 +195,9 @@ impl Constr {
             }
             Term::Lit(LitVal::Char(_)) => {
                 unimplemented!()
+            }
+            Term::Lit(LitVal::Unit) => {
+                // always sat, nothing to do
             }
         }
     }
