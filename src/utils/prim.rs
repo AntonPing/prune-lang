@@ -56,4 +56,19 @@ impl Prim {
             }
         }
     }
+
+    pub fn get_prior(&self) -> u8 {
+        match self {
+            Prim::IAdd => 3,
+            Prim::ISub => 3,
+            Prim::IMul => 4,
+            Prim::IDiv => 4,
+            Prim::IRem => 4,
+            Prim::INeg => 0,
+            Prim::BAnd => 1,
+            Prim::BOr => 1,
+            Prim::BNot => 0,
+            Prim::ICmp(_) => 2,
+        }
+    }
 }

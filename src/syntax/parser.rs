@@ -334,6 +334,69 @@ impl<'src> Parser<'src> {
     }
 
     fn parse_expr(&mut self) -> ParseResult<Expr> {
+        let mut expr_stack: Vec<(Expr, Span)> = Vec::new();
+        let mut opr_stack: Vec<Prim> = Vec::new();
+
+        fn squash(expr_stack: &mut Vec<(Expr, Span)>, opr_stack: &mut Vec<Prim>) {
+            let (rhs, span1) = expr_stack.pop().unwrap();
+            let opr = opr_stack.pop().unwrap();
+            let (lhs, span2) = expr_stack.pop().unwrap();
+            let span = Span {
+                start: span1.start,
+                end: span2.end,
+            };
+            let new_expr = Expr::Prim {
+                prim: opr,
+                args: vec![lhs, rhs],
+                span: span.clone(),
+            };
+            expr_stack.push((new_expr, span));
+        }
+
+        loop {
+            let start = self.start_pos();
+            let expr = self.parse_expr_factor()?;
+            let end = self.end_pos();
+            let span = Span { start, end };
+            expr_stack.push((expr, span));
+            // todo: ad-hoc polymorphism
+            let opr = match self.peek_token() {
+                Token::Plus => Prim::IAdd,
+                Token::Minus => Prim::ISub,
+                Token::Star => Prim::IMul,
+                Token::Slash => Prim::IDiv,
+                Token::Percent => Prim::IRem,
+                Token::Less => Prim::ICmp(Compare::Lt),
+                Token::LessEqual => Prim::ICmp(Compare::Le),
+                Token::EqualEqual => Prim::ICmp(Compare::Eq),
+                Token::GreaterEqual => Prim::ICmp(Compare::Ge),
+                Token::Greater => Prim::ICmp(Compare::Gt),
+                Token::BangEqual => Prim::ICmp(Compare::Ne),
+                Token::DoubleAmpersand => Prim::BAnd,
+                Token::DoubleBar => Prim::BOr,
+                _ => {
+                    while !opr_stack.is_empty() {
+                        squash(&mut expr_stack, &mut opr_stack);
+                    }
+                    assert_eq!(expr_stack.len(), 1);
+                    return Ok(expr_stack.pop().unwrap().0);
+                }
+            };
+            self.next_token()?;
+
+            while !opr_stack.is_empty() {
+                let opr2 = opr_stack.last().unwrap();
+                if opr2.get_prior() > opr.get_prior() {
+                    squash(&mut expr_stack, &mut opr_stack);
+                } else {
+                    break;
+                }
+            }
+            opr_stack.push(opr);
+        }
+    }
+
+    fn parse_expr_factor(&mut self) -> ParseResult<Expr> {
         let start = self.start_pos();
         match self.peek_token() {
             Token::Int | Token::Float | Token::Bool | Token::Char | Token::Unit => {
@@ -549,10 +612,6 @@ impl<'src> Parser<'src> {
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Ok(Goal::Lit { val: true, span })
-            }
-            Token::LParen => {
-                let body = self.parse_goal_seq(Token::LParen, Token::RParen)?;
-                Ok(body)
             }
             _ => {
                 let lhs = self.parse_expr()?;

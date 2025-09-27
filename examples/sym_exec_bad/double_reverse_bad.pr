@@ -15,7 +15,7 @@ function intlist_eq(xs: IntList, ys: IntList) -> Bool
 begin
     match xs with
     | Cons(head, tail) => match ys with
-        | Cons(head2, tail2) => @band(@icmpeq(head, head2), intlist_eq(tail, tail2))
+        | Cons(head2, tail2) => head == head2 && intlist_eq(tail, tail2)
         | Nil => false
         end
     | Nil => match ys with

@@ -18,10 +18,10 @@ end
 
 function rev_nat_list(n: Int) -> IntList
 begin
-    if @icmpeq(n, 0) then
+    if n == 0 then
         Nil
     else
-        Cons(n, rev_nat_list(@isub(n, 1)))
+        Cons(n, rev_nat_list(n - 1))
 end
 
 predicate reverse_forward(ys: IntList)
@@ -29,7 +29,7 @@ begin
     fresh(xs) (
         and(
             ys = reverse(xs),
-            xs = rev_nat_list(50),
+            xs = rev_nat_list(100),
         ) 
     )
 end

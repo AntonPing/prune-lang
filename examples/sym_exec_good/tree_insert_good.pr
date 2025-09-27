@@ -7,11 +7,11 @@ function insert(tree: Tree, x: Int) -> Tree
 begin
     match tree with
     | Node(left, y, right) =>
-        if @icmplt(x, y) then
-            Node(insert(left, x), y, right)
-        else if @icmpgt(x, y) then
-            Node(left, y, insert(right, x))
-        else tree
+        condition
+        | x < y => Node(insert(left, x), y, right)
+        | x > y => Node(left, y, insert(right, x))
+        | x == y => tree
+        end
     | Empty => Node(Empty, x, Empty)
     end
 end
@@ -20,7 +20,7 @@ function is_sorted(tree: Tree) -> Bool
 begin
     match tree with
     | Node(left, x, right) =>
-        @band(is_sorted_max(left, x), is_sorted_min(right, x))
+        is_sorted_max(left, x) && is_sorted_min(right, x)
     | Empty => true
     end
 end
@@ -29,37 +29,31 @@ function is_sorted_min(tree: Tree, min: Int)  -> Bool
 begin
     match tree with
     | Node(left, x, right) =>
-        @band(
-            @icmpge(x, min),
-            @band(is_sorted_min_max(left, min, x), is_sorted_min(right, x))
-        )
+        x > min &&
+        is_sorted_min_max(left, min, x) && is_sorted_min(right, x)
     | Empty => true
     end
 end
 
-function is_sorted_max(tree: Tree, max: Int)  -> Bool
+function is_sorted_max(tree: Tree, max: Int) -> Bool
 begin
     match tree with
     | Node(left, x, right) =>
-        @band(
-            @icmple(x, max),
-            @band(is_sorted_max(left, x), is_sorted_min_max(right, x, max))
-        )
+        x < max &&
+        is_sorted_max(left, x) && is_sorted_min_max(right, x, max)
     | Empty => true
     end
 end
 
-function is_sorted_min_max(tree: Tree, min: Int, max: Int)  -> Bool
+function is_sorted_min_max(tree: Tree, min: Int, max: Int) -> Bool
 begin
     match tree with
     | Node(left, x, right) =>
-        @band(
-            @band(@icmpge(x, min), @icmple(x, max)),
-            @band(is_sorted_min_max(left, min, x), is_sorted_min_max(right, x, max))
-        )
+        x > min && x < max &&
+        is_sorted_min_max(left, min, x) && is_sorted_min_max(right, x, max)
     | Empty => true
     end
-end	
+end
 
 predicate keep_sorted(tree: Tree, x: Int)
 begin

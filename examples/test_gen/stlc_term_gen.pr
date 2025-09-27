@@ -44,7 +44,7 @@ begin
         | TyInt => false
         | TyBool => false
         | TyArr(lhs2, rhs2) =>
-            @band(type_eq(lhs, lhs2), type_eq(rhs, rhs2))
+            type_eq(lhs, lhs2) && type_eq(rhs, rhs2)
         end
     end
 end
@@ -63,7 +63,7 @@ function context_lookup(ctx: Context, x: Int) -> OptionType
 begin
     match ctx with
     | ConsCtx(y, ty, tail) =>
-        if @icmpeq(x, y) then
+        if x == y then
             SomeType(ty)
         else
             context_lookup(tail, x)

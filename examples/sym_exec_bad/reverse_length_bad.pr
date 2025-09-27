@@ -19,14 +19,14 @@ end
 function length(xs: IntList) -> Int
 begin
     match xs with
-    | Cons(head, tail) => @iadd(length(tail), 1)
+    | Cons(head, tail) => length(tail) + 1
     | Nil => 0
     end
 end
 
 predicate same_length_after_reverse(xs: IntList)
 begin
-    @icmpeq(length(reverse(xs)), length(xs)) = false
+    (length(reverse(xs)) == length(xs)) = false
 end
 
 query same_length_after_reverse(depth_step=5, depth_limit=1000, answer_limit=1)

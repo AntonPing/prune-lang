@@ -23,12 +23,12 @@ begin
         match is_balanced_help(left) with
         | Some(l_d) => match is_balanced_help(right) with
             | Some(r_d) => 
-                let diff = @isub(l_d, r_d);
-                if @band(@icmpge(diff, -1), @icmple(diff, 1)) then
-                    if @icmplt(l_d, r_d) then 
-                        Some(@iadd(r_d, 1))
+                let diff = l_d - r_d;
+                if diff >= -1 && diff <= 1 then
+                    if l_d < r_d then 
+                        Some(r_d + 1)
                     else
-                        Some(@iadd(l_d, 1))
+                        Some(l_d + 1)
                 else
                     None
             | None => None
@@ -51,12 +51,12 @@ begin
     | Node(left, x, right) => 
         let l_d = is_balanced_help2(left);
         let r_d = is_balanced_help2(right);
-        let diff = @isub(l_d, r_d);
-        guard @band(@icmpge(diff, -1), @icmple(diff, 1)) = true;
-        if @icmplt(l_d, r_d) then
-            @iadd(r_d, 1)
+        let diff = l_d - r_d;
+        guard (diff >= -1 && diff <= 1) = true;
+        if l_d < r_d then
+            r_d + 1
         else
-            @iadd(l_d, 1)
+            l_d + 1
     | Empty => 0
     end
 end
@@ -65,46 +65,40 @@ function is_sorted(tree: AVLTree) -> Bool
 begin
     match tree with
     | Node(left, x, right) =>
-        @band(is_sorted_max(left, x), is_sorted_min(right, x))
+        is_sorted_max(left, x) && is_sorted_min(right, x)
     | Empty => true
     end
 end
 
-function is_sorted_min(tree: AVLTree, min: Int)  -> Bool
+function is_sorted_min(tree: AVLTree, min: Int) -> Bool
 begin
     match tree with
     | Node(left, x, right) =>
-        @band(
-            @icmpgt(x, min),
-            @band(is_sorted_min_max(left, min, x), is_sorted_min(right, x))
-        )
+        x > min &&
+        is_sorted_min_max(left, min, x) && is_sorted_min(right, x)
     | Empty => true
     end
 end
 
-function is_sorted_max(tree: AVLTree, max: Int)  -> Bool
+function is_sorted_max(tree: AVLTree, max: Int) -> Bool
 begin
     match tree with
     | Node(left, x, right) =>
-        @band(
-            @icmplt(x, max),
-            @band(is_sorted_max(left, x), is_sorted_min_max(right, x, max))
-        )
+        x < max &&
+        is_sorted_max(left, x) && is_sorted_min_max(right, x, max)
     | Empty => true
     end
 end
 
-function is_sorted_min_max(tree: AVLTree, min: Int, max: Int)  -> Bool
+function is_sorted_min_max(tree: AVLTree, min: Int, max: Int) -> Bool
 begin
     match tree with
     | Node(left, x, right) =>
-        @band(
-            @band(@icmpgt(x, min), @icmplt(x, max)),
-            @band(is_sorted_min_max(left, min, x), is_sorted_min_max(right, x, max))
-        )
+        x > min && x < max &&
+        is_sorted_min_max(left, min, x) && is_sorted_min_max(right, x, max)
     | Empty => true
     end
-end	
+end
 
 predicate gen_sorted_balanced(tree: AVLTree)
 begin
@@ -114,4 +108,4 @@ begin
     )
 end
 
-query gen_sorted_balanced(depth_step=5, depth_limit=200, answer_limit=40)
+query gen_sorted_balanced(depth_step=5, depth_limit=200, answer_limit=30)

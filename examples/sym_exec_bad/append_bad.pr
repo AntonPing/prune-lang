@@ -14,7 +14,7 @@ end
 function is_elem(xs: IntList, x: Int) -> Bool
 begin
     match xs with
-    | Cons(head, tail) => if @icmpeq(head, x) then true else is_elem(tail, x) 
+    | Cons(head, tail) => if head == x then true else is_elem(tail, x) 
     | Nil => false
     end
 end
