@@ -200,8 +200,7 @@ impl Renamer {
                 self.visit_expr(expr);
                 brchs.iter_mut().for_each(|(patn, expr)| {
                     self.enter_scope();
-                    self.update_cons_var(&mut patn.cons);
-                    patn.flds.iter_mut().for_each(|fld| self.intro_val_var(fld));
+                    self.visit_pattern(patn);
                     self.visit_expr(expr);
                     self.leave_scope();
                 });
@@ -243,6 +242,27 @@ impl Renamer {
                 self.visit_expr(cont);
             }
             Expr::GoalFail { span: _ } => {}
+        }
+    }
+
+    fn visit_pattern(&mut self, patn: &mut Pattern) {
+        match patn {
+            Pattern::Lit { lit: _, span: _ } => {
+                // do nothing
+            }
+            Pattern::Var { var, span: _ } => {
+                self.intro_val_var(var);
+            }
+            Pattern::Cons {
+                cons,
+                flds,
+                span: _,
+            } => {
+                self.update_cons_var(cons);
+                for fld in flds {
+                    self.visit_pattern(fld);
+                }
+            }
         }
     }
 

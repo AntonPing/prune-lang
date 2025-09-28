@@ -73,26 +73,18 @@ end
 function rotate_left(tree: AVLTree) -> AVLTree
 begin
     match tree with
-    | Node(left, x, right) => 
-        match right with
-        | Node(r_left, r_x, r_right) =>
-            Node(Node(left, x, r_left), r_x, r_right)
-        | Empty => fail!
-        end
-    | Empty => fail!
+    | Node(left, x, Node(r_left, r_x, r_right)) => 
+        Node(Node(left, x, r_left), r_x, r_right)
+    | other => fail!
     end
 end
 
 function rotate_right(tree: AVLTree) -> AVLTree
 begin
     match tree with
-    | Node(left, x, right) => 
-        match left with
-        | Node(l_left, l_x, l_right) =>
-            Node(l_left, l_x, Node(l_right, x, right))
-        | Empty => fail!
-        end
-    | Empty => fail!
+    | Node(Node(l_left, l_x, l_right), x, right) => 
+        Node(l_left, l_x, Node(l_right, x, right))
+    | other => fail!
     end
 end
 

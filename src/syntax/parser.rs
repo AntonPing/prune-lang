@@ -544,17 +544,38 @@ impl<'src> Parser<'src> {
 
     fn parse_pattern(&mut self) -> ParseResult<Pattern> {
         let start = self.start_pos();
-        let cons = self.parse_uident()?;
-        let flds = if let Token::LParen = self.peek_token() {
-            self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
-                par.parse_lident()
-            })?
-        } else {
-            Vec::new()
-        };
-        let end = self.end_pos();
-        let span = Span { start, end };
-        Ok(Pattern { cons, flds, span })
+        match self.peek_token() {
+            Token::Int | Token::Float | Token::Bool | Token::Char | Token::Unit => {
+                let lit = self.parse_lit_val()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Pattern::Lit { lit, span })
+            }
+            Token::LowerIdent => {
+                let var = self.parse_lident()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Pattern::Var { var, span })
+            }
+            Token::UpperIdent => {
+                let cons = self.parse_uident()?;
+                let flds = if let Token::LParen = self.peek_token() {
+                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                        par.parse_pattern()
+                    })?
+                } else {
+                    Vec::new()
+                };
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Pattern::Cons { cons, flds, span })
+            }
+            _tok => Err(ParseError::FailedToParse(
+                "pattern",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
+        }
     }
 
     fn parse_goal_seq(&mut self, left: Token, right: Token) -> ParseResult<Goal> {

@@ -131,23 +131,14 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
         } => {
             let x = Ident::fresh(&"res_match");
             vars.push(x);
-            let (atom, goal) = translate_expr(vars, expr);
+            let (expr_atom, goal) = translate_expr(vars, expr);
             let goals = brchs
                 .iter()
                 .map(|(patn, expr)| {
-                    let name = patn.cons;
-                    let flds = patn
-                        .flds
-                        .iter()
-                        .map(|fld| {
-                            vars.push(*fld);
-                            Term::Var(*fld)
-                        })
-                        .collect();
-                    let goal1 = unify_decompose(vars, Term::Cons((), name, flds), atom.to_term());
+                    let patn_term = patn_to_term(vars, patn);
+                    let goal1 = unify_decompose(vars, expr_atom.to_term(), patn_term);
                     let (atom2, goal2) = translate_expr(vars, expr);
-                    let goal3 = Goal::Eq(x, atom2);
-                    Goal::And(vec![goal1, goal2, goal3])
+                    Goal::And(vec![goal1, goal2, Goal::Eq(x, atom2)])
                 })
                 .collect();
             (Term::Var(x), Goal::And(vec![goal, Goal::Or(goals)]))
@@ -261,6 +252,24 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             (atom, Goal::And(vec![goal1, goal2]))
         }
         ast::Expr::GoalFail { span: _ } => (Term::Var(Ident::dummy(&"@phoney")), Goal::Lit(false)),
+    }
+}
+
+fn patn_to_term(vars: &mut Vec<Ident>, patn: &ast::Pattern) -> TermId {
+    match patn {
+        ast::Pattern::Lit { lit, span: _ } => TermId::Lit(*lit),
+        ast::Pattern::Var { var, span: _ } => {
+            vars.push(*var);
+            TermId::Var(*var)
+        }
+        ast::Pattern::Cons {
+            cons,
+            flds,
+            span: _,
+        } => {
+            let flds = flds.iter().map(|fld| patn_to_term(vars, fld)).collect();
+            TermId::Cons((), *cons, flds)
+        }
     }
 }
 

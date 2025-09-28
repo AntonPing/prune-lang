@@ -229,11 +229,26 @@ impl Checker {
     }
 
     fn check_patn(&mut self, patn: &Pattern) -> UnifyType {
-        let (pars, res) = self.cons_ctx[&patn.cons].clone();
-        for (par, fld) in pars.iter().zip(patn.flds.iter()) {
-            self.val_ctx.insert(*fld, par.clone());
+        match patn {
+            Pattern::Lit { lit, span: _ } => UnifyType::Lit(lit.get_typ()),
+            Pattern::Var { var, span: _ } => {
+                let ty = self.fresh();
+                self.val_ctx.insert(*var, ty.clone());
+                ty
+            }
+            Pattern::Cons {
+                cons,
+                flds,
+                span: _,
+            } => {
+                let (pars, res) = self.cons_ctx[&cons].clone();
+                for (par, fld) in pars.iter().zip(flds.iter()) {
+                    let ty = self.check_patn(fld);
+                    self.unify(par, &ty);
+                }
+                res
+            }
         }
-        res
     }
 
     fn scan_data_decl_head(&mut self, data_decl: &DataDecl) {

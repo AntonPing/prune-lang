@@ -46,10 +46,20 @@ pub struct FuncDecl {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Pattern {
-    pub cons: Ident,
-    pub flds: Vec<Ident>,
-    pub span: Span,
+pub enum Pattern {
+    Lit {
+        lit: LitVal,
+        span: Span,
+    },
+    Var {
+        var: Ident,
+        span: Span,
+    },
+    Cons {
+        cons: Ident,
+        flds: Vec<Pattern>,
+        span: Span,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
