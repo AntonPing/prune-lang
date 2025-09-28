@@ -88,7 +88,7 @@ pub enum Expr {
         span: Span,
     },
     Let {
-        bind: Ident,
+        patn: Pattern,
         expr: Box<Expr>,
         cont: Box<Expr>,
         span: Span,

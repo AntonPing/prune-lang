@@ -131,29 +131,30 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
         } => {
             let x = Ident::fresh(&"res_match");
             vars.push(x);
-            let (expr_atom, goal) = translate_expr(vars, expr);
+            let (atom0, goal0) = translate_expr(vars, expr);
             let goals = brchs
                 .iter()
                 .map(|(patn, expr)| {
                     let patn_term = patn_to_term(vars, patn);
-                    let goal1 = unify_decompose(vars, expr_atom.to_term(), patn_term);
+                    let goal1 = unify_decompose(vars, atom0.to_term(), patn_term);
                     let (atom2, goal2) = translate_expr(vars, expr);
                     Goal::And(vec![goal1, goal2, Goal::Eq(x, atom2)])
                 })
                 .collect();
-            (Term::Var(x), Goal::And(vec![goal, Goal::Or(goals)]))
+            (Term::Var(x), Goal::And(vec![goal0, Goal::Or(goals)]))
         }
         ast::Expr::Let {
-            bind,
+            patn,
             expr,
             cont,
             span: _,
         } => {
-            let (term1, goal1) = translate_expr(vars, expr);
-            let (term2, goal2) = translate_expr(vars, cont);
-            vars.push(*bind);
-            let goal = Goal::And(vec![goal1, Goal::Eq(*bind, term1), goal2]);
-            (term2, goal)
+            let (atom0, goal0) = translate_expr(vars, expr);
+            let patn_term = patn_to_term(vars, patn);
+            let goal1 = unify_decompose(vars, atom0.to_term(), patn_term);
+            let (atom2, goal2) = translate_expr(vars, cont);
+            let goal = Goal::And(vec![goal0, goal1, goal2]);
+            (atom2, goal)
         }
         ast::Expr::App {
             func,

@@ -444,7 +444,7 @@ impl<'src> Parser<'src> {
             }
             Token::Let => {
                 self.match_token(Token::Let)?;
-                let bind = self.parse_lident()?;
+                let bind = self.parse_pattern()?;
                 self.match_token(Token::Equal)?;
                 let expr = Box::new(self.parse_expr()?);
                 self.match_token(Token::Semi)?;
@@ -452,7 +452,7 @@ impl<'src> Parser<'src> {
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Ok(Expr::Let {
-                    bind,
+                    patn: bind,
                     expr,
                     cont,
                     span,

@@ -206,14 +206,14 @@ impl Renamer {
                 });
             }
             Expr::Let {
-                bind,
+                patn,
                 expr,
                 cont,
                 span: _,
             } => {
                 self.visit_expr(expr);
                 self.enter_scope();
-                self.intro_val_var(bind);
+                self.visit_pattern(patn);
                 self.visit_expr(cont);
                 self.leave_scope();
             }

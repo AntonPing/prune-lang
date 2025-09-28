@@ -121,22 +121,23 @@ impl Checker {
             } => {
                 let expr = self.check_expr(expr);
                 let res = self.fresh();
-                for (lhs, rhs) in brchs.iter() {
-                    let lhs = self.check_patn(lhs);
-                    self.unify(&expr, &lhs);
-                    let rhs = self.check_expr(rhs);
-                    self.unify(&res, &rhs);
+                for (patn, cont) in brchs.iter() {
+                    let patn = self.check_patn(patn);
+                    self.unify(&patn, &expr);
+                    let cont = self.check_expr(cont);
+                    self.unify(&res, &cont);
                 }
                 res
             }
             Expr::Let {
-                bind,
+                patn,
                 expr,
                 cont,
                 span: _,
             } => {
                 let expr = self.check_expr(expr);
-                self.val_ctx.insert(*bind, expr);
+                let patn = self.check_patn(patn);
+                self.unify(&patn, &expr);
                 self.check_expr(&cont)
             }
             Expr::App {
