@@ -181,7 +181,7 @@ impl Checker {
                 self.check_goal(goal);
                 self.check_expr(cont)
             }
-            Expr::GoalFail { span: _ } => {
+            Expr::Undefined { span: _ } => {
                 let res = self.fresh();
                 res
             }

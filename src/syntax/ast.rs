@@ -113,7 +113,7 @@ pub enum Expr {
         cont: Box<Expr>,
         span: Span,
     },
-    GoalFail {
+    Undefined {
         span: Span,
     },
 }

@@ -103,6 +103,8 @@ pub enum Token {
     Fail,
     #[token("success!")]
     Success,
+    #[token("undefined")]
+    Undefined,
     #[token("datatype")]
     Datatype,
     #[token("function")]

@@ -56,7 +56,7 @@ begin
                 rotate_left(tree)
             else
                 rotate_left(Node(left, x, rotate_right(right)))
-        | Empty => fail!
+        | Empty => undefined
         end
     | bf >= 2 =>
         match tree with
@@ -65,7 +65,7 @@ begin
                 rotate_right(tree)
             else
                 rotate_right(Node(rotate_left(left), x, right))
-        | Empty => fail!
+        | Empty => undefined
         end
     end
 end

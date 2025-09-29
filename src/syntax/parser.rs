@@ -502,11 +502,11 @@ impl<'src> Parser<'src> {
                 let span = Span { start, end };
                 Ok(Expr::Guard { goal, cont, span })
             }
-            Token::Fail => {
-                self.match_token(Token::Fail)?;
+            Token::Undefined => {
+                self.match_token(Token::Undefined)?;
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Ok(Expr::GoalFail { span })
+                Ok(Expr::Undefined { span })
             }
             Token::LParen => {
                 self.match_token(Token::LParen)?;

@@ -241,7 +241,7 @@ impl Renamer {
                 self.visit_goal(goal);
                 self.visit_expr(cont);
             }
-            Expr::GoalFail { span: _ } => {}
+            Expr::Undefined { span: _ } => {}
         }
     }
 
