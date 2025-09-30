@@ -1,3 +1,5 @@
+use prune_lang::driver;
+
 fn main() {
-    println!("Hello, world!");
+    let _ = driver::cli::run_cli();
 }

@@ -11,6 +11,7 @@ itertools = "0.14.0"
 rand = "0.9.0"
 easy-smt = "0.3.1"
 radix_trie = "0.3.0"
+clap = { version = "4.5.48", features = ["derive"] }
 
 [dev-dependencies]
 criterion = "0.5.1"
