@@ -57,7 +57,7 @@ fn unify_decompose_help(vars: &mut Vec<Ident>, vec: &mut Vec<Goal>, lhs: TermId,
 }
 
 fn translate_data_decl(data: &ast::DataDecl) -> logic::ast::DataDecl {
-    let name = data.name;
+    let name = data.name.ident;
     let cons = data
         .cons
         .iter()
@@ -67,7 +67,7 @@ fn translate_data_decl(data: &ast::DataDecl) -> logic::ast::DataDecl {
 }
 
 fn translate_constructor(cons: &ast::Constructor) -> logic::ast::Constructor {
-    let name = cons.name;
+    let name = cons.name.ident;
     let flds = cons.flds.iter().map(|fld| translate_type(fld)).collect();
     Constructor { name, flds }
 }
@@ -75,15 +75,15 @@ fn translate_constructor(cons: &ast::Constructor) -> logic::ast::Constructor {
 fn translate_type(typ: &ast::Type) -> TypeId {
     match typ {
         ast::Type::Lit(lit) => Term::Lit((*lit).into()),
-        ast::Type::Data(var) => Term::Cons((), *var, Vec::new()),
+        ast::Type::Data(var) => Term::Cons((), var.ident, Vec::new()),
     }
 }
 
 fn translate_func(func: &ast::FuncDecl) -> PredDecl {
     let mut vars = Vec::new();
     let (term, goal) = translate_expr(&mut vars, &func.body);
-    let name = func.name;
-    let mut pars: Vec<Ident> = func.pars.iter().map(|(id, _typ)| *id).collect();
+    let name = func.name.ident;
+    let mut pars: Vec<Ident> = func.pars.iter().map(|(var, _typ)| var.ident).collect();
     let x = Ident::fresh(&"res_func");
     pars.push(x);
     let goal = Goal::And(vec![Goal::Eq(x, term), goal]);
@@ -98,7 +98,7 @@ fn translate_func(func: &ast::FuncDecl) -> PredDecl {
 fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
     match expr {
         ast::Expr::Lit { lit, span: _ } => (Term::Lit(*lit), Goal::Lit(true)),
-        ast::Expr::Var { var, span: _ } => (Term::Var(*var), Goal::Lit(true)),
+        ast::Expr::Var { var, span: _ } => (Term::Var(var.ident), Goal::Lit(true)),
         ast::Expr::Prim {
             prim,
             args,
@@ -113,7 +113,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Cons {
-            cons: name,
+            cons,
             flds,
             span: _,
         } => {
@@ -121,7 +121,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             vars.push(x);
             let (flds, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 flds.iter().map(|fld| translate_expr(vars, fld)).unzip();
-            goals.push(Goal::Cons(x, *name, flds));
+            goals.push(Goal::Cons(x, cons.ident, flds));
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Match {
@@ -166,7 +166,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             let (mut atoms, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 args.iter().map(|arg| translate_expr(vars, arg)).unzip();
             atoms.push(Term::Var(x));
-            goals.push(Goal::Call(PredIdent::Pred(*func), atoms));
+            goals.push(Goal::Call(PredIdent::Pred(func.ident), atoms));
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Ifte {
@@ -260,8 +260,8 @@ fn patn_to_term(vars: &mut Vec<Ident>, patn: &ast::Pattern) -> TermId {
     match patn {
         ast::Pattern::Lit { lit, span: _ } => TermId::Lit(*lit),
         ast::Pattern::Var { var, span: _ } => {
-            vars.push(*var);
-            TermId::Var(*var)
+            vars.push(var.ident);
+            TermId::Var(var.ident)
         }
         ast::Pattern::Cons {
             cons,
@@ -269,7 +269,7 @@ fn patn_to_term(vars: &mut Vec<Ident>, patn: &ast::Pattern) -> TermId {
             span: _,
         } => {
             let flds = flds.iter().map(|fld| patn_to_term(vars, fld)).collect();
-            TermId::Cons((), *cons, flds)
+            TermId::Cons((), cons.ident, flds)
         }
     }
 }
@@ -277,9 +277,9 @@ fn patn_to_term(vars: &mut Vec<Ident>, patn: &ast::Pattern) -> TermId {
 fn translate_pred(pred: &ast::PredDecl) -> PredDecl {
     let mut vars = Vec::new();
     let body = translate_goal(&mut vars, &pred.body);
-    let pars: Vec<Ident> = pred.pars.iter().map(|(id, _typ)| *id).collect();
+    let pars: Vec<Ident> = pred.pars.iter().map(|(var, _typ)| var.ident).collect();
     PredDecl {
-        name: PredIdent::Pred(pred.name),
+        name: PredIdent::Pred(pred.name.ident),
         pars,
         vars,
         goal: optimize::goal_optimize(body),
@@ -304,18 +304,15 @@ fn translate_goal(vars: &mut Vec<Ident>, goal: &ast::Goal) -> Goal {
         } => {
             let (args, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 args.iter().map(|arg| translate_expr(vars, arg)).unzip();
-            if goals.is_empty() {
-                Goal::Call(PredIdent::Pred(*pred), args)
-            } else {
-                goals.push(Goal::Call(PredIdent::Pred(*pred), args));
-                Goal::And(goals)
-            }
+            goals.push(Goal::Call(PredIdent::Pred(pred.ident), args));
+            Goal::And(goals)
         }
         ast::Goal::Fresh {
             vars: new_vars,
             body,
             span: _,
         } => {
+            let new_vars: Vec<Ident> = new_vars.iter().map(|var| var.ident).collect();
             vars.extend_from_slice(&new_vars[..]);
             translate_goal(vars, body)
         }
@@ -339,7 +336,7 @@ fn translate_goal(vars: &mut Vec<Ident>, goal: &ast::Goal) -> Goal {
 
 fn translate_query(query: &ast::QueryDecl) -> logic::ast::QueryDecl {
     logic::ast::QueryDecl {
-        entry: PredIdent::Pred(query.entry),
+        entry: PredIdent::Pred(query.entry.ident),
         params: query
             .params
             .iter()
@@ -358,20 +355,20 @@ fn translate_query_param(param: &ast::QueryParam) -> logic::ast::QueryParam {
 }
 
 pub fn logic_translation(prog: &ast::Program) -> logic::ast::Program {
-    let mut datas = HashMap::new();
+    let mut datas: HashMap<Ident, DataDecl> = HashMap::new();
     for data in prog.datas.iter() {
         let res = translate_data_decl(data);
-        datas.insert(data.name, res);
+        datas.insert(data.name.ident, res);
     }
 
     let mut preds = HashMap::new();
     for func in prog.funcs.iter() {
         let res = translate_func(func);
-        preds.insert(PredIdent::Pred(func.name), res);
+        preds.insert(PredIdent::Pred(func.name.ident), res);
     }
     for pred in prog.preds.iter() {
         let res = translate_pred(pred);
-        preds.insert(PredIdent::Pred(pred.name), res);
+        preds.insert(PredIdent::Pred(pred.name.ident), res);
     }
 
     let mut querys = Vec::new();

@@ -16,16 +16,22 @@ pub enum Declaration {
     Query(QueryDecl),
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Var {
+    pub ident: Ident,
+    pub span: Span,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct DataDecl {
-    pub name: Ident,
+    pub name: Var,
     pub cons: Vec<Constructor>,
     pub span: Span,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Constructor {
-    pub name: Ident,
+    pub name: Var,
     pub flds: Vec<Type>,
     pub span: Span,
 }
@@ -33,13 +39,13 @@ pub struct Constructor {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Type {
     Lit(LitType),
-    Data(Ident),
+    Data(Var),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FuncDecl {
-    pub name: Ident,
-    pub pars: Vec<(Ident, Type)>,
+    pub name: Var,
+    pub pars: Vec<(Var, Type)>,
     pub res: Type,
     pub body: Expr,
     pub span: Span,
@@ -52,11 +58,11 @@ pub enum Pattern {
         span: Span,
     },
     Var {
-        var: Ident,
+        var: Var,
         span: Span,
     },
     Cons {
-        cons: Ident,
+        cons: Var,
         flds: Vec<Pattern>,
         span: Span,
     },
@@ -69,7 +75,7 @@ pub enum Expr {
         span: Span,
     },
     Var {
-        var: Ident,
+        var: Var,
         span: Span,
     },
     Prim {
@@ -78,7 +84,7 @@ pub enum Expr {
         span: Span,
     },
     Cons {
-        cons: Ident,
+        cons: Var,
         flds: Vec<Expr>,
         span: Span,
     },
@@ -94,7 +100,7 @@ pub enum Expr {
         span: Span,
     },
     App {
-        func: Ident,
+        func: Var,
         args: Vec<Expr>,
         span: Span,
     },
@@ -120,8 +126,8 @@ pub enum Expr {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PredDecl {
-    pub name: Ident,
-    pub pars: Vec<(Ident, Type)>,
+    pub name: Var,
+    pub pars: Vec<(Var, Type)>,
     pub body: Goal,
     pub span: Span,
 }
@@ -129,7 +135,7 @@ pub struct PredDecl {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Goal {
     Fresh {
-        vars: Vec<Ident>,
+        vars: Vec<Var>,
         body: Box<Goal>,
         span: Span,
     },
@@ -139,7 +145,7 @@ pub enum Goal {
         span: Span,
     },
     Pred {
-        pred: Ident,
+        pred: Var,
         args: Vec<Expr>,
         span: Span,
     },
@@ -159,7 +165,7 @@ pub enum Goal {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct QueryDecl {
-    pub entry: Ident,
+    pub entry: Var,
     pub params: Vec<(QueryParam, Span)>,
     pub span: Span,
 }

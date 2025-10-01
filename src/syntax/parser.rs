@@ -262,30 +262,32 @@ impl<'src> Parser<'src> {
         }
     }
 
-    fn parse_lident(&mut self) -> ParseResult<Ident> {
+    fn parse_lower_var(&mut self) -> ParseResult<Var> {
         match self.peek_token() {
             Token::LowerIdent => {
-                let res = Ident::dummy(&self.peek_slice());
+                let ident = Ident::dummy(&self.peek_slice());
+                let span = self.peek_span().clone();
                 self.next_token()?;
-                Ok(res)
+                Ok(Var { ident, span })
             }
             _tok => Err(ParseError::FailedToParse(
-                "lowercase identifier",
+                "lowercase varible",
                 self.peek_token(),
                 self.peek_span().clone(),
             )),
         }
     }
 
-    fn parse_uident(&mut self) -> ParseResult<Ident> {
+    fn parse_upper_var(&mut self) -> ParseResult<Var> {
         match self.peek_token() {
             Token::UpperIdent => {
-                let res = Ident::dummy(&self.peek_slice());
+                let ident = Ident::dummy(&self.peek_slice());
+                let span = self.peek_span().clone();
                 self.next_token()?;
-                Ok(res)
+                Ok(Var { ident, span })
             }
             _tok => Err(ParseError::FailedToParse(
-                "uppercase identifier",
+                "uppercase varible",
                 self.peek_token(),
                 self.peek_span().clone(),
             )),
@@ -406,7 +408,7 @@ impl<'src> Parser<'src> {
                 Ok(Expr::Lit { lit, span })
             }
             Token::LowerIdent => {
-                let var = self.parse_lident()?;
+                let var = self.parse_lower_var()?;
                 if let Token::LParen = self.peek_token() {
                     let args = self.parse_expr_args()?;
                     let end = self.end_pos();
@@ -423,7 +425,7 @@ impl<'src> Parser<'src> {
                 }
             }
             Token::UpperIdent => {
-                let cons = self.parse_uident()?;
+                let cons = self.parse_upper_var()?;
                 let flds = if let Token::LParen = self.peek_token() {
                     self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
                         par.parse_expr()
@@ -552,13 +554,13 @@ impl<'src> Parser<'src> {
                 Ok(Pattern::Lit { lit, span })
             }
             Token::LowerIdent => {
-                let var = self.parse_lident()?;
+                let var = self.parse_lower_var()?;
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Ok(Pattern::Var { var, span })
             }
             Token::UpperIdent => {
-                let cons = self.parse_uident()?;
+                let cons = self.parse_upper_var()?;
                 let flds = if let Token::LParen = self.peek_token() {
                     self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
                         par.parse_pattern()
@@ -593,7 +595,7 @@ impl<'src> Parser<'src> {
                 self.match_token(Token::Fresh)?;
                 let vars =
                     self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
-                        par.parse_lident()
+                        par.parse_lower_var()
                     })?;
                 self.match_token(Token::LParen)?;
                 let body = Box::new(self.parse_goal()?);
@@ -666,7 +668,7 @@ impl<'src> Parser<'src> {
                 Ok(Type::Lit(lit_typ))
             }
             Token::UpperIdent => {
-                let cons = self.parse_uident()?;
+                let cons = self.parse_upper_var()?;
                 Ok(Type::Data(cons))
             }
             _tok => Err(ParseError::FailedToParse(
@@ -679,7 +681,7 @@ impl<'src> Parser<'src> {
 
     fn parse_varient(&mut self) -> ParseResult<Constructor> {
         let start = self.start_pos();
-        let name = self.parse_uident()?;
+        let name = self.parse_upper_var()?;
         let flds = if let Token::LParen = self.peek_token() {
             self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
                 par.parse_type()
@@ -695,7 +697,7 @@ impl<'src> Parser<'src> {
     fn parse_data_decl(&mut self) -> ParseResult<DataDecl> {
         let start = self.start_pos();
         self.match_token(Token::Datatype)?;
-        let name = self.parse_uident()?;
+        let name = self.parse_upper_var()?;
         let vars = self.delimited_list(Token::Where, Token::Bar, Token::End, |par| {
             par.parse_varient()
         })?;
@@ -711,9 +713,9 @@ impl<'src> Parser<'src> {
     fn parse_func_decl(&mut self) -> ParseResult<FuncDecl> {
         let start = self.start_pos();
         self.match_token(Token::Function)?;
-        let name = self.parse_lident()?;
+        let name = self.parse_lower_var()?;
         let pars = self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
-            let ident = par.parse_lident()?;
+            let ident = par.parse_lower_var()?;
             par.match_token(Token::Colon)?;
             let typ = par.parse_type()?;
             Ok((ident, typ))
@@ -737,9 +739,9 @@ impl<'src> Parser<'src> {
     fn parse_pred_decl(&mut self) -> ParseResult<PredDecl> {
         let start = self.start_pos();
         self.match_token(Token::Predicate)?;
-        let name = self.parse_lident()?;
+        let name = self.parse_lower_var()?;
         let pars = self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
-            let ident = par.parse_lident()?;
+            let ident = par.parse_lower_var()?;
             par.match_token(Token::Colon)?;
             let typ = par.parse_type()?;
             Ok((ident, typ))
@@ -796,7 +798,7 @@ impl<'src> Parser<'src> {
     fn parse_query_decl(&mut self) -> ParseResult<QueryDecl> {
         let start = self.start_pos();
         self.match_token(Token::Query)?;
-        let entry = self.parse_lident()?;
+        let entry = self.parse_lower_var()?;
         let params = self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
             par.parse_query_param()
         })?;
@@ -811,9 +813,9 @@ impl<'src> Parser<'src> {
 
     fn parse_query_param(&mut self) -> ParseResult<(QueryParam, Span)> {
         let start = self.start_pos();
-        let name = self.parse_lident()?;
+        let name = self.parse_lower_var()?;
 
-        match name.as_str() {
+        match name.ident.as_str() {
             "depth_step" => {
                 self.match_token(Token::Equal)?;
                 let val = self.parse_pos_int()?;

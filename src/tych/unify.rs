@@ -14,7 +14,7 @@ impl From<&Type> for UnifyType {
     fn from(value: &Type) -> Self {
         match value {
             Type::Lit(lit) => UnifyType::Lit(*lit),
-            Type::Data(name) => UnifyType::Cons(*name, Vec::new()),
+            Type::Data(name) => UnifyType::Cons(name.ident, Vec::new()),
         }
     }
 }

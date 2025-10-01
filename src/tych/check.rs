@@ -98,7 +98,7 @@ impl Checker {
     fn check_expr(&mut self, expr: &Expr) -> UnifyType {
         match expr {
             Expr::Lit { lit, span: _ } => UnifyType::Lit(lit.get_typ()),
-            Expr::Var { var, span: _ } => self.val_ctx[var].clone(),
+            Expr::Var { var, span: _ } => self.val_ctx[&var.ident].clone(),
             Expr::Prim {
                 prim,
                 args,
@@ -110,7 +110,7 @@ impl Checker {
                 span: _,
             } => {
                 let flds = flds.iter().map(|fld| self.check_expr(fld)).collect();
-                let (pars, res) = self.cons_ctx[cons].clone();
+                let (pars, res) = self.cons_ctx[&cons.ident].clone();
                 self.unify_many(&pars, &flds);
                 res
             }
@@ -145,7 +145,7 @@ impl Checker {
                 args,
                 span: _,
             } => {
-                let (pars, res) = self.func_ctx[func].clone();
+                let (pars, res) = self.func_ctx[&func.ident].clone();
                 let args = args.iter().map(|arg| self.check_expr(arg)).collect();
                 self.unify_many(&pars, &args);
                 res
@@ -197,7 +197,7 @@ impl Checker {
             } => {
                 for var in vars {
                     let cell = self.fresh();
-                    self.val_ctx.insert(*var, cell);
+                    self.val_ctx.insert(var.ident, cell);
                 }
                 self.check_goal(&body);
             }
@@ -211,7 +211,7 @@ impl Checker {
                 args,
                 span: _,
             } => {
-                let pars = self.pred_ctx[pred].clone();
+                let pars = self.pred_ctx[&pred.ident].clone();
                 let args = args.iter().map(|arg| self.check_expr(arg)).collect();
                 self.unify_many(&pars, &args);
             }
@@ -234,7 +234,7 @@ impl Checker {
             Pattern::Lit { lit, span: _ } => UnifyType::Lit(lit.get_typ()),
             Pattern::Var { var, span: _ } => {
                 let ty = self.fresh();
-                self.val_ctx.insert(*var, ty.clone());
+                self.val_ctx.insert(var.ident, ty.clone());
                 ty
             }
             Pattern::Cons {
@@ -242,7 +242,7 @@ impl Checker {
                 flds,
                 span: _,
             } => {
-                let (pars, res) = self.cons_ctx[&cons].clone();
+                let (pars, res) = self.cons_ctx[&cons.ident].clone();
                 for (par, fld) in pars.iter().zip(flds.iter()) {
                     let ty = self.check_patn(fld);
                     self.unify(par, &ty);
@@ -253,14 +253,14 @@ impl Checker {
     }
 
     fn scan_data_decl_head(&mut self, data_decl: &DataDecl) {
-        let cons_names = data_decl.cons.iter().map(|cons| cons.name).collect();
-        self.data_ctx.insert(data_decl.name, cons_names);
+        let cons_names = data_decl.cons.iter().map(|cons| cons.name.ident).collect();
+        self.data_ctx.insert(data_decl.name.ident, cons_names);
 
         for cons in data_decl.cons.iter() {
             let flds = cons.flds.iter().map(|fld| fld.into()).collect();
             self.cons_ctx.insert(
-                cons.name,
-                (flds, UnifyType::Cons(data_decl.name, Vec::new())),
+                cons.name.ident,
+                (flds, UnifyType::Cons(data_decl.name.ident, Vec::new())),
             );
         }
     }
@@ -272,7 +272,7 @@ impl Checker {
             .map(|(_par, typ)| typ.into())
             .collect();
         let res = (&func_decl.res).into();
-        self.func_ctx.insert(func_decl.name, (pars, res));
+        self.func_ctx.insert(func_decl.name.ident, (pars, res));
     }
 
     fn scan_pred_decl_head(&mut self, pred_decl: &PredDecl) {
@@ -281,14 +281,14 @@ impl Checker {
             .iter()
             .map(|(_par, typ)| typ.into())
             .collect();
-        self.pred_ctx.insert(pred_decl.name, pars);
+        self.pred_ctx.insert(pred_decl.name.ident, pars);
     }
 
     fn check_func_decl(&mut self, func_decl: &FuncDecl) {
-        let (pars_ty, res_ty) = self.func_ctx[&func_decl.name].clone();
+        let (pars_ty, res_ty) = self.func_ctx[&func_decl.name.ident].clone();
 
         for ((par, _), par_ty) in func_decl.pars.iter().zip(pars_ty) {
-            self.val_ctx.insert(*par, par_ty);
+            self.val_ctx.insert(par.ident, par_ty);
         }
 
         let body_ty = self.check_expr(&func_decl.body);
@@ -296,10 +296,10 @@ impl Checker {
     }
 
     fn check_pred_decl(&mut self, pred_decl: &PredDecl) {
-        let pars_ty = self.pred_ctx[&pred_decl.name].clone();
+        let pars_ty = self.pred_ctx[&pred_decl.name.ident].clone();
 
         for ((par, _), par_ty) in pred_decl.pars.iter().zip(pars_ty) {
-            self.val_ctx.insert(*par, par_ty);
+            self.val_ctx.insert(par.ident, par_ty);
         }
 
         self.check_goal(&pred_decl.body);

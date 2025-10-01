@@ -5,52 +5,60 @@ use crate::utils::env_map::EnvMap;
 
 struct Renamer {
     /// map a dummy identifier to an unique Identifier
-    val_map: EnvMap<Ident, Ident>,
-    func_pred_map: EnvMap<Ident, Ident>,
-    typ_map: EnvMap<Ident, Ident>,
-    cons_map: EnvMap<Ident, Ident>,
+    val_map: EnvMap<Ident, (Var, Ident)>,
+    data_map: EnvMap<Ident, (Var, Ident)>,
+    cons_map: EnvMap<Ident, (Var, Ident)>,
+    func_pred_map: EnvMap<Ident, (Var, Ident)>,
     errors: Vec<RenameError>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum VarType {
+    Value,
+    DataType,
+    Constructor,
+    FuncPred,
+}
+
+impl VarType {
+    pub fn get_name(&self) -> &'static str {
+        match self {
+            VarType::Value => "value",
+            VarType::DataType => "datatype",
+            VarType::Constructor => "constructor",
+            VarType::FuncPred => "func-pred",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RenameError {
-    UnboundedValueVariable(Ident),
-    UnboundedFuncPredVariable(Ident),
-    UnboundedTypeVariable(Ident),
-    UnboundedConstrVariable(Ident),
-    MultipleValueDefinition(Ident),
-    MultipleFuncPredDefinition(Ident),
-    MultipleTypeDefinition(Ident),
-    MultipleConstrDefinition(Ident),
+    UnboundedVariable(Var, VarType),
+    MultipleDefinition(Var, Var, VarType),
 }
 
 use crate::driver::diagnostic::Diagnostic;
 impl Into<Diagnostic> for RenameError {
     fn into(self) -> Diagnostic {
         match self {
-            RenameError::UnboundedValueVariable(var) => {
-                Diagnostic::error(format!("unbounded value variable {var}!"))
+            RenameError::UnboundedVariable(var_use, ty) => {
+                let ty = ty.get_name();
+                Diagnostic::error(format!("unbounded {ty} varible!")).line_span(
+                    var_use.span.clone(),
+                    format!("the identifier \"{}\" is not defined", var_use.ident),
+                )
             }
-            RenameError::UnboundedFuncPredVariable(var) => {
-                Diagnostic::error(format!("unbounded func-pred variable {var}!"))
-            }
-            RenameError::UnboundedTypeVariable(var) => {
-                Diagnostic::error(format!("unbounded type variable {var}!"))
-            }
-            RenameError::UnboundedConstrVariable(var) => {
-                Diagnostic::error(format!("unbounded constructor variable {var}!"))
-            }
-            RenameError::MultipleValueDefinition(var) => {
-                Diagnostic::error(format!("unbounded value variable {var}!"))
-            }
-            RenameError::MultipleFuncPredDefinition(var) => {
-                Diagnostic::error(format!("unbounded func-pred variable {var}!"))
-            }
-            RenameError::MultipleTypeDefinition(var) => {
-                Diagnostic::error(format!("unbounded type variable {var}!"))
-            }
-            RenameError::MultipleConstrDefinition(var) => {
-                Diagnostic::error(format!("unbounded constructor variable {var}!"))
+            RenameError::MultipleDefinition(var_def1, var_def2, ty) => {
+                let ty = ty.get_name();
+                Diagnostic::error(format!("multipile {ty} varible definition!"))
+                    .line_span(
+                        var_def1.span.clone(),
+                        format!("the identifier {} is defined here", var_def1.ident),
+                    )
+                    .line_span(
+                        var_def2.span.clone(),
+                        format!("and it is defined here again"),
+                    )
             }
         }
     }
@@ -61,7 +69,7 @@ impl Renamer {
         Renamer {
             val_map: EnvMap::new(),
             func_pred_map: EnvMap::new(),
-            typ_map: EnvMap::new(),
+            data_map: EnvMap::new(),
             cons_map: EnvMap::new(),
             errors: Vec::new(),
         }
@@ -69,97 +77,61 @@ impl Renamer {
 
     fn enter_scope(&mut self) {
         self.val_map.enter_scope();
-        self.func_pred_map.enter_scope();
-        self.typ_map.enter_scope();
+        self.data_map.enter_scope();
         self.cons_map.enter_scope();
+        self.func_pred_map.enter_scope();
     }
 
     fn leave_scope(&mut self) {
         self.val_map.leave_scope();
-        self.func_pred_map.leave_scope();
-        self.typ_map.leave_scope();
+        self.data_map.leave_scope();
         self.cons_map.leave_scope();
+        self.func_pred_map.leave_scope();
     }
 
-    fn intro_val_var(&mut self, var: &mut Ident) {
-        assert!(var.is_dummy());
-        let new_var = var.uniquify();
-        if self.val_map.insert(*var, new_var) {
-            self.errors.push(RenameError::MultipleValueDefinition(*var));
+    fn intro_var(&mut self, var: &mut Var, ty: VarType) {
+        assert!(var.ident.is_dummy());
+        let map = match ty {
+            VarType::Value => &mut self.val_map,
+            VarType::DataType => &mut self.data_map,
+            VarType::Constructor => &mut self.cons_map,
+            VarType::FuncPred => &mut self.func_pred_map,
+        };
+        let new_ident = var.ident.uniquify();
+        if map.contains_key(&var.ident) {
+            let (old_var, _) = map.get(&var.ident).unwrap();
+            self.errors.push(RenameError::MultipleDefinition(
+                old_var.clone(),
+                var.clone(),
+                ty,
+            ));
         }
-        *var = new_var
+        map.insert(var.ident, (var.clone(), new_ident));
+        var.ident = new_ident
     }
 
-    fn intro_func_pred_var(&mut self, var: &mut Ident) {
-        assert!(var.is_dummy());
-        let new_var = var.uniquify();
-        if self.func_pred_map.insert(*var, new_var) {
+    fn update_var(&mut self, var: &mut Var, ty: VarType) {
+        assert!(var.ident.is_dummy());
+        let map = match ty {
+            VarType::Value => &self.val_map,
+            VarType::DataType => &self.data_map,
+            VarType::Constructor => &self.cons_map,
+            VarType::FuncPred => &self.func_pred_map,
+        };
+        if map.contains_key(&var.ident) {
+            let (_old_var, new_ident) = map.get(&var.ident).unwrap();
+            var.ident = *new_ident;
+        } else {
             self.errors
-                .push(RenameError::MultipleFuncPredDefinition(*var));
+                .push(RenameError::UnboundedVariable(var.clone(), ty));
+            var.ident = var.ident.uniquify();
         }
-        *var = new_var
-    }
-
-    fn intro_typ_var(&mut self, var: &mut Ident) {
-        assert!(var.is_dummy());
-        let new_var = var.uniquify();
-        if self.typ_map.insert(*var, new_var) {
-            self.errors.push(RenameError::MultipleTypeDefinition(*var));
-        }
-        *var = new_var
-    }
-
-    fn intro_cons_var(&mut self, var: &mut Ident) {
-        assert!(var.is_dummy());
-        let new_var = var.uniquify();
-        if self.cons_map.insert(*var, new_var) {
-            self.errors
-                .push(RenameError::MultipleConstrDefinition(*var));
-        }
-        *var = new_var
-    }
-
-    fn update_val_var(&mut self, var: &mut Ident) {
-        assert!(var.is_dummy());
-        let new_var = self.val_map.get(var).copied().unwrap_or_else(|| {
-            self.errors.push(RenameError::UnboundedValueVariable(*var));
-            *var
-        });
-        *var = new_var;
-    }
-
-    fn update_func_pred_var(&mut self, var: &mut Ident) {
-        assert!(var.is_dummy());
-        let new_var = self.func_pred_map.get(var).copied().unwrap_or_else(|| {
-            self.errors
-                .push(RenameError::UnboundedFuncPredVariable(*var));
-            *var
-        });
-        *var = new_var;
-    }
-
-    fn update_typ_var(&mut self, var: &mut Ident) {
-        assert!(var.is_dummy());
-        let new_var = self.typ_map.get(var).copied().unwrap_or_else(|| {
-            self.errors.push(RenameError::UnboundedTypeVariable(*var));
-            *var
-        });
-        *var = new_var;
-    }
-
-    fn update_cons_var(&mut self, var: &mut Ident) {
-        assert!(var.is_dummy());
-        let new_var = self.cons_map.get(var).copied().unwrap_or_else(|| {
-            self.errors.push(RenameError::UnboundedConstrVariable(*var));
-            *var
-        });
-        *var = new_var;
     }
 
     fn visit_type(&mut self, typ: &mut Type) {
         match typ {
             Type::Lit(_) => {}
-            Type::Data(var) => self.update_typ_var(var),
+            Type::Data(var) => self.update_var(var, VarType::DataType),
         }
     }
 
@@ -167,7 +139,7 @@ impl Renamer {
         match expr {
             Expr::Lit { lit: _, span: _ } => {}
             Expr::Var { var, span: _ } => {
-                self.update_val_var(var);
+                self.update_var(var, VarType::Value);
             }
             Expr::Prim {
                 prim: _,
@@ -181,7 +153,7 @@ impl Renamer {
                 args,
                 span: _,
             } => {
-                self.update_func_pred_var(func);
+                self.update_var(func, VarType::FuncPred);
                 args.iter_mut().for_each(|arg| self.visit_expr(arg));
             }
             Expr::Cons {
@@ -189,7 +161,7 @@ impl Renamer {
                 flds,
                 span: _,
             } => {
-                self.update_cons_var(name);
+                self.update_var(name, VarType::Constructor);
                 flds.iter_mut().for_each(|fld| self.visit_expr(fld));
             }
             Expr::Match {
@@ -251,14 +223,14 @@ impl Renamer {
                 // do nothing
             }
             Pattern::Var { var, span: _ } => {
-                self.intro_val_var(var);
+                self.intro_var(var, VarType::Value);
             }
             Pattern::Cons {
                 cons,
                 flds,
                 span: _,
             } => {
-                self.update_cons_var(cons);
+                self.update_var(cons, VarType::Constructor);
                 for fld in flds {
                     self.visit_pattern(fld);
                 }
@@ -274,7 +246,8 @@ impl Renamer {
                 span: _,
             } => {
                 self.enter_scope();
-                vars.iter_mut().for_each(|var| self.intro_val_var(var));
+                vars.iter_mut()
+                    .for_each(|var| self.intro_var(var, VarType::Value));
                 self.visit_goal(body);
                 self.leave_scope();
             }
@@ -287,7 +260,7 @@ impl Renamer {
                 args,
                 span: _,
             } => {
-                self.update_func_pred_var(pred);
+                self.update_var(pred, VarType::FuncPred);
                 args.iter_mut().for_each(|arg| self.visit_expr(arg));
             }
             Goal::And { goals, span: _ } => {
@@ -301,13 +274,13 @@ impl Renamer {
     }
 
     fn visit_func_decl_head(&mut self, func_decl: &mut FuncDecl) {
-        self.intro_func_pred_var(&mut func_decl.name);
+        self.intro_var(&mut func_decl.name, VarType::FuncPred);
     }
 
     fn visit_func_decl(&mut self, func_decl: &mut FuncDecl) {
         self.enter_scope();
         func_decl.pars.iter_mut().for_each(|(par, typ)| {
-            self.intro_val_var(par);
+            self.intro_var(par, VarType::Value);
             self.visit_type(typ);
         });
         self.visit_type(&mut func_decl.res);
@@ -316,13 +289,13 @@ impl Renamer {
     }
 
     fn visit_pred_decl_head(&mut self, pred_decl: &mut PredDecl) {
-        self.intro_func_pred_var(&mut pred_decl.name);
+        self.intro_var(&mut pred_decl.name, VarType::FuncPred);
     }
 
     fn visit_pred_decl(&mut self, pred_decl: &mut PredDecl) {
         self.enter_scope();
         pred_decl.pars.iter_mut().for_each(|(par, typ)| {
-            self.intro_val_var(par);
+            self.intro_var(par, VarType::Value);
             self.visit_type(typ);
         });
         self.visit_goal(&mut pred_decl.body);
@@ -330,9 +303,9 @@ impl Renamer {
     }
 
     fn visit_data_decl_head(&mut self, data_decl: &mut DataDecl) {
-        self.intro_typ_var(&mut data_decl.name);
+        self.intro_var(&mut data_decl.name, VarType::DataType);
         data_decl.cons.iter_mut().for_each(|cons| {
-            self.intro_cons_var(&mut cons.name);
+            self.intro_var(&mut cons.name, VarType::Constructor);
         });
     }
 
@@ -345,7 +318,7 @@ impl Renamer {
     }
 
     fn visit_query_decl(&mut self, query_decl: &mut QueryDecl) {
-        self.update_func_pred_var(&mut query_decl.entry);
+        self.update_var(&mut query_decl.entry, VarType::FuncPred);
     }
 
     fn visit_prog(&mut self, prog: &mut Program) {
