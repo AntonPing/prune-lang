@@ -23,31 +23,14 @@ pub fn run_cli() -> Result<Vec<usize>, io::Error> {
     Ok(res)
 }
 
-pub enum TestMode {
-    Unsat,
-    Sat,
-    NoTest,
-}
-
-pub fn run_cli_test(prog_name: PathBuf, mode: TestMode) -> Result<(), io::Error> {
+pub fn run_cli_test(prog_name: PathBuf) -> Result<Vec<usize>, io::Error> {
     let args = CliArgs {
         input: prog_name,
         output: None,
         verbosity: 10,
     };
     let res = run_pipline(&args)?;
-    match mode {
-        TestMode::Unsat => {
-            assert!(res.iter().all(|p| *p == 0));
-        }
-        TestMode::Sat => {
-            assert!(res.iter().any(|p| *p > 0));
-        }
-        TestMode::NoTest => {
-            // do nothing
-        }
-    }
-    Ok(())
+    Ok(res)
 }
 
 pub fn run_pipline(args: &CliArgs) -> Result<Vec<usize>, io::Error> {

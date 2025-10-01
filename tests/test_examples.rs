@@ -1,81 +1,110 @@
-use prune_lang::driver::action;
+use std::path::PathBuf;
+
+use prune_lang::driver::cli;
 
 #[test]
 fn test_append_good() {
-    action::test_sym_exec_good_prog("append_good").unwrap()
+    let res = cli::run_cli_test(PathBuf::from("./examples/sym_exec_good/append_good.pr")).unwrap();
+    assert!(res.iter().all(|p| *p == 0));
 }
 
 #[test]
 fn test_append_bad() {
-    action::test_sym_exec_bad_prog("append_bad").unwrap()
+    let res = cli::run_cli_test(PathBuf::from("./examples/sym_exec_bad/append_bad.pr")).unwrap();
+    assert!(res.iter().any(|p| *p > 0));
 }
 
 #[test]
 fn test_double_reverse_good() {
-    action::test_sym_exec_good_prog("double_reverse_good").unwrap()
+    let res = cli::run_cli_test(PathBuf::from(
+        "./examples/sym_exec_good/double_reverse_good.pr",
+    ))
+    .unwrap();
+    assert!(res.iter().all(|p| *p == 0));
 }
 
 #[test]
 fn test_double_reverse_bad() {
-    action::test_sym_exec_bad_prog("double_reverse_bad").unwrap()
+    let res = cli::run_cli_test(PathBuf::from(
+        "./examples/sym_exec_bad/double_reverse_bad.pr",
+    ))
+    .unwrap();
+    assert!(res.iter().any(|p| *p > 0));
 }
 
 #[test]
 fn test_reverse_length_good() {
-    action::test_sym_exec_good_prog("reverse_length_good").unwrap()
+    let res = cli::run_cli_test(PathBuf::from(
+        "./examples/sym_exec_good/reverse_length_good.pr",
+    ))
+    .unwrap();
+    assert!(res.iter().all(|p| *p == 0));
 }
 
 #[test]
 fn test_reverse_length_bad() {
-    action::test_sym_exec_bad_prog("reverse_length_bad").unwrap()
+    let res = cli::run_cli_test(PathBuf::from(
+        "./examples/sym_exec_bad/reverse_length_bad.pr",
+    ))
+    .unwrap();
+    assert!(res.iter().any(|p| *p > 0));
 }
 
 #[test]
 fn test_tree_insert_good() {
-    action::test_sym_exec_good_prog("tree_insert_good").unwrap()
+    let res = cli::run_cli_test(PathBuf::from(
+        "./examples/sym_exec_good/tree_insert_good.pr",
+    ))
+    .unwrap();
+    assert!(res.iter().all(|p| *p == 0));
 }
 
 #[test]
 fn test_tree_insert_bad() {
-    action::test_sym_exec_bad_prog("tree_insert_bad").unwrap()
+    let res =
+        cli::run_cli_test(PathBuf::from("./examples/sym_exec_bad/tree_insert_bad.pr")).unwrap();
+    assert!(res.iter().any(|p| *p > 0));
 }
 
 #[test]
 fn test_avl_tree_good() {
-    action::test_sym_exec_good_prog("avl_tree_good").unwrap()
+    let res =
+        cli::run_cli_test(PathBuf::from("./examples/sym_exec_good/avl_tree_good.pr")).unwrap();
+    assert!(res.iter().all(|p| *p == 0));
 }
 
 // #[test]
 // fn test_avl_tree_bad() {
-//     action::test_sym_exec_bad_prog("avl_tree_bad").unwrap()
+//     let res = cli::run_cli_test(PathBuf::from("./examples/sym_exec_bad/avl_tree_bad.pr")).unwrap();
+//     assert!(res.iter().any(|p| *p > 0));
 // }
 
 #[test]
 fn test_avl_tree_gen() {
-    action::test_test_gen_prog("avl_tree_gen").unwrap()
+    cli::run_cli_test(PathBuf::from("./examples/test_gen/avl_tree_gen.pr")).unwrap();
 }
 
 #[test]
 fn test_lambda_free_gen() {
-    action::test_test_gen_prog("lambda_free_gen").unwrap()
+    cli::run_cli_test(PathBuf::from("./examples/test_gen/lambda_free_gen.pr")).unwrap();
 }
 
 #[test]
 fn test_stlc_term_gen() {
-    action::test_test_gen_prog("stlc_term_gen").unwrap()
+    cli::run_cli_test(PathBuf::from("./examples/test_gen/stlc_term_gen.pr")).unwrap();
 }
 
 #[test]
 fn test_mini_lang_gen() {
-    action::test_test_gen_prog("mini_lang_gen").unwrap()
+    cli::run_cli_test(PathBuf::from("./examples/test_gen/mini_lang_gen.pr")).unwrap();
 }
 
 #[test]
 fn test_reverse_forward() {
-    action::test_basic_prog("reverse_forward").unwrap()
+    cli::run_cli_test(PathBuf::from("./examples/basic/reverse_forward.pr")).unwrap();
 }
 
 #[test]
 fn test_reverse_backward() {
-    action::test_basic_prog("reverse_backward").unwrap()
+    cli::run_cli_test(PathBuf::from("./examples/basic/reverse_backward.pr")).unwrap();
 }
