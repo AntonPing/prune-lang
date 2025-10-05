@@ -1,23 +1,24 @@
+use logos::Span;
+
 use super::*;
 
 use crate::syntax::ast::*;
 use crate::utils::env_map::EnvMap;
 
-struct Renamer {
-    /// map a dummy identifier to an unique Identifier
-    val_map: EnvMap<Ident, (Var, Ident)>,
-    data_map: EnvMap<Ident, (Var, Ident)>,
-    cons_map: EnvMap<Ident, (Var, Ident)>,
-    func_pred_map: EnvMap<Ident, (Var, Ident)>,
-    errors: Vec<RenameError>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum VarType {
     Value,
     DataType,
     Constructor,
     FuncPred,
+}
+
+struct Renamer {
+    /// map a dummy identifier to an unique Identifier
+    /// key: (dummy identifier, variable type)
+    /// value: (definition span location, assigned unique variable)
+    var_map: EnvMap<(Ident, VarType), (Span, Ident)>,
+    errors: Vec<RenameError>,
 }
 
 impl VarType {
@@ -33,32 +34,63 @@ impl VarType {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RenameError {
-    UnboundedVariable(Var, VarType),
-    MultipleDefinition(Var, Var, VarType),
+    UnboundedVariable {
+        ident: Ident,
+        span: Span,
+        var_ty: VarType,
+    },
+    MultipleDefinition {
+        ident: Ident,
+        span1: Span,
+        span2: Span,
+        var_ty: VarType,
+    },
+    UnusedVarible {
+        ident: Ident,
+        span: Span,
+        var_ty: VarType,
+    },
 }
 
 use crate::driver::diagnostic::Diagnostic;
 impl Into<Diagnostic> for RenameError {
     fn into(self) -> Diagnostic {
         match self {
-            RenameError::UnboundedVariable(var_use, ty) => {
-                let ty = ty.get_name();
-                Diagnostic::error(format!("unbounded {ty} varible!")).line_span(
-                    var_use.span.clone(),
-                    format!("the identifier \"{}\" is not defined", var_use.ident),
+            RenameError::UnboundedVariable {
+                ident,
+                span,
+                var_ty,
+            } => {
+                let var_ty = var_ty.get_name();
+                Diagnostic::error(format!("unbounded {var_ty} varible!")).line_span(
+                    span.clone(),
+                    format!("the identifier \"{}\" is not defined", ident),
                 )
             }
-            RenameError::MultipleDefinition(var_def1, var_def2, ty) => {
-                let ty = ty.get_name();
-                Diagnostic::error(format!("multipile {ty} varible definition!"))
+            RenameError::MultipleDefinition {
+                ident,
+                span1,
+                span2,
+                var_ty,
+            } => {
+                let var_ty = var_ty.get_name();
+                Diagnostic::error(format!("multipile {var_ty} varible definition!"))
                     .line_span(
-                        var_def1.span.clone(),
-                        format!("the identifier {} is defined here", var_def1.ident),
+                        span1.clone(),
+                        format!("the identifier {} is defined here", ident),
                     )
-                    .line_span(
-                        var_def2.span.clone(),
-                        format!("and it is defined here again"),
-                    )
+                    .line_span(span2.clone(), format!("and it is defined here again"))
+            }
+            RenameError::UnusedVarible {
+                ident,
+                span,
+                var_ty,
+            } => {
+                let var_ty = var_ty.get_name();
+                Diagnostic::warn(format!("unused {var_ty} varible!")).line_span(
+                    span.clone(),
+                    format!("the identifier {} is defined here, but never used", ident),
+                )
             }
         }
     }
@@ -67,63 +99,47 @@ impl Into<Diagnostic> for RenameError {
 impl Renamer {
     fn new() -> Renamer {
         Renamer {
-            val_map: EnvMap::new(),
-            func_pred_map: EnvMap::new(),
-            data_map: EnvMap::new(),
-            cons_map: EnvMap::new(),
+            var_map: EnvMap::new(),
             errors: Vec::new(),
         }
     }
 
     fn enter_scope(&mut self) {
-        self.val_map.enter_scope();
-        self.data_map.enter_scope();
-        self.cons_map.enter_scope();
-        self.func_pred_map.enter_scope();
+        self.var_map.enter_scope();
     }
 
     fn leave_scope(&mut self) {
-        self.val_map.leave_scope();
-        self.data_map.leave_scope();
-        self.cons_map.leave_scope();
-        self.func_pred_map.leave_scope();
+        self.var_map.leave_scope();
     }
 
     fn intro_var(&mut self, var: &mut Var, ty: VarType) {
         assert!(var.ident.is_dummy());
-        let map = match ty {
-            VarType::Value => &mut self.val_map,
-            VarType::DataType => &mut self.data_map,
-            VarType::Constructor => &mut self.cons_map,
-            VarType::FuncPred => &mut self.func_pred_map,
-        };
         let new_ident = var.ident.uniquify();
-        if map.contains_key(&var.ident) {
-            let (old_var, _) = map.get(&var.ident).unwrap();
-            self.errors.push(RenameError::MultipleDefinition(
-                old_var.clone(),
-                var.clone(),
-                ty,
-            ));
+        if self.var_map.contains_key(&(var.ident, ty)) {
+            let (old_span, _) = self.var_map.get(&(var.ident, ty)).unwrap();
+            self.errors.push(RenameError::MultipleDefinition {
+                ident: var.ident,
+                span1: old_span.clone(),
+                span2: var.span.clone(),
+                var_ty: ty,
+            });
         }
-        map.insert(var.ident, (var.clone(), new_ident));
+        self.var_map
+            .insert((var.ident, ty), (var.span.clone(), new_ident));
         var.ident = new_ident
     }
 
     fn update_var(&mut self, var: &mut Var, ty: VarType) {
         assert!(var.ident.is_dummy());
-        let map = match ty {
-            VarType::Value => &self.val_map,
-            VarType::DataType => &self.data_map,
-            VarType::Constructor => &self.cons_map,
-            VarType::FuncPred => &self.func_pred_map,
-        };
-        if map.contains_key(&var.ident) {
-            let (_old_var, new_ident) = map.get(&var.ident).unwrap();
+        if self.var_map.contains_key(&(var.ident, ty)) {
+            let (_old_var, new_ident) = self.var_map.get(&(var.ident, ty)).unwrap();
             var.ident = *new_ident;
         } else {
-            self.errors
-                .push(RenameError::UnboundedVariable(var.clone(), ty));
+            self.errors.push(RenameError::UnboundedVariable {
+                ident: var.ident,
+                span: var.span.clone(),
+                var_ty: ty,
+            });
             var.ident = var.ident.uniquify();
         }
     }
