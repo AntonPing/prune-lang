@@ -77,7 +77,7 @@ impl Description {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Diagnostic {
-    level: DiagLevel,
+    pub level: DiagLevel,
     title: String,
     descriptions: Vec<Description>,
 }

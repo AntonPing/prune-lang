@@ -3,7 +3,6 @@ use logos::Span;
 use super::*;
 
 use crate::syntax::ast::*;
-use crate::utils::env_map::EnvMap;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum VarType {
@@ -13,11 +12,15 @@ pub enum VarType {
     FuncPred,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+struct VarInfo {
+    new_id: Ident,
+    span: Span,
+    used: bool,
+}
+
 struct Renamer {
-    /// map a dummy identifier to an unique Identifier
-    /// key: (dummy identifier, variable type)
-    /// value: (definition span location, assigned unique variable)
-    var_map: EnvMap<(Ident, VarType), (Span, Ident)>,
+    scopes: Vec<HashMap<(Ident, VarType), VarInfo>>,
     errors: Vec<RenameError>,
 }
 
@@ -99,41 +102,75 @@ impl Into<Diagnostic> for RenameError {
 impl Renamer {
     fn new() -> Renamer {
         Renamer {
-            var_map: EnvMap::new(),
+            scopes: vec![HashMap::new()],
             errors: Vec::new(),
         }
     }
 
+    fn scope_get(&self, ident: Ident, ty: VarType) -> Option<&VarInfo> {
+        for map in self.scopes.iter().rev() {
+            if let Some(res) = map.get(&(ident, ty)) {
+                return Some(res);
+            }
+        }
+        None
+    }
+
+    fn scope_get_mut(&mut self, ident: Ident, ty: VarType) -> Option<&mut VarInfo> {
+        for map in self.scopes.iter_mut().rev() {
+            if let Some(res) = map.get_mut(&(ident, ty)) {
+                return Some(res);
+            }
+        }
+        None
+    }
+
+    fn scope_insert(&mut self, ident: Ident, ty: VarType, info: VarInfo) {
+        self.scopes.last_mut().unwrap().insert((ident, ty), info);
+    }
+
     fn enter_scope(&mut self) {
-        self.var_map.enter_scope();
+        self.scopes.push(HashMap::new());
     }
 
     fn leave_scope(&mut self) {
-        self.var_map.leave_scope();
+        let scope = self.scopes.pop().unwrap();
+        for ((_id, var_ty), info) in scope.into_iter() {
+            if !info.used {
+                self.errors.push(RenameError::UnusedVarible {
+                    ident: info.new_id,
+                    span: info.span,
+                    var_ty,
+                });
+            }
+        }
     }
 
     fn intro_var(&mut self, var: &mut Var, ty: VarType) {
         assert!(var.ident.is_dummy());
-        let new_ident = var.ident.uniquify();
-        if self.var_map.contains_key(&(var.ident, ty)) {
-            let (old_span, _) = self.var_map.get(&(var.ident, ty)).unwrap();
+        if let Some(info) = self.scope_get(var.ident, ty) {
             self.errors.push(RenameError::MultipleDefinition {
                 ident: var.ident,
-                span1: old_span.clone(),
+                span1: info.span.clone(),
                 span2: var.span.clone(),
                 var_ty: ty,
             });
         }
-        self.var_map
-            .insert((var.ident, ty), (var.span.clone(), new_ident));
-        var.ident = new_ident
+        let new_id = var.ident.uniquify();
+        let info = VarInfo {
+            new_id,
+            span: var.span.clone(),
+            used: false,
+        };
+        self.scope_insert(var.ident, ty, info);
+        var.ident = new_id
     }
 
     fn update_var(&mut self, var: &mut Var, ty: VarType) {
         assert!(var.ident.is_dummy());
-        if self.var_map.contains_key(&(var.ident, ty)) {
-            let (_old_var, new_ident) = self.var_map.get(&(var.ident, ty)).unwrap();
-            var.ident = *new_ident;
+        if let Some(info) = self.scope_get_mut(var.ident, ty) {
+            info.used = true;
+            var.ident = info.new_id;
         } else {
             self.errors.push(RenameError::UnboundedVariable {
                 ident: var.ident,

@@ -1,7 +1,6 @@
-use crate::driver::command;
+use super::*;
+use crate::driver::command::Pipeline;
 use clap::Parser;
-use std::io;
-use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -34,29 +33,21 @@ pub fn run_cli_test(prog_name: PathBuf) -> Result<Vec<usize>, io::Error> {
 }
 
 pub fn run_pipline(args: &CliArgs) -> Result<Vec<usize>, io::Error> {
-    let src = command::read_file(&args.input)?;
+    let src = std::fs::read_to_string(&args.input)?;
 
-    let mut prog = command::parse_program(&src).map_err(|diags| {
-        for diag in diags {
-            eprintln!("{}", diag.report(&src, args.verbosity));
+    let mut pipe = Pipeline::new();
+    match pipe.run_pipline(&src) {
+        Ok(res) => {
+            for diag in pipe.diags.into_iter() {
+                eprintln!("{}", diag.report(&src, args.verbosity));
+            }
+            Ok(res)
         }
-        io::Error::new(io::ErrorKind::Other, "failed to parse program!")
-    })?;
-
-    command::rename_pass(&mut prog).map_err(|diags| {
-        for diag in diags {
-            eprintln!("{}", diag.report(&src, args.verbosity));
+        Err(err) => {
+            for diag in pipe.diags.into_iter() {
+                eprintln!("{}", diag.report(&src, args.verbosity));
+            }
+            Err(err)
         }
-        io::Error::new(io::ErrorKind::Other, "found error in varible binding!")
-    })?;
-
-    command::check_pass(&mut prog).map_err(|diags| {
-        for diag in diags {
-            eprintln!("{}", diag.report(&src, args.verbosity));
-        }
-        io::Error::new(io::ErrorKind::Other, "failed to check types!")
-    })?;
-
-    let res = command::run_backend(&prog);
-    Ok(res)
+    }
 }
