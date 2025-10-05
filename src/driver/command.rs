@@ -1,22 +1,28 @@
-use super::diagnostic::Diagnostic;
+use super::cli::CliArgs;
+use super::diagnostic::{DiagLevel, Diagnostic};
 use super::*;
-use crate::driver::diagnostic::DiagLevel;
 use crate::{syntax, tych, walker};
 
 pub struct Pipeline {
+    pub args: CliArgs,
     pub diags: Vec<Diagnostic>,
 }
 
 impl Pipeline {
-    pub fn new() -> Pipeline {
-        Pipeline { diags: Vec::new() }
+    pub fn new(args: CliArgs) -> Pipeline {
+        Pipeline {
+            diags: Vec::new(),
+            args,
+        }
     }
 
     fn emit_diags<D: Into<Diagnostic>>(&mut self, diags: Vec<D>) -> bool {
         let mut flag = false;
         for diag in diags.into_iter() {
             let diag = diag.into();
-            if diag.level == DiagLevel::Error {
+            if diag.level == DiagLevel::Error
+                || (self.args.warn_as_err && diag.level == DiagLevel::Warn)
+            {
                 flag = true;
             }
             self.diags.push(diag);

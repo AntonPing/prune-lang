@@ -2,7 +2,7 @@ use super::*;
 use crate::driver::command::Pipeline;
 use clap::Parser;
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
 pub struct CliArgs {
     pub input: PathBuf,
@@ -12,6 +12,9 @@ pub struct CliArgs {
 
     #[arg(short, long, default_value_t = 10, value_name = "INT")]
     pub verbosity: u8,
+
+    #[arg(long, default_value_t = false)]
+    pub warn_as_err: bool,
 }
 
 pub fn run_cli() -> Result<Vec<usize>, io::Error> {
@@ -27,6 +30,7 @@ pub fn run_cli_test(prog_name: PathBuf) -> Result<Vec<usize>, io::Error> {
         input: prog_name,
         output: None,
         verbosity: 10,
+        warn_as_err: false,
     };
     let res = run_pipline(&args)?;
     Ok(res)
@@ -35,7 +39,7 @@ pub fn run_cli_test(prog_name: PathBuf) -> Result<Vec<usize>, io::Error> {
 pub fn run_pipline(args: &CliArgs) -> Result<Vec<usize>, io::Error> {
     let src = std::fs::read_to_string(&args.input)?;
 
-    let mut pipe = Pipeline::new();
+    let mut pipe = Pipeline::new(args.clone());
     match pipe.run_pipline(&src) {
         Ok(res) => {
             for diag in pipe.diags.into_iter() {
