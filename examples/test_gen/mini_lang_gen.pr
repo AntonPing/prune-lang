@@ -49,8 +49,8 @@ end
 function value_type(val: Value) -> Type
 begin
     match val with
-    | VInt(x) => TyInt
-    | VBool(x) => TyBool
+    | VInt(_) => TyInt
+    | VBool(_) => TyBool
     end
 end
 
@@ -98,9 +98,9 @@ begin
         | SomeType(cond_ty) =>
             if type_eq(cond_ty, TyBool) then
                 match well_type_stmts(ctx, th_br) with
-                | SomeCtx(ctx_th) =>
+                | SomeCtx(_ctx_th) =>
                     match well_type_stmts(ctx, el_br) with
-                    | SomeCtx(ctx_el) => SomeCtx(ctx)
+                    | SomeCtx(_ctx_el) => SomeCtx(ctx)
                     | NoneCtx => NoneCtx
                     end
                 | NoneCtx => NoneCtx

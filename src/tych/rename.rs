@@ -135,8 +135,8 @@ impl Renamer {
 
     fn leave_scope(&mut self) {
         let scope = self.scopes.pop().unwrap();
-        for ((_id, var_ty), info) in scope.into_iter() {
-            if !info.used {
+        for ((id, var_ty), info) in scope.into_iter() {
+            if !info.used && id.as_str().chars().next().unwrap() != '_' {
                 self.errors.push(RenameError::UnusedVarible {
                     ident: info.new_id,
                     span: info.span,
@@ -147,7 +147,6 @@ impl Renamer {
     }
 
     fn intro_var(&mut self, var: &mut Var, ty: VarType) {
-        assert!(var.ident.is_dummy());
         if let Some(info) = self.scope_get(var.ident, ty) {
             self.errors.push(RenameError::MultipleDefinition {
                 ident: var.ident,
@@ -167,7 +166,6 @@ impl Renamer {
     }
 
     fn update_var(&mut self, var: &mut Var, ty: VarType) {
-        assert!(var.ident.is_dummy());
         if let Some(info) = self.scope_get_mut(var.ident, ty) {
             info.used = true;
             var.ident = info.new_id;

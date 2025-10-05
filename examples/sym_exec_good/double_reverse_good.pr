@@ -24,7 +24,7 @@ begin
         | Nil => false
         end
     | Nil => match ys with
-        | Cons(head3, tail3) => false
+        | Cons(_head2, _tail2) => false
         | Nil => true
         end
     end

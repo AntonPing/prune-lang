@@ -265,7 +265,12 @@ impl<'src> Parser<'src> {
     fn parse_lower_var(&mut self) -> ParseResult<Var> {
         match self.peek_token() {
             Token::LowerIdent => {
-                let ident = Ident::dummy(&self.peek_slice());
+                // handle wildcard identifier
+                let ident = if self.peek_slice() == "_" {
+                    Ident::fresh(&"_")
+                } else {
+                    Ident::dummy(&self.peek_slice())
+                };
                 let span = self.peek_span().clone();
                 self.next_token()?;
                 Ok(Var { ident, span })

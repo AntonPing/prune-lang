@@ -115,8 +115,6 @@ pub enum Token {
     Query,
     #[token("where")]
     Where,
-    #[token("_")]
-    Wild,
     #[regex(r"-?[0-9]([0-9])*")]
     Int,
     #[regex(r"-?[0-9]([0-9])*\.[0-9]([0-9])*")]
@@ -138,7 +136,8 @@ pub enum Token {
     TyChar,
     #[token("Unit")]
     TyUnit,
-    #[regex(r"[a-z]([a-zA-Z0-9]|_)*")]
+    // LowerIdent could be just wildcard "_", it is handled in parser
+    #[regex(r"([a-z]|_)([a-zA-Z0-9]|_)*")]
     LowerIdent,
     #[regex(r"[A-Z]([a-zA-Z0-9]|_)*")]
     UpperIdent,

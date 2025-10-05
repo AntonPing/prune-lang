@@ -19,7 +19,7 @@ end
 function length(xs: IntList) -> Int
 begin
     match xs with
-    | Cons(head, tail) => length(tail) + 1
+    | Cons(_, tail) => length(tail) + 1
     | Nil => 0
     end
 end

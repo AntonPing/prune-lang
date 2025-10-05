@@ -27,7 +27,7 @@ end
 function depth(tree: AVLTree) -> Int
 begin
     match tree with
-    | Node(left, x, right) => 
+    | Node(left, _, right) => 
         let l_d = depth(left);
         let r_d = depth(right);
         if l_d < r_d then r_d + 1 else l_d + 1
@@ -38,7 +38,7 @@ end
 function balance_factor(tree: AVLTree) -> Int
 begin
     match tree with
-    | Node(left, x, right) => depth(left) - depth(right)
+    | Node(left, _, right) => depth(left) - depth(right)
     | Empty => 0
     end
 end
@@ -85,7 +85,7 @@ end
 function is_balanced(tree: AVLTree) -> Bool
 begin
     match is_balanced_help(tree) with
-    | Some(d) => true 
+    | Some(_) => true 
     | None => false
     end
 end
@@ -93,7 +93,7 @@ end
 function is_balanced_help(tree: AVLTree) -> OptionInt
 begin
     match tree with
-    | Node(left, x, right) => 
+    | Node(left, _, right) => 
         match is_balanced_help(left) with
         | Some(l_d) => match is_balanced_help(right) with
             | Some(r_d) => 

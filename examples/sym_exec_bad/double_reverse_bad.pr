@@ -6,7 +6,7 @@ end
 function reverse(xs: IntList) -> IntList
 begin
     match xs with
-    | Cons(head, tail) => Cons(42, reverse(tail))
+    | Cons(_head, tail) => Cons(42, reverse(tail))
     | Nil => Nil
     end
 end
@@ -19,7 +19,7 @@ begin
         | Nil => false
         end
     | Nil => match ys with
-        | Cons(head3, tail3) => false
+        | Cons(_head2, _tail2) => false
         | Nil => true
         end
     end

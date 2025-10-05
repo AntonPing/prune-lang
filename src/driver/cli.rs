@@ -30,7 +30,7 @@ pub fn run_cli_test(prog_name: PathBuf) -> Result<Vec<usize>, io::Error> {
         input: prog_name,
         output: None,
         verbosity: 10,
-        warn_as_err: false,
+        warn_as_err: true,
     };
     let res = run_pipline(&args)?;
     Ok(res)

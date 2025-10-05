@@ -19,8 +19,8 @@ end
 function value_type(val: Value) -> Type
 begin
     match val with
-    | VInt(x) => TyInt
-    | VBool(x) => TyBool
+    | VInt(_) => TyInt
+    | VBool(_) => TyBool
     end
 end
 
@@ -31,13 +31,13 @@ begin
         match ty2 with
         | TyInt => true
         | TyBool => false
-        | TyArr(lhs, rhs) => false
+        | TyArr(_, _) => false
         end
     | TyBool =>
         match ty2 with
         | TyInt => false
         | TyBool => true
-        | TyArr(lhs, rhs) => false
+        | TyArr(_, _) => false
         end
     | TyArr(lhs, rhs) =>
         match ty2 with
