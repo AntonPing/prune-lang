@@ -107,28 +107,6 @@ impl Renamer {
         }
     }
 
-    fn scope_get(&self, ident: Ident, ty: VarType) -> Option<&VarInfo> {
-        for map in self.scopes.iter().rev() {
-            if let Some(res) = map.get(&(ident, ty)) {
-                return Some(res);
-            }
-        }
-        None
-    }
-
-    fn scope_get_mut(&mut self, ident: Ident, ty: VarType) -> Option<&mut VarInfo> {
-        for map in self.scopes.iter_mut().rev() {
-            if let Some(res) = map.get_mut(&(ident, ty)) {
-                return Some(res);
-            }
-        }
-        None
-    }
-
-    fn scope_insert(&mut self, ident: Ident, ty: VarType, info: VarInfo) {
-        self.scopes.last_mut().unwrap().insert((ident, ty), info);
-    }
-
     fn enter_scope(&mut self) {
         self.scopes.push(HashMap::new());
     }
@@ -147,7 +125,7 @@ impl Renamer {
     }
 
     fn intro_var(&mut self, var: &mut Var, ty: VarType) {
-        if let Some(info) = self.scope_get(var.ident, ty) {
+        if let Some(info) = self.scopes.last().unwrap().get(&(var.ident, ty)) {
             self.errors.push(RenameError::MultipleDefinition {
                 ident: var.ident,
                 span1: info.span.clone(),
@@ -161,22 +139,27 @@ impl Renamer {
             span: var.span.clone(),
             used: false,
         };
-        self.scope_insert(var.ident, ty, info);
+        self.scopes
+            .last_mut()
+            .unwrap()
+            .insert((var.ident, ty), info);
         var.ident = new_id
     }
 
     fn update_var(&mut self, var: &mut Var, ty: VarType) {
-        if let Some(info) = self.scope_get_mut(var.ident, ty) {
-            info.used = true;
-            var.ident = info.new_id;
-        } else {
-            self.errors.push(RenameError::UnboundedVariable {
-                ident: var.ident,
-                span: var.span.clone(),
-                var_ty: ty,
-            });
-            var.ident = var.ident.uniquify();
+        for map in self.scopes.iter_mut().rev() {
+            if let Some(info) = map.get_mut(&(var.ident, ty)) {
+                info.used = true;
+                var.ident = info.new_id;
+                return;
+            }
         }
+        self.errors.push(RenameError::UnboundedVariable {
+            ident: var.ident,
+            span: var.span.clone(),
+            var_ty: ty,
+        });
+        var.ident = var.ident.uniquify();
     }
 
     fn visit_type(&mut self, typ: &mut Type) {
