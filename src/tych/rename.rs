@@ -240,11 +240,13 @@ impl Renamer {
                 }
             }
             Expr::Guard {
-                goal,
+                lhs,
+                rhs,
                 cont,
                 span: _,
             } => {
-                self.visit_goal(goal);
+                self.visit_expr(lhs);
+                self.visit_expr(rhs);
                 self.visit_expr(cont);
             }
             Expr::Undefined { span: _ } => {}

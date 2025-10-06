@@ -174,11 +174,14 @@ impl Checker {
                 res
             }
             Expr::Guard {
-                goal,
+                lhs,
+                rhs,
                 cont,
                 span: _,
             } => {
-                self.check_goal(goal);
+                let lhs = self.check_expr(lhs);
+                let rhs = self.check_expr(rhs);
+                self.unify(&lhs, &rhs);
                 self.check_expr(cont)
             }
             Expr::Undefined { span: _ } => {

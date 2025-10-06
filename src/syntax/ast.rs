@@ -115,7 +115,8 @@ pub enum Expr {
         span: Span,
     },
     Guard {
-        goal: Box<Goal>,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
         cont: Box<Expr>,
         span: Span,
     },

@@ -244,13 +244,23 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
         }
 
         ast::Expr::Guard {
-            goal,
+            lhs,
+            rhs,
             cont,
             span: _,
         } => {
-            let goal1 = translate_goal(vars, goal);
-            let (atom, goal2) = translate_expr(vars, cont);
-            (atom, Goal::And(vec![goal1, goal2]))
+            let (atom1, goal1) = translate_expr(vars, lhs);
+            let (atom2, goal2) = translate_expr(vars, rhs);
+            let (atom3, goal3) = translate_expr(vars, cont);
+            (
+                atom3,
+                Goal::And(vec![
+                    goal1,
+                    goal2,
+                    unify_decompose(vars, atom1.to_term(), atom2.to_term()),
+                    goal3,
+                ]),
+            )
         }
         ast::Expr::Undefined { span: _ } => (Term::Var(Ident::dummy(&"@phoney")), Goal::Lit(false)),
     }

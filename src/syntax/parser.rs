@@ -502,12 +502,19 @@ impl<'src> Parser<'src> {
             }
             Token::Guard => {
                 self.match_token(Token::Guard)?;
-                let goal = Box::new(self.parse_goal()?);
+                let lhs = Box::new(self.parse_expr()?);
+                self.match_token(Token::Equal)?;
+                let rhs = Box::new(self.parse_expr()?);
                 self.match_token(Token::Semi)?;
                 let cont = Box::new(self.parse_expr()?);
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Ok(Expr::Guard { goal, cont, span })
+                Ok(Expr::Guard {
+                    lhs,
+                    rhs,
+                    cont,
+                    span,
+                })
             }
             Token::Undefined => {
                 self.match_token(Token::Undefined)?;
