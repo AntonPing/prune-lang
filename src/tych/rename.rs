@@ -239,6 +239,11 @@ impl Renamer {
                     self.visit_expr(body);
                 }
             }
+            Expr::Alter { brchs, span: _ } => {
+                for body in brchs {
+                    self.visit_expr(body);
+                }
+            }
             Expr::Guard {
                 lhs,
                 rhs,

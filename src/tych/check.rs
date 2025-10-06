@@ -173,6 +173,14 @@ impl Checker {
                 }
                 res
             }
+            Expr::Alter { brchs, span: _ } => {
+                let res = self.fresh();
+                for body in brchs {
+                    let body = self.check_expr(body);
+                    self.unify(&body, &res);
+                }
+                res
+            }
             Expr::Guard {
                 lhs,
                 rhs,

@@ -77,6 +77,8 @@ pub enum Token {
     Else,
     #[token("condition")]
     Condition,
+    #[token("alternative")]
+    Alternative,
     #[token("match")]
     Match,
     #[token("with")]

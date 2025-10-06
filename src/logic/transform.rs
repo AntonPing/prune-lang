@@ -242,7 +242,17 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             }
             (Term::Var(x), Goal::Or(goals))
         }
-
+        ast::Expr::Alter { brchs, span: _ } => {
+            let x = Ident::fresh(&"res_alter");
+            vars.push(x);
+            let mut goals = Vec::new();
+            for body in brchs {
+                let (atom, goal) = translate_expr(vars, body);
+                let goal = Goal::And(vec![goal, Goal::Eq(x, atom)]);
+                goals.push(goal);
+            }
+            (Term::Var(x), Goal::Or(goals))
+        }
         ast::Expr::Guard {
             lhs,
             rhs,

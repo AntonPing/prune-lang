@@ -114,6 +114,10 @@ pub enum Expr {
         brchs: Vec<(Expr, Expr)>,
         span: Span,
     },
+    Alter {
+        brchs: Vec<Expr>,
+        span: Span,
+    },
     Guard {
         lhs: Box<Expr>,
         rhs: Box<Expr>,

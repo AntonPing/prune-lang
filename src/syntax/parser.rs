@@ -500,6 +500,15 @@ impl<'src> Parser<'src> {
                 let span = Span { start, end };
                 Ok(Expr::Cond { brchs, span })
             }
+            Token::Alternative => {
+                let brchs =
+                    self.delimited_list(Token::Alternative, Token::Bar, Token::End, |par| {
+                        par.parse_expr()
+                    })?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Expr::Alter { brchs, span })
+            }
             Token::Guard => {
                 self.match_token(Token::Guard)?;
                 let lhs = Box::new(self.parse_expr()?);
