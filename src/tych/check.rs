@@ -181,6 +181,17 @@ impl Checker {
                 }
                 res
             }
+            Expr::Fresh {
+                vars,
+                cont,
+                span: _,
+            } => {
+                for var in vars {
+                    let cell = self.fresh();
+                    self.val_ctx.insert(var.ident, cell);
+                }
+                self.check_expr(cont)
+            }
             Expr::Guard {
                 lhs,
                 rhs,

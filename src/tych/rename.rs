@@ -244,6 +244,17 @@ impl Renamer {
                     self.visit_expr(body);
                 }
             }
+            Expr::Fresh {
+                vars,
+                cont,
+                span: _,
+            } => {
+                self.enter_scope();
+                vars.iter_mut()
+                    .for_each(|var| self.intro_var(var, VarType::Value));
+                self.visit_expr(cont);
+                self.leave_scope();
+            }
             Expr::Guard {
                 lhs,
                 rhs,

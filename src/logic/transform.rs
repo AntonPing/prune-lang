@@ -253,6 +253,15 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             }
             (Term::Var(x), Goal::Or(goals))
         }
+        ast::Expr::Fresh {
+            vars: new_vars,
+            cont,
+            span: _,
+        } => {
+            let new_vars: Vec<Ident> = new_vars.iter().map(|var| var.ident).collect();
+            vars.extend_from_slice(&new_vars[..]);
+            translate_expr(vars, cont)
+        }
         ast::Expr::Guard {
             lhs,
             rhs,

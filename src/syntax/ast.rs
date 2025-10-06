@@ -118,6 +118,11 @@ pub enum Expr {
         brchs: Vec<Expr>,
         span: Span,
     },
+    Fresh {
+        vars: Vec<Var>,
+        cont: Box<Expr>,
+        span: Span,
+    },
     Guard {
         lhs: Box<Expr>,
         rhs: Box<Expr>,
