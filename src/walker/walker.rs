@@ -85,18 +85,20 @@ impl<'blk> Walker<'blk> {
     fn run_stack_loop(&mut self, depth_last: usize, depth: usize, pars: Vec<IdentCtx>) {
         while !self.stack.is_empty() {
             let mut state = self.pop_state();
-            if self.run_state_loop(depth, &mut state)
-                && state.depth > depth_last
-                && state.depth <= depth
-            {
-                println!("[ANSWER]: (depth = {})", state.depth);
-                let val = self.sol.get_value(&pars);
-                for (par, val) in pars.iter().zip(val.iter()) {
-                    println!("{} = {}", par.ident, val);
-                }
-                self.ansr_cnt += 1;
-                if self.ansr_cnt == self.config.answer_limit {
-                    break;
+            if !self.run_state_loop(depth, &mut state) {
+                continue;
+            }
+            if self.sol.check_sound() {
+                if state.depth > depth_last && state.depth <= depth {
+                    println!("[ANSWER]: (depth = {})", state.depth);
+                    let val = self.sol.get_value(&pars);
+                    for (par, val) in pars.iter().zip(val.iter()) {
+                        println!("{} = {}", par.ident, val);
+                    }
+                    self.ansr_cnt += 1;
+                    if self.ansr_cnt == self.config.answer_limit {
+                        break;
+                    }
                 }
             }
         }

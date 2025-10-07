@@ -1,6 +1,6 @@
 use super::*;
 
-use easy_smt::{Context, ContextBuilder, Response, SExpr};
+use easy_smt::{Context, ContextBuilder, SExpr};
 
 pub struct Constr {
     pub ctx: Context,
@@ -20,6 +20,7 @@ impl Constr {
             // .replay_file(Some(std::fs::File::create("replay.smt2").unwrap()))
             .build()
             .unwrap();
+        ctx.set_option(":timeout", ctx.numeral(2000)).unwrap();
         // push an empty context for reset
         ctx.push().unwrap();
         Constr {
@@ -202,12 +203,21 @@ impl Constr {
         }
     }
 
-    pub fn check(&mut self) -> bool {
+    pub fn check_complete(&mut self) -> bool {
         let result = self.ctx.check().unwrap();
         match result {
-            Response::Sat => true,
-            Response::Unsat => false,
-            Response::Unknown => panic!("smt solver returns unknown!"),
+            easy_smt::Response::Sat => true,
+            easy_smt::Response::Unsat => false,
+            easy_smt::Response::Unknown => true,
+        }
+    }
+
+    pub fn check_sound(&mut self) -> bool {
+        let result = self.ctx.check().unwrap();
+        match result {
+            easy_smt::Response::Sat => true,
+            easy_smt::Response::Unsat => false,
+            easy_smt::Response::Unknown => false,
         }
     }
 
@@ -238,8 +248,6 @@ impl Constr {
     }
 
     pub fn get_value(&mut self, vars: &Vec<IdentCtx>) -> HashMap<IdentCtx, LitVal> {
-        let res = self.ctx.check().unwrap();
-        assert_eq!(res, Response::Sat);
         let vars_sexp = vars.iter().map(|var| self.map[var]).collect();
         let map_sexp = self.ctx.get_value(vars_sexp).unwrap();
         let map: HashMap<IdentCtx, LitVal> = vars

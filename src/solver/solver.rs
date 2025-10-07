@@ -97,7 +97,7 @@ impl Solver {
         for (x, term) in subst.drain(..) {
             if self.ty_map[&x].is_lit() {
                 self.constr.push_eq(x, term);
-                if !self.constr.check() {
+                if !self.constr.check_complete() {
                     return Err(());
                 }
             }
@@ -108,10 +108,14 @@ impl Solver {
     pub fn solve(&mut self, prim: Prim, args: Vec<AtomCtx>) -> Result<(), ()> {
         self.solve_vec.push((prim.clone(), args.clone()));
         self.constr.push_cons(prim, args);
-        if !self.constr.check() {
+        if !self.constr.check_complete() {
             return Err(());
         }
         Ok(())
+    }
+
+    pub fn check_sound(&mut self) -> bool {
+        self.constr.check_sound()
     }
 
     pub fn get_value(&mut self, vars: &Vec<IdentCtx>) -> Vec<TermCtx> {
