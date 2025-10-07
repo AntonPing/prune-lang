@@ -1,0 +1,10 @@
+function pythagorean_triple(a: Int, b: Int, c: Int) -> Unit
+begin
+    guard a > 0 = true;
+    guard b > 0 = true;
+    guard c > 0 = true;
+    guard a * a + b * b = c * c;
+    ()
+end
+
+query pythagorean_triple(depth_step=1, depth_limit=1, answer_limit=1)

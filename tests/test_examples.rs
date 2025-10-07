@@ -108,3 +108,8 @@ fn test_reverse_forward() {
 fn test_reverse_backward() {
     cli::run_cli_test(PathBuf::from("./examples/basic/reverse_backward.pr")).unwrap();
 }
+
+#[test]
+fn test_pythagorean() {
+    cli::run_cli_test(PathBuf::from("./examples/other/pythagorean.pr")).unwrap();
+}

@@ -114,18 +114,35 @@ impl Solver {
         Ok(())
     }
 
-    pub fn get_value(&mut self, var: IdentCtx) -> TermCtx {
-        let term = self.subst.merge(&Term::Var(var));
-        let vars = term.free_vars();
-        let lit_vars: Vec<IdentCtx> = vars
+    pub fn get_value(&mut self, vars: &Vec<IdentCtx>) -> Vec<TermCtx> {
+        let terms: Vec<TermCtx> = vars
             .iter()
-            .filter(|var| self.ty_map[var].is_lit())
-            .cloned()
+            .map(|var| self.subst.merge(&Term::Var(*var)))
             .collect();
-        let map = self.constr.get_value(&lit_vars);
-        let map = map.into_iter().map(|(k, v)| (k, Term::Lit(v))).collect();
-        let term = term.substitute(&map);
-        term
+
+        let lit_vars = terms
+            .iter()
+            .map(|term| {
+                term.free_vars()
+                    .iter()
+                    .filter(|var| self.ty_map[var].is_lit())
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect();
+
+        let map = self
+            .constr
+            .get_value(&lit_vars)
+            .into_iter()
+            .map(|(k, v)| (k, Term::Lit(v)))
+            .collect();
+
+        terms
+            .into_iter()
+            .map(|term| term.substitute(&map))
+            .collect()
     }
 }
 

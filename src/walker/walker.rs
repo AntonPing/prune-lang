@@ -86,12 +86,13 @@ impl<'blk> Walker<'blk> {
         while !self.stack.is_empty() {
             let mut state = self.pop_state();
             if self.run_state_loop(depth, &mut state)
-                && state.depth >= depth_last
-                && state.depth < depth
+                && state.depth > depth_last
+                && state.depth <= depth
             {
                 println!("[ANSWER]: (depth = {})", state.depth);
-                for par in pars.iter() {
-                    println!("{} = {}", par.ident, self.sol.get_value(*par));
+                let val = self.sol.get_value(&pars);
+                for (par, val) in pars.iter().zip(val.iter()) {
+                    println!("{} = {}", par.ident, val);
                 }
                 self.ansr_cnt += 1;
                 if self.ansr_cnt == self.config.answer_limit {
@@ -103,7 +104,7 @@ impl<'blk> Walker<'blk> {
 
     fn run_state_loop(&mut self, depth: usize, state: &mut State) -> bool {
         loop {
-            if state.depth + state.queue.len() >= depth {
+            if state.depth + state.queue.len() > depth {
                 return false;
             }
             self.stats.step();
@@ -316,7 +317,7 @@ impl<'blk> Walker<'blk> {
     }
 
     pub fn run_loop(&mut self, entry: PredIdent) -> usize {
-        for depth in (self.config.depth_step..self.config.depth_limit)
+        for depth in (self.config.depth_step..=self.config.depth_limit)
             .into_iter()
             .step_by(self.config.depth_step)
         {
@@ -376,7 +377,7 @@ end
 function is_elem(xs: IntList, x: Int) -> Bool
 begin
     match xs with
-    | Cons(head, tail) => if @icmpeq(head, x) then true else is_elem(tail, x) 
+    | Cons(head, tail) => if head == x then true else is_elem(tail, x) 
     | Nil => false
     end
 end
