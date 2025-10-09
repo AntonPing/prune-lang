@@ -2,6 +2,7 @@ use super::block::PredDef;
 use super::config::WalkerStat;
 use super::*;
 
+use crate::driver::cli::PipeIO;
 use crate::solver::solver::Solver;
 use crate::utils::ident::IdentCtx;
 use crate::walker::block::Block;
@@ -27,8 +28,8 @@ impl State {
     }
 }
 
-#[derive(Debug)]
-pub struct Walker<'blk> {
+pub struct Walker<'blk, 'io> {
+    pipe_io: &'io mut PipeIO,
     dict: &'blk HashMap<PredIdent, PredDef>,
     path_tree: PathTree,
     config: WalkerConfig,
@@ -39,10 +40,14 @@ pub struct Walker<'blk> {
     sol: Solver,
 }
 
-impl<'blk> Walker<'blk> {
-    pub fn new(dict: &'blk HashMap<PredIdent, PredDef>) -> Walker<'blk> {
+impl<'blk, 'io> Walker<'blk, 'io> {
+    pub fn new(
+        dict: &'blk HashMap<PredIdent, PredDef>,
+        pipe: &'io mut PipeIO,
+    ) -> Walker<'blk, 'io> {
         Walker {
             dict,
+            pipe_io: pipe,
             path_tree: PathTree::new(),
             config: WalkerConfig::new(),
             stats: WalkerStat::new(),
@@ -90,10 +95,10 @@ impl<'blk> Walker<'blk> {
             }
             if self.sol.check_sound() {
                 if state.depth > depth_last && state.depth <= depth {
-                    println!("[ANSWER]: (depth = {})", state.depth);
+                    writeln!(self.pipe_io.output, "[ANSWER]: (depth = {})", state.depth).unwrap();
                     let val = self.sol.get_value(&pars);
                     for (par, val) in pars.iter().zip(val.iter()) {
-                        println!("{} = {}", par.ident, val);
+                        writeln!(self.pipe_io.output, "{} = {}", par.ident, val).unwrap();
                     }
                     self.ansr_cnt += 1;
                     if self.ansr_cnt == self.config.answer_limit {
@@ -179,8 +184,6 @@ impl<'blk> Walker<'blk> {
             })
             .flatten()
             .collect();
-
-        // println!("{:?}", conj_vals);
 
         let (conj, _val) = conj_vals
             .iter()
@@ -323,10 +326,12 @@ impl<'blk> Walker<'blk> {
             .into_iter()
             .step_by(self.config.depth_step)
         {
-            eprintln!(
+            writeln!(
+                self.pipe_io.stat_log,
                 "[RUN]: try depth = {}... (found answer: {})",
                 depth, self.ansr_cnt
-            );
+            )
+            .unwrap();
 
             self.reset();
 
@@ -350,7 +355,7 @@ impl<'blk> Walker<'blk> {
 
             let stat_res = self.stats.print_stat();
 
-            eprintln!("{}", stat_res);
+            writeln!(self.pipe_io.stat_log, "{}", stat_res).unwrap();
 
             if self.ansr_cnt >= self.config.answer_limit {
                 return self.ansr_cnt;
@@ -410,7 +415,8 @@ query is_elem_after_append(depth_step=5, depth_limit=1000, answer_limit=1)
     let dict = crate::walker::block::compile_dict(&prog, &map);
     // println!("{:#?}", dict);
 
-    let mut wlk = Walker::new(&dict);
+    let mut pipe_io = PipeIO::empty();
+    let mut wlk = Walker::new(&dict, &mut pipe_io);
     let query = &prog.querys[0];
 
     for param in query.params.iter() {

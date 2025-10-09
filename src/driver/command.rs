@@ -1,18 +1,19 @@
 use super::cli::CliArgs;
 use super::diagnostic::{DiagLevel, Diagnostic};
 use super::*;
+use crate::driver::cli::PipeIO;
 use crate::{syntax, tych, walker};
 
-pub struct Pipeline {
-    pub args: CliArgs,
+pub struct Pipeline<'arg> {
+    pub args: &'arg CliArgs,
     pub diags: Vec<Diagnostic>,
 }
 
-impl Pipeline {
-    pub fn new(args: CliArgs) -> Pipeline {
+impl<'arg> Pipeline<'arg> {
+    pub fn new(args: &'arg CliArgs) -> Pipeline<'arg> {
         Pipeline {
-            diags: Vec::new(),
             args,
+            diags: Vec::new(),
         }
     }
 
@@ -30,14 +31,18 @@ impl Pipeline {
         flag
     }
 
-    pub fn run_pipline<'src>(&mut self, src: &'src str) -> Result<Vec<usize>, io::Error> {
+    pub fn run_pipline<'src, 'io>(
+        &mut self,
+        src: &'src str,
+        pipe_io: &'io mut PipeIO,
+    ) -> Result<Vec<usize>, io::Error> {
         let mut prog = self.parse_program(&src)?;
 
         self.rename_pass(&mut prog)?;
 
         self.check_pass(&mut prog)?;
 
-        let res = self.run_backend(&prog);
+        let res = self.run_backend(&prog, pipe_io);
         Ok(res)
     }
 
@@ -68,11 +73,15 @@ impl Pipeline {
         Ok(())
     }
 
-    pub fn run_backend(&self, prog: &syntax::ast::Program) -> Vec<usize> {
+    pub fn run_backend<'io>(
+        &self,
+        prog: &syntax::ast::Program,
+        pipe_io: &'io mut PipeIO,
+    ) -> Vec<usize> {
         let prog = crate::logic::transform::logic_translation(&prog);
         let map = crate::tych::elab::elab_pass(&prog);
         let dict = crate::walker::block::compile_dict(&prog, &map);
-        let mut wlk = walker::walker::Walker::new(&dict);
+        let mut wlk = walker::walker::Walker::new(&dict, pipe_io);
 
         let mut res_vec = Vec::new();
         for query_decl in prog.querys {
