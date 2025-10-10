@@ -88,7 +88,7 @@ fn translate_func(func: &ast::FuncDecl) -> PredDecl {
     pars.push(x);
     let goal = Goal::And(vec![Goal::Eq(x, term), goal]);
     PredDecl {
-        name: PredIdent::Pred(name),
+        name,
         pars,
         vars,
         goal: optimize::goal_optimize(goal),
@@ -166,7 +166,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             let (mut atoms, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 args.iter().map(|arg| translate_expr(vars, arg)).unzip();
             atoms.push(Term::Var(x));
-            goals.push(Goal::Call(PredIdent::Pred(func.ident), atoms));
+            goals.push(Goal::Call(func.ident, atoms));
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Ifte {
@@ -308,7 +308,7 @@ fn translate_pred(pred: &ast::PredDecl) -> PredDecl {
     let body = translate_goal(&mut vars, &pred.body);
     let pars: Vec<Ident> = pred.pars.iter().map(|(var, _typ)| var.ident).collect();
     PredDecl {
-        name: PredIdent::Pred(pred.name.ident),
+        name: pred.name.ident,
         pars,
         vars,
         goal: optimize::goal_optimize(body),
@@ -333,7 +333,7 @@ fn translate_goal(vars: &mut Vec<Ident>, goal: &ast::Goal) -> Goal {
         } => {
             let (args, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 args.iter().map(|arg| translate_expr(vars, arg)).unzip();
-            goals.push(Goal::Call(PredIdent::Pred(pred.ident), args));
+            goals.push(Goal::Call(pred.ident, args));
             Goal::And(goals)
         }
         ast::Goal::Fresh {
@@ -365,7 +365,7 @@ fn translate_goal(vars: &mut Vec<Ident>, goal: &ast::Goal) -> Goal {
 
 fn translate_query(query: &ast::QueryDecl) -> logic::ast::QueryDecl {
     logic::ast::QueryDecl {
-        entry: PredIdent::Pred(query.entry.ident),
+        entry: query.entry.ident,
         params: query
             .params
             .iter()
@@ -393,11 +393,11 @@ pub fn logic_translation(prog: &ast::Program) -> logic::ast::Program {
     let mut preds = HashMap::new();
     for func in prog.funcs.iter() {
         let res = translate_func(func);
-        preds.insert(PredIdent::Pred(func.name.ident), res);
+        preds.insert(func.name.ident, res);
     }
     for pred in prog.preds.iter() {
         let res = translate_pred(pred);
-        preds.insert(PredIdent::Pred(pred.name.ident), res);
+        preds.insert(pred.name.ident, res);
     }
 
     let mut querys = Vec::new();

@@ -1,7 +1,7 @@
 use super::*;
-use crate::logic::ast::{self, PredIdent};
+use crate::logic::ast;
 
-pub fn compile_goal(pred: PredIdent, goal: &ast::Goal) -> Vec<Block> {
+pub fn compile_goal(pred: Ident, goal: &ast::Goal) -> Vec<Block> {
     let mut blks = Vec::new();
     compile_goal_help(goal, &mut blks);
     for (idx, blk) in blks.iter_mut().enumerate() {

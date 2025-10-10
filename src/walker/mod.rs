@@ -1,4 +1,5 @@
-use crate::logic::ast::{PredIdent, QueryParam};
+use crate::logic::ast::QueryParam;
+use crate::utils::ident::Ident;
 use crate::utils::term::*;
 
 use std::collections::HashMap;

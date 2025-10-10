@@ -28,7 +28,7 @@ impl State {
 
 pub struct Walker<'blk, 'io> {
     pipe_io: &'io mut PipeIO,
-    dict: &'blk HashMap<PredIdent, PredDef>,
+    dict: &'blk HashMap<Ident, PredDef>,
     path_tree: PathTree,
     config: WalkerConfig,
     stats: WalkerStat,
@@ -39,10 +39,7 @@ pub struct Walker<'blk, 'io> {
 }
 
 impl<'blk, 'io> Walker<'blk, 'io> {
-    pub fn new(
-        dict: &'blk HashMap<PredIdent, PredDef>,
-        pipe: &'io mut PipeIO,
-    ) -> Walker<'blk, 'io> {
+    pub fn new(dict: &'blk HashMap<Ident, PredDef>, pipe: &'io mut PipeIO) -> Walker<'blk, 'io> {
         Walker {
             dict,
             pipe_io: pipe,
@@ -64,7 +61,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
         self.config.set_param(param);
     }
 
-    fn get_block(&self, pred: &PredIdent, idx: usize) -> &'blk Block {
+    fn get_block(&self, pred: &Ident, idx: usize) -> &'blk Block {
         &self.dict[pred].blks[idx]
     }
 
@@ -319,7 +316,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
         true
     }
 
-    pub fn run_loop(&mut self, entry: PredIdent) -> usize {
+    pub fn run_loop(&mut self, entry: Ident) -> usize {
         for depth in (self.config.depth_step..=self.config.depth_limit)
             .into_iter()
             .step_by(self.config.depth_step)

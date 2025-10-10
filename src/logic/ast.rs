@@ -1,22 +1,9 @@
 use super::*;
 
-#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
-pub enum PredIdent {
-    Pred(Ident),
-}
-
-impl std::fmt::Display for PredIdent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PredIdent::Pred(ident) => write!(f, "{}", ident),
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct Program {
     pub datas: HashMap<Ident, DataDecl>,
-    pub preds: HashMap<PredIdent, PredDecl>,
+    pub preds: HashMap<Ident, PredDecl>,
     pub querys: Vec<QueryDecl>,
 }
 
@@ -28,7 +15,7 @@ pub enum Goal {
     Prim(Prim, Vec<AtomId>),
     And(Vec<Goal>),
     Or(Vec<Goal>),
-    Call(PredIdent, Vec<AtomId>),
+    Call(Ident, Vec<AtomId>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -44,7 +31,7 @@ pub struct Constructor {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct PredDecl {
-    pub name: PredIdent,
+    pub name: Ident,
     pub pars: Vec<Ident>,
     pub vars: Vec<Ident>,
     pub goal: Goal,
@@ -52,7 +39,7 @@ pub struct PredDecl {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct QueryDecl {
-    pub entry: PredIdent,
+    pub entry: Ident,
     pub params: Vec<QueryParam>,
 }
 

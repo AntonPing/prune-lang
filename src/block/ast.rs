@@ -1,17 +1,16 @@
 use super::*;
-use crate::logic::ast::PredIdent;
 
 use std::fmt;
 
 #[derive(Clone, Debug)]
 pub struct Block {
-    pub blk_pred: PredIdent,
+    pub blk_pred: Ident,
     pub blk_idx: usize,
     pub eqs: Vec<(Ident, AtomId)>,
     pub cons: Vec<(Ident, Ident, Vec<AtomId>)>,
     pub prims: Vec<(Prim, Vec<AtomId>)>,
     pub brchss: Vec<Vec<usize>>,
-    pub calls: Vec<(PredIdent, Vec<AtomId>)>,
+    pub calls: Vec<(Ident, Vec<AtomId>)>,
 }
 
 impl fmt::Display for Block {
@@ -47,7 +46,7 @@ impl fmt::Display for Block {
 impl Block {
     pub fn new() -> Block {
         Block {
-            blk_pred: PredIdent::Pred(Ident::dummy(&"?")),
+            blk_pred: Ident::dummy(&"?"),
             blk_idx: 0,
             eqs: Vec::new(),
             cons: Vec::new(),
@@ -60,7 +59,7 @@ impl Block {
 
 #[derive(Clone, Debug)]
 pub struct PredDef {
-    pub name: PredIdent,
+    pub name: Ident,
     pub pars: Vec<(Ident, TypeId)>,
     pub vars: Vec<(Ident, TypeId)>,
     pub blks: Vec<Block>,
@@ -87,6 +86,6 @@ impl std::fmt::Display for PredDef {
 #[derive(Clone, Debug)]
 pub struct Program {
     pub ty_map: HashMap<Ident, TypeId>,
-    pub preds: HashMap<PredIdent, PredDef>,
+    pub preds: HashMap<Ident, PredDef>,
     pub querys: Vec<crate::logic::ast::QueryDecl>,
 }

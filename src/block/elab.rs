@@ -1,11 +1,11 @@
 use super::*;
 
-use crate::logic::ast::{self, PredIdent};
+use crate::logic::ast;
 use crate::tych::unify::{UnifySolver, UnifyType};
 
 struct Elaborator {
     val_ctx: HashMap<Ident, UnifyType>,
-    pred_ctx: HashMap<PredIdent, Vec<UnifyType>>,
+    pred_ctx: HashMap<Ident, Vec<UnifyType>>,
     cons_ctx: HashMap<Ident, (Vec<UnifyType>, UnifyType)>,
     data_ctx: HashMap<Ident, Vec<Ident>>,
     solver: UnifySolver,

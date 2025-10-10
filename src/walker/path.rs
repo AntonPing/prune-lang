@@ -7,14 +7,14 @@ use super::*;
 
 #[derive(Clone, Debug)]
 pub struct Path {
-    pub pred: PredIdent,
+    pub pred: Ident,
     pub idx: usize,
     pub ctx: usize,
     link: PathLink,
 }
 
 impl Path {
-    pub fn new(pred: PredIdent) -> Path {
+    pub fn new(pred: Ident) -> Path {
         Path {
             pred,
             idx: 0,
@@ -30,7 +30,7 @@ impl Path {
         res
     }
 
-    pub fn call(&self, pred: PredIdent, ctx: usize) -> Path {
+    pub fn call(&self, pred: Ident, ctx: usize) -> Path {
         let mut res = self.clone();
         res.pred = pred;
         res.idx = 0;
@@ -45,7 +45,7 @@ enum PathLinkData {
     Nil,
     Cons {
         link: Rc<PathLinkData>,
-        pred: PredIdent,
+        pred: Ident,
         idx: usize,
     },
 }
@@ -54,7 +54,7 @@ enum PathLinkData {
 struct PathLink(Rc<PathLinkData>);
 
 impl PathLink {
-    fn new(pred: PredIdent) -> PathLink {
+    fn new(pred: Ident) -> PathLink {
         PathLink(Rc::new(PathLinkData::Cons {
             link: Rc::new(PathLinkData::Nil),
             pred,
@@ -62,7 +62,7 @@ impl PathLink {
         }))
     }
 
-    fn link(&self, pred: PredIdent, idx: usize) -> PathLink {
+    fn link(&self, pred: Ident, idx: usize) -> PathLink {
         PathLink(Rc::new(PathLinkData::Cons {
             link: Rc::new(PathLinkData::Nil),
             pred,
@@ -76,7 +76,6 @@ impl PathLink {
 
         while let PathLinkData::Cons { link, pred, idx } = path.deref() {
             vec.push(*idx);
-            let PredIdent::Pred(pred) = pred;
             vec.push(pred.index);
             path = link.clone();
         }
