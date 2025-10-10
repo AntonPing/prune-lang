@@ -6,6 +6,5 @@ use crate::utils::term::*;
 use std::collections::HashMap;
 
 pub mod check;
-pub mod elab;
 pub mod rename;
 pub mod unify;

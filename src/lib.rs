@@ -1,3 +1,4 @@
+pub mod block;
 pub mod driver;
 pub mod logic;
 pub mod solver;

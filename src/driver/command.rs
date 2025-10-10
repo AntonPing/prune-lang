@@ -2,7 +2,7 @@ use super::cli::CliArgs;
 use super::diagnostic::{DiagLevel, Diagnostic};
 use super::*;
 use crate::driver::cli::PipeIO;
-use crate::{syntax, tych, walker};
+use crate::{block, logic, syntax, tych, walker};
 
 pub struct Pipeline<'arg> {
     pub args: &'arg CliArgs,
@@ -42,6 +42,8 @@ impl<'arg> Pipeline<'arg> {
 
         self.check_pass(&mut prog)?;
 
+        let prog = self.compile_pass(&prog);
+
         let res = self.run_backend(&prog, pipe_io);
         Ok(res)
     }
@@ -73,18 +75,20 @@ impl<'arg> Pipeline<'arg> {
         Ok(())
     }
 
+    pub fn compile_pass(&mut self, prog: &syntax::ast::Program) -> block::ast::Program {
+        let prog = logic::transform::logic_translation(&prog);
+        let prog = block::compile::compile_dict(&prog);
+        prog
+    }
+
     pub fn run_backend<'io>(
         &self,
-        prog: &syntax::ast::Program,
+        prog: &block::ast::Program,
         pipe_io: &'io mut PipeIO,
     ) -> Vec<usize> {
-        let prog = crate::logic::transform::logic_translation(&prog);
-        let map = crate::tych::elab::elab_pass(&prog);
-        let dict = crate::walker::block::compile_dict(&prog, &map);
-        let mut wlk = walker::walker::Walker::new(&dict, pipe_io);
-
         let mut res_vec = Vec::new();
-        for query_decl in prog.querys {
+        let mut wlk = walker::walker::Walker::new(&prog.preds, pipe_io);
+        for query_decl in &prog.querys {
             wlk.config_reset_default();
             for param in query_decl.params.iter() {
                 wlk.config_set_param(param);

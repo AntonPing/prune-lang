@@ -1,13 +1,11 @@
-use super::block::PredDef;
-use super::config::WalkerStat;
+use super::config::{WalkerConfig, WalkerStat};
+use super::path::{Path, PathTree};
 use super::*;
 
+use crate::block::ast::*;
 use crate::driver::cli::PipeIO;
 use crate::solver::solver::Solver;
 use crate::utils::ident::IdentCtx;
-use crate::walker::block::Block;
-use crate::walker::config::WalkerConfig;
-use crate::walker::path::{Path, PathTree};
 
 use std::collections::VecDeque;
 
@@ -409,14 +407,11 @@ query is_elem_after_append(depth_step=5, depth_limit=1000, answer_limit=1)
     let prog = crate::logic::transform::logic_translation(&prog);
     // println!("{:#?}", prog);
 
-    let map = crate::tych::elab::elab_pass(&prog);
-    // println!("{:?}", map);
-
-    let dict = crate::walker::block::compile_dict(&prog, &map);
+    let prog = crate::block::compile::compile_dict(&prog);
     // println!("{:#?}", dict);
 
     let mut pipe_io = PipeIO::empty();
-    let mut wlk = Walker::new(&dict, &mut pipe_io);
+    let mut wlk = Walker::new(&prog.preds, &mut pipe_io);
     let query = &prog.querys[0];
 
     for param in query.params.iter() {

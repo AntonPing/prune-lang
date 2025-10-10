@@ -1,7 +1,7 @@
 use super::*;
 
-use super::unify::{UnifySolver, UnifyType};
-use crate::logic::ast::*;
+use crate::logic::ast::{self, PredIdent};
+use crate::tych::unify::{UnifySolver, UnifyType};
 
 struct Elaborator {
     val_ctx: HashMap<Ident, UnifyType>,
@@ -65,22 +65,22 @@ impl Elaborator {
         }
     }
 
-    fn elab_goal(&mut self, goal: &Goal) {
+    fn elab_goal(&mut self, goal: &ast::Goal) {
         match goal {
-            Goal::Lit(_) => {}
-            Goal::Eq(var, atom) => {
+            ast::Goal::Lit(_) => {}
+            ast::Goal::Eq(var, atom) => {
                 let typ1 = self.elab_var(var);
                 let typ2 = self.elab_atom(atom);
                 self.unify(&typ1, &typ2);
             }
-            Goal::Cons(var, cons, flds) => {
+            ast::Goal::Cons(var, cons, flds) => {
                 let (flds_ty, var_ty) = self.cons_ctx[cons].clone();
                 let var = self.elab_var(var);
                 let flds = flds.iter().map(|fld| self.elab_atom(fld)).collect();
                 self.unify(&var, &var_ty);
                 self.unify_many(&flds, &flds_ty);
             }
-            Goal::Prim(prim, args) => {
+            ast::Goal::Prim(prim, args) => {
                 let pars = prim
                     .get_typ()
                     .iter()
@@ -89,17 +89,17 @@ impl Elaborator {
                 let args = args.iter().map(|arg| self.elab_atom(arg)).collect();
                 self.unify_many(&pars, &args);
             }
-            Goal::And(goals) => {
+            ast::Goal::And(goals) => {
                 for goal in goals {
                     self.elab_goal(goal);
                 }
             }
-            Goal::Or(goals) => {
+            ast::Goal::Or(goals) => {
                 for goal in goals {
                     self.elab_goal(goal);
                 }
             }
-            Goal::Call(pred, args) => {
+            ast::Goal::Call(pred, args) => {
                 let pars = self.pred_ctx[pred].clone();
                 let args = args.iter().map(|arg| self.elab_atom(arg)).collect();
                 self.unify_many(&pars, &args);
@@ -107,7 +107,7 @@ impl Elaborator {
         }
     }
 
-    fn scan_data_decl_head(&mut self, data_decl: &DataDecl) {
+    fn scan_data_decl_head(&mut self, data_decl: &ast::DataDecl) {
         let cons_names = data_decl.cons.iter().map(|cons| cons.name).collect();
         self.data_ctx.insert(data_decl.name, cons_names);
 
@@ -120,7 +120,7 @@ impl Elaborator {
         }
     }
 
-    fn scan_pred_decl_head(&mut self, pred_decl: &PredDecl) {
+    fn scan_pred_decl_head(&mut self, pred_decl: &ast::PredDecl) {
         let pars = pred_decl
             .pars
             .iter()
@@ -129,7 +129,7 @@ impl Elaborator {
         self.pred_ctx.insert(pred_decl.name, pars);
     }
 
-    fn elab_pred_decl(&mut self, pred_decl: &PredDecl) {
+    fn elab_pred_decl(&mut self, pred_decl: &ast::PredDecl) {
         let pars_ty = self.pred_ctx[&pred_decl.name].clone();
         for (par, par_ty) in pred_decl.pars.iter().zip(pars_ty) {
             self.val_ctx.insert(*par, par_ty);
@@ -142,7 +142,7 @@ impl Elaborator {
         self.elab_goal(&pred_decl.goal);
     }
 
-    fn elab_prog(&mut self, prog: &Program) {
+    fn elab_prog(&mut self, prog: &ast::Program) {
         for data_decl in prog.datas.values() {
             self.scan_data_decl_head(&data_decl);
         }
@@ -157,7 +157,7 @@ impl Elaborator {
     }
 }
 
-pub fn elab_pass(prog: &Program) -> HashMap<Ident, TypeId> {
+pub fn elab_pass(prog: &ast::Program) -> HashMap<Ident, TypeId> {
     let mut pass = Elaborator::new();
     pass.elab_prog(prog);
     let sol = pass.solver;
