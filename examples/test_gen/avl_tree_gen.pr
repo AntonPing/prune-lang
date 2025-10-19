@@ -1,6 +1,6 @@
 datatype AVLTree where
-| Node(AVLTree, Int, AVLTree)
-| Empty
+| Node(AVLTree, Int, AVLTree) // node of (left, key, right)
+| Empty // empty tree
 end
 
 datatype OptionInt where
@@ -21,14 +21,14 @@ begin
     match tree with
     | Node(left, _, right) => 
         match is_balanced_help(left) with
-        | Some(l_d) => match is_balanced_help(right) with
-            | Some(r_d) => 
-                let diff = l_d - r_d;
-                if diff >= -1 && diff <= 1 then
-                    if l_d < r_d then 
-                        Some(r_d + 1)
+        | Some(left_height) => match is_balanced_help(right) with
+            | Some(right_height) => 
+                let diff_height = left_height - right_height;
+                if diff_height >= -1 && diff_height <= 1 then
+                    if left_height < right_height then 
+                        Some(right_height + 1)
                     else
-                        Some(l_d + 1)
+                        Some(left_height + 1)
                 else
                     None
             | None => None
@@ -49,14 +49,14 @@ function is_balanced_help2(tree: AVLTree) -> Int
 begin
     match tree with
     | Node(left, _, right) => 
-        let l_d = is_balanced_help2(left);
-        let r_d = is_balanced_help2(right);
-        let diff = l_d - r_d;
-        guard (diff >= -1 && diff <= 1) = true;
-        if l_d < r_d then
-            r_d + 1
+        let left_height = is_balanced_help2(left);
+        let right_height = is_balanced_help2(right);
+        let diff_height = left_height - right_height;
+        guard (diff_height >= -1 && diff_height <= 1) = true;
+        if left_height < right_height then
+            right_height + 1
         else
-            l_d + 1
+            left_height + 1
     | Empty => 0
     end
 end
@@ -104,8 +104,8 @@ predicate gen_sorted_balanced(tree: AVLTree)
 begin
     and(
         is_sorted(tree) = true,
-        is_balanced2(tree) = (),
+        is_balanced(tree) = true,
     )
 end
 
-query gen_sorted_balanced(depth_step=5, depth_limit=200, answer_limit=30)
+query gen_sorted_balanced(depth_step=5, depth_limit=200, answer_limit=10)

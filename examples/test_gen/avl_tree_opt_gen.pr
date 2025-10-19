@@ -1,0 +1,98 @@
+datatype AVLTree where
+| Node(AVLTree, Int, AVLTree, Int) // node of (left, key, right, height)
+| Empty // empty tree
+end
+
+function get_height(tree: AVLTree) -> Int
+begin
+    match tree with
+    | Node(_left, _key, _right, height) => height
+    | Empty => 0
+    end
+end
+
+function is_balanced(tree: AVLTree) -> Bool
+begin
+    match tree with
+    | Node(left, _key, right, height) =>
+        if is_balanced(left) && is_balanced(right) then
+            let left_height = get_height(left);
+            let right_height = get_height(right);
+            if left_height < right_height then
+                (height == right_height + 1) && (right_height - left_height <= 1)
+            else
+                (height == left_height + 1) && (left_height - right_height <= 1)
+        else
+            false 
+    | Empty => true
+    end
+end
+
+function is_balanced2(tree: AVLTree) -> Unit
+begin
+    match tree with
+    | Node(left, _key, right, height) =>
+        guard is_balanced2(left) = ();
+        guard is_balanced2(right) = ();
+        let left_height = get_height(left);
+        let right_height = get_height(right);
+        if left_height < right_height then
+            guard height = right_height + 1;
+            guard right_height - left_height <= 1 = true;
+            ()
+        else
+            guard height = left_height + 1;
+            guard left_height - right_height <= 1 = true;
+            ()
+    | Empty => ()
+    end
+end
+
+function is_sorted(tree: AVLTree) -> Bool
+begin
+    match tree with
+    | Node(left, x, right, _height) =>
+        is_sorted_max(left, x) && is_sorted_min(right, x)
+    | Empty => true
+    end
+end
+
+function is_sorted_min(tree: AVLTree, min: Int) -> Bool
+begin
+    match tree with
+    | Node(left, x, right, _height) =>
+        x > min &&
+        is_sorted_min_max(left, min, x) && is_sorted_min(right, x)
+    | Empty => true
+    end
+end
+
+function is_sorted_max(tree: AVLTree, max: Int) -> Bool
+begin
+    match tree with
+    | Node(left, x, right, _height) =>
+        x < max &&
+        is_sorted_max(left, x) && is_sorted_min_max(right, x, max)
+    | Empty => true
+    end
+end
+
+function is_sorted_min_max(tree: AVLTree, min: Int, max: Int) -> Bool
+begin
+    match tree with
+    | Node(left, x, right, _height) =>
+        x > min && x < max &&
+        is_sorted_min_max(left, min, x) && is_sorted_min_max(right, x, max)
+    | Empty => true
+    end
+end
+
+predicate gen_sorted_balanced(tree: AVLTree)
+begin
+    and(
+        is_sorted(tree) = true,
+        is_balanced(tree) = true,
+    )
+end
+
+query gen_sorted_balanced(depth_step=5, depth_limit=200, answer_limit=10)

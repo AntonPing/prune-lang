@@ -80,8 +80,29 @@ fn test_avl_tree_good() {
 // }
 
 #[test]
+fn test_avl_tree_opt_good() {
+    let res = cli::run_cli_test(PathBuf::from(
+        "./examples/sym_exec_good/avl_tree_opt_good.pr",
+    ))
+    .unwrap();
+    assert!(res.iter().all(|p| *p == 0));
+}
+
+// #[test]
+// fn test_avl_tree_opt_bad() {
+//     let res =
+//         cli::run_cli_test(PathBuf::from("./examples/sym_exec_bad/avl_tree_opt_bad.pr")).unwrap();
+//     assert!(res.iter().any(|p| *p > 0));
+// }
+
+#[test]
 fn test_avl_tree_gen() {
     cli::run_cli_test(PathBuf::from("./examples/test_gen/avl_tree_gen.pr")).unwrap();
+}
+
+#[test]
+fn test_avl_tree_opt_gen() {
+    cli::run_cli_test(PathBuf::from("./examples/test_gen/avl_tree_opt_gen.pr")).unwrap();
 }
 
 #[test]
