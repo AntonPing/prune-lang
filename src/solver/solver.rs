@@ -1,19 +1,20 @@
 use super::*;
 
-use super::smt_z3::*;
 use super::subst::*;
 
+use constr::ConstrSolver;
+
 #[derive(Debug)]
-pub struct Solver {
+pub struct Solver<CS: ConstrSolver> {
     ty_map: EnvMap<IdentCtx, TypeId>,
     subst: Subst,
-    constr: Constr,
+    constr: CS,
     unify_vec: Vec<(IdentCtx, TermCtx)>,
     solve_vec: Vec<(Prim, Vec<AtomCtx>)>,
     saves: Vec<(usize, usize)>,
 }
 
-impl fmt::Display for Solver {
+impl<CS: ConstrSolver + fmt::Display> fmt::Display for Solver<CS> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let unify_vec = self
             .unify_vec
@@ -32,10 +33,10 @@ impl fmt::Display for Solver {
     }
 }
 
-impl Solver {
-    pub fn new() -> Solver {
+impl<CS: ConstrSolver> Solver<CS> {
+    pub fn new() -> Solver<CS> {
         let subst = Subst::new();
-        let constr = Constr::new();
+        let constr = CS::new();
         Solver {
             ty_map: EnvMap::new(),
             subst,
@@ -82,7 +83,7 @@ impl Solver {
     }
 }
 
-impl Solver {
+impl<CS: ConstrSolver> Solver<CS> {
     pub fn declare(&mut self, var: &IdentCtx, typ: &TypeId) {
         assert!(!self.ty_map.contains_key(var));
         self.ty_map.insert(*var, typ.clone());
@@ -157,7 +158,7 @@ fn test_solver() {
     let z = Ident::dummy(&"z");
     let cons = Ident::dummy(&"cons");
 
-    let mut sol = Solver::new();
+    let mut sol: Solver<super::smt_z3::SmtZ3Solver> = Solver::new();
 
     sol.declare(&x.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
     sol.declare(&y.tag_ctx(0), &TypeId::Lit(LitType::TyInt));

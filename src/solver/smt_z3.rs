@@ -1,39 +1,40 @@
 use super::*;
 
+use constr::ConstrSolver;
 use easy_smt::{Context, ContextBuilder, SExpr};
 
-pub struct Constr {
+pub struct SmtZ3Solver {
     pub ctx: Context,
     pub map: EnvMap<IdentCtx, SExpr>,
 }
 
-impl fmt::Debug for Constr {
+impl fmt::Debug for SmtZ3Solver {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }
 }
 
-impl Constr {
-    pub fn new() -> Constr {
+impl ConstrSolver for SmtZ3Solver {
+    fn new() -> Self {
         let mut ctx = ContextBuilder::new()
             .with_z3_defaults()
             // .replay_file(Some(std::fs::File::create("replay.smt2").unwrap()))
             .build()
             .unwrap();
-        ctx.set_option(":timeout", ctx.numeral(2000)).unwrap();
+        ctx.set_option(":timeout", ctx.numeral(10)).unwrap();
         // push an empty context for reset
         ctx.push().unwrap();
-        Constr {
+        SmtZ3Solver {
             ctx,
             map: EnvMap::new(),
         }
     }
 
-    pub fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
 
-    pub fn reset(&mut self) {
+    fn reset(&mut self) {
         loop {
             if self.ctx.pop().is_err() {
                 break;
@@ -44,19 +45,17 @@ impl Constr {
         self.map.clear();
     }
 
-    pub fn savepoint(&mut self) {
+    fn savepoint(&mut self) {
         self.ctx.push().unwrap();
         self.map.enter_scope();
     }
 
-    pub fn backtrack(&mut self) {
+    fn backtrack(&mut self) {
         self.ctx.pop().unwrap();
         self.map.leave_scope();
     }
-}
 
-impl Constr {
-    pub fn declare_var(&mut self, var: &IdentCtx, typ: &LitType) {
+    fn declare_var(&mut self, var: &IdentCtx, typ: &LitType) {
         match typ {
             LitType::TyInt => self.declare_int(var),
             LitType::TyFloat => unimplemented!(),
@@ -66,55 +65,7 @@ impl Constr {
         }
     }
 
-    pub fn declare_int(&mut self, var: &IdentCtx) {
-        assert!(!self.map.contains_key(var));
-        let sexp = self
-            .ctx
-            .declare_const(format!("{:?}", var), self.ctx.int_sort())
-            .unwrap();
-        self.map.insert(*var, sexp);
-    }
-
-    pub fn declare_bool(&mut self, var: &IdentCtx) {
-        assert!(!self.map.contains_key(var));
-        let sexp = self
-            .ctx
-            .declare_const(format!("{:?}", var), self.ctx.bool_sort())
-            .unwrap();
-        self.map.insert(*var, sexp);
-    }
-
-    pub fn declare_unit(&mut self, var: &IdentCtx) {
-        assert!(!self.map.contains_key(var));
-        self.map.insert(*var, self.ctx.true_());
-    }
-
-    pub fn get_int(&mut self, atom: &AtomCtx) -> SExpr {
-        match atom {
-            Term::Var(x) => self
-                .map
-                .get(x)
-                .expect(format!("integer variable {} not declared!", x).as_str())
-                .clone(),
-            Term::Lit(LitVal::Int(x)) => self.ctx.numeral(*x),
-            _ => panic!("atom is not an integer!"),
-        }
-    }
-
-    pub fn get_bool(&mut self, atom: &AtomCtx) -> SExpr {
-        match atom {
-            Term::Var(x) => self
-                .map
-                .get(x)
-                .expect(format!("boolean variable {} not declared!", x).as_str())
-                .clone(),
-            Term::Lit(LitVal::Bool(true)) => self.ctx.true_(),
-            Term::Lit(LitVal::Bool(false)) => self.ctx.false_(),
-            _ => panic!("atom is not a boolean!"),
-        }
-    }
-
-    pub fn push_cons(&mut self, prim: Prim, args: Vec<AtomCtx>) {
+    fn push_cons(&mut self, prim: Prim, args: Vec<AtomCtx>) {
         match (prim, &args[..]) {
             (
                 Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem,
@@ -176,7 +127,7 @@ impl Constr {
         }
     }
 
-    pub fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx) {
+    fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx) {
         let lhs = self.map[&x].clone();
         match atom {
             Term::Var(y) => {
@@ -203,7 +154,7 @@ impl Constr {
         }
     }
 
-    pub fn check_complete(&mut self) -> bool {
+    fn check_complete(&mut self) -> bool {
         let result = self.ctx.check().unwrap();
         match result {
             easy_smt::Response::Sat => true,
@@ -212,12 +163,77 @@ impl Constr {
         }
     }
 
-    pub fn check_sound(&mut self) -> bool {
+    fn check_sound(&mut self) -> bool {
         let result = self.ctx.check().unwrap();
         match result {
             easy_smt::Response::Sat => true,
             easy_smt::Response::Unsat => false,
             easy_smt::Response::Unknown => false,
+        }
+    }
+
+    fn get_value(&mut self, vars: &Vec<IdentCtx>) -> HashMap<IdentCtx, LitVal> {
+        let vars_sexp = vars.iter().map(|var| self.map[var]).collect();
+        let map_sexp = self.ctx.get_value(vars_sexp).unwrap();
+        let map: HashMap<IdentCtx, LitVal> = vars
+            .iter()
+            .cloned()
+            .zip(
+                map_sexp
+                    .iter()
+                    .map(|(_var, val)| self.sexp_to_lit_val(*val).unwrap()),
+            )
+            .collect();
+        map
+    }
+}
+
+impl SmtZ3Solver {
+    fn declare_int(&mut self, var: &IdentCtx) {
+        assert!(!self.map.contains_key(var));
+        let sexp = self
+            .ctx
+            .declare_const(format!("{:?}", var), self.ctx.int_sort())
+            .unwrap();
+        self.map.insert(*var, sexp);
+    }
+
+    fn declare_bool(&mut self, var: &IdentCtx) {
+        assert!(!self.map.contains_key(var));
+        let sexp = self
+            .ctx
+            .declare_const(format!("{:?}", var), self.ctx.bool_sort())
+            .unwrap();
+        self.map.insert(*var, sexp);
+    }
+
+    fn declare_unit(&mut self, var: &IdentCtx) {
+        assert!(!self.map.contains_key(var));
+        self.map.insert(*var, self.ctx.true_());
+    }
+
+    fn get_int(&mut self, atom: &AtomCtx) -> SExpr {
+        match atom {
+            Term::Var(x) => self
+                .map
+                .get(x)
+                .expect(format!("integer variable {} not declared!", x).as_str())
+                .clone(),
+            Term::Lit(LitVal::Int(x)) => self.ctx.numeral(*x),
+            _ => panic!("atom is not an integer!"),
+        }
+    }
+
+    fn get_bool(&mut self, atom: &AtomCtx) -> SExpr {
+        match atom {
+            Term::Var(x) => self
+                .map
+                .get(x)
+                .expect(format!("boolean variable {} not declared!", x).as_str())
+                .clone(),
+            Term::Lit(LitVal::Bool(true)) => self.ctx.true_(),
+            Term::Lit(LitVal::Bool(false)) => self.ctx.false_(),
+            _ => panic!("atom is not a boolean!"),
         }
     }
 
@@ -245,20 +261,5 @@ impl Constr {
         // todo: basic type `Char``
 
         None
-    }
-
-    pub fn get_value(&mut self, vars: &Vec<IdentCtx>) -> HashMap<IdentCtx, LitVal> {
-        let vars_sexp = vars.iter().map(|var| self.map[var]).collect();
-        let map_sexp = self.ctx.get_value(vars_sexp).unwrap();
-        let map: HashMap<IdentCtx, LitVal> = vars
-            .iter()
-            .cloned()
-            .zip(
-                map_sexp
-                    .iter()
-                    .map(|(_var, val)| self.sexp_to_lit_val(*val).unwrap()),
-            )
-            .collect();
-        map
     }
 }
