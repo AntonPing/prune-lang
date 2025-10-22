@@ -5,6 +5,7 @@ use easy_smt::{Context, ContextBuilder, SExpr};
 
 pub struct SmtZ3Solver {
     pub ctx: Context,
+    pub level: usize,
     pub map: EnvMap<IdentCtx, SExpr>,
 }
 
@@ -26,6 +27,7 @@ impl ConstrSolver for SmtZ3Solver {
         ctx.push().unwrap();
         SmtZ3Solver {
             ctx,
+            level: 1,
             map: EnvMap::new(),
         }
     }
@@ -35,11 +37,8 @@ impl ConstrSolver for SmtZ3Solver {
     }
 
     fn reset(&mut self) {
-        loop {
-            if self.ctx.pop().is_err() {
-                break;
-            }
-        }
+        self.ctx.pop_many(self.level).unwrap();
+        self.level = 1;
         // push an empty context for reset
         self.ctx.push().unwrap();
         self.map.clear();
@@ -47,11 +46,14 @@ impl ConstrSolver for SmtZ3Solver {
 
     fn savepoint(&mut self) {
         self.ctx.push().unwrap();
+        self.level += 1;
         self.map.enter_scope();
     }
 
     fn backtrack(&mut self) {
         self.ctx.pop().unwrap();
+        assert_ne!(self.level, 0);
+        self.level -= 1;
         self.map.leave_scope();
     }
 
