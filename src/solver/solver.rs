@@ -158,7 +158,7 @@ fn test_solver() {
     let z = Ident::dummy(&"z");
     let cons = Ident::dummy(&"cons");
 
-    let mut sol: Solver<super::smt_z3::SmtZ3Solver> = Solver::new();
+    let mut sol: Solver<super::incr_smt::IncrSmtSolver> = Solver::new();
 
     sol.declare(&x.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
     sol.declare(&y.tag_ctx(0), &TypeId::Lit(LitType::TyInt));

@@ -3,19 +3,19 @@ use super::*;
 use constr::ConstrSolver;
 use easy_smt::{Context, ContextBuilder, SExpr};
 
-pub struct SmtZ3Solver {
+pub struct IncrSmtSolver {
     pub ctx: Context,
     pub level: usize,
     pub map: EnvMap<IdentCtx, SExpr>,
 }
 
-impl fmt::Debug for SmtZ3Solver {
+impl fmt::Debug for IncrSmtSolver {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }
 }
 
-impl ConstrSolver for SmtZ3Solver {
+impl ConstrSolver for IncrSmtSolver {
     fn new() -> Self {
         let mut ctx = ContextBuilder::new()
             .with_z3_defaults()
@@ -25,7 +25,7 @@ impl ConstrSolver for SmtZ3Solver {
         ctx.set_option(":timeout", ctx.numeral(10)).unwrap();
         // push an empty context for reset
         ctx.push().unwrap();
-        SmtZ3Solver {
+        IncrSmtSolver {
             ctx,
             level: 1,
             map: EnvMap::new(),
@@ -190,7 +190,7 @@ impl ConstrSolver for SmtZ3Solver {
     }
 }
 
-impl SmtZ3Solver {
+impl IncrSmtSolver {
     fn declare_int(&mut self, var: &IdentCtx) {
         assert!(!self.map.contains_key(var));
         let sexp = self

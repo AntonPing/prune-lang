@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 pub mod constr;
-pub mod smt_z3;
+pub mod incr_smt;
+pub mod non_incr_smt;
 pub mod solver;
 pub mod subst;

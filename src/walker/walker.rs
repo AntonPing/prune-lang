@@ -35,7 +35,7 @@ pub struct Walker<'blk, 'io> {
     stack: Vec<State>,
     ansr_cnt: usize,
     ctx_cnt: usize,
-    sol: Solver<crate::solver::smt_z3::SmtZ3Solver>,
+    sol: Solver<crate::solver::incr_smt::IncrSmtSolver>,
 }
 
 impl<'blk, 'io> Walker<'blk, 'io> {
