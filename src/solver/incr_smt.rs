@@ -58,24 +58,25 @@ impl ConstrSolver for IncrSmtSolver {
     }
 
     fn declare_var(&mut self, var: &IdentCtx, typ: &LitType) {
-        match typ {
-            LitType::TyInt => self.declare_int(var),
-            LitType::TyFloat => unimplemented!(),
-            LitType::TyBool => self.declare_bool(var),
-            LitType::TyChar => unimplemented!(),
-            LitType::TyUnit => self.declare_unit(var),
-        }
+        assert!(!self.map.contains_key(var));
+        let sort = match typ {
+            LitType::TyInt => self.ctx.int_sort(),
+            LitType::TyFloat => self.ctx.real_sort(),
+            LitType::TyBool => self.ctx.bool_sort(),
+            LitType::TyChar => todo!(),
+            LitType::TyUnit => self.ctx.bool_sort(),
+        };
+        let sexp = self.ctx.declare_const(format!("{:?}", var), sort).unwrap();
+        self.map.insert(*var, sexp);
     }
 
     fn push_cons(&mut self, prim: Prim, args: Vec<AtomCtx>) {
+        let args: Vec<SExpr> = args.iter().map(|arg| self.atom_to_sexp(arg)).collect();
         match (prim, &args[..]) {
             (
                 Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem,
-                [arg1, arg2, arg3],
+                &[arg1, arg2, arg3],
             ) => {
-                let arg1 = self.get_int(arg1);
-                let arg2 = self.get_int(arg2);
-                let arg3 = self.get_int(arg3);
                 let res = match prim {
                     Prim::IAdd => self.ctx.plus(arg1, arg2),
                     Prim::ISub => self.ctx.sub(arg1, arg2),
@@ -86,16 +87,11 @@ impl ConstrSolver for IncrSmtSolver {
                 };
                 self.ctx.assert(self.ctx.eq(res, arg3)).unwrap();
             }
-            (Prim::INeg, [arg1, arg2]) => {
-                let arg1 = self.get_int(arg1);
-                let arg2 = self.get_int(arg2);
+            (Prim::INeg, &[arg1, arg2]) => {
                 let res = self.ctx.negate(arg1);
                 self.ctx.assert(self.ctx.eq(res, arg2)).unwrap();
             }
-            (Prim::ICmp(cmp), [arg1, arg2, arg3]) => {
-                let arg1 = self.get_int(arg1);
-                let arg2 = self.get_int(arg2);
-                let arg3 = self.get_bool(arg3);
+            (Prim::ICmp(cmp), &[arg1, arg2, arg3]) => {
                 let res = match cmp {
                     Compare::Lt => self.ctx.lt(arg1, arg2),
                     Compare::Le => self.ctx.lte(arg1, arg2),
@@ -106,10 +102,7 @@ impl ConstrSolver for IncrSmtSolver {
                 };
                 self.ctx.assert(self.ctx.eq(res, arg3)).unwrap();
             }
-            (Prim::BAnd | Prim::BOr, [arg1, arg2, arg3]) => {
-                let arg1 = self.get_bool(arg1);
-                let arg2 = self.get_bool(arg2);
-                let arg3 = self.get_bool(arg3);
+            (Prim::BAnd | Prim::BOr, &[arg1, arg2, arg3]) => {
                 let res = match prim {
                     Prim::BAnd => self.ctx.and(arg1, arg2),
                     Prim::BOr => self.ctx.or(arg1, arg2),
@@ -117,9 +110,7 @@ impl ConstrSolver for IncrSmtSolver {
                 };
                 self.ctx.assert(self.ctx.eq(res, arg3)).unwrap();
             }
-            (Prim::BNot, [arg1, arg2]) => {
-                let arg1 = self.get_bool(arg1);
-                let arg2 = self.get_bool(arg2);
+            (Prim::BNot, &[arg1, arg2]) => {
                 let res = self.ctx.not(arg1);
                 self.ctx.assert(self.ctx.eq(res, arg2)).unwrap();
             }
@@ -131,29 +122,8 @@ impl ConstrSolver for IncrSmtSolver {
 
     fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx) {
         let lhs = self.map[&x].clone();
-        match atom {
-            Term::Var(y) => {
-                let rhs = self.map[&y].clone();
-                self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
-            }
-            Term::Lit(LitVal::Int(_)) => {
-                let rhs = self.get_int(&atom);
-                self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
-            }
-            Term::Lit(LitVal::Bool(_)) => {
-                let rhs = self.get_bool(&atom);
-                self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
-            }
-            Term::Lit(LitVal::Float(_)) => {
-                unimplemented!()
-            }
-            Term::Lit(LitVal::Char(_)) => {
-                unimplemented!()
-            }
-            Term::Lit(LitVal::Unit) => {
-                // always sat, nothing to do
-            }
-        }
+        let rhs = self.atom_to_sexp(&atom);
+        self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
     }
 
     fn check_complete(&mut self) -> bool {
@@ -191,51 +161,21 @@ impl ConstrSolver for IncrSmtSolver {
 }
 
 impl IncrSmtSolver {
-    fn declare_int(&mut self, var: &IdentCtx) {
-        assert!(!self.map.contains_key(var));
-        let sexp = self
-            .ctx
-            .declare_const(format!("{:?}", var), self.ctx.int_sort())
-            .unwrap();
-        self.map.insert(*var, sexp);
-    }
-
-    fn declare_bool(&mut self, var: &IdentCtx) {
-        assert!(!self.map.contains_key(var));
-        let sexp = self
-            .ctx
-            .declare_const(format!("{:?}", var), self.ctx.bool_sort())
-            .unwrap();
-        self.map.insert(*var, sexp);
-    }
-
-    fn declare_unit(&mut self, var: &IdentCtx) {
-        assert!(!self.map.contains_key(var));
-        self.map.insert(*var, self.ctx.true_());
-    }
-
-    fn get_int(&mut self, atom: &AtomCtx) -> SExpr {
+    fn atom_to_sexp(&self, atom: &AtomCtx) -> SExpr {
         match atom {
-            Term::Var(x) => self
-                .map
-                .get(x)
-                .expect(format!("integer variable {} not declared!", x).as_str())
-                .clone(),
+            Term::Var(var) => self.map[var].clone(),
             Term::Lit(LitVal::Int(x)) => self.ctx.numeral(*x),
-            _ => panic!("atom is not an integer!"),
-        }
-    }
-
-    fn get_bool(&mut self, atom: &AtomCtx) -> SExpr {
-        match atom {
-            Term::Var(x) => self
-                .map
-                .get(x)
-                .expect(format!("boolean variable {} not declared!", x).as_str())
-                .clone(),
-            Term::Lit(LitVal::Bool(true)) => self.ctx.true_(),
-            Term::Lit(LitVal::Bool(false)) => self.ctx.false_(),
-            _ => panic!("atom is not a boolean!"),
+            Term::Lit(LitVal::Float(x)) => self.ctx.decimal(*x),
+            Term::Lit(LitVal::Bool(x)) => {
+                if *x {
+                    self.ctx.true_()
+                } else {
+                    self.ctx.false_()
+                }
+            }
+            Term::Lit(LitVal::Char(_x)) => todo!(),
+            Term::Lit(LitVal::Unit) => self.ctx.true_(),
+            Term::Cons(_, _ident, _terms) => unreachable!(),
         }
     }
 
