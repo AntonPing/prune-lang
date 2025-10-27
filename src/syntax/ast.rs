@@ -38,9 +38,19 @@ pub struct Constructor {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Type {
-    Lit(LitType),
-    Data(Var),
-    Tuple(Vec<Type>),
+    Lit {
+        lit: LitType,
+        span: Span,
+    },
+    Cons {
+        cons: Var,
+        flds: Vec<Type>,
+        span: Span,
+    },
+    Tuple {
+        flds: Vec<Type>,
+        span: Span,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]

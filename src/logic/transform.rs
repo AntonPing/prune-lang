@@ -74,13 +74,19 @@ fn translate_constructor(cons: &ast::Constructor) -> logic::ast::Constructor {
 
 fn translate_type(typ: &ast::Type) -> TypeId {
     match typ {
-        ast::Type::Lit(lit) => Term::Lit((*lit).into()),
-        ast::Type::Data(var) => Term::Cons((), var.ident, Vec::new()),
-        ast::Type::Tuple(flds) => Term::Cons(
-            (),
-            Ident::dummy(&"#"),
-            flds.iter().map(|fld| translate_type(fld)).collect(),
-        ),
+        ast::Type::Lit { lit, span: _ } => Term::Lit((*lit).into()),
+        ast::Type::Cons {
+            cons,
+            flds,
+            span: _,
+        } => {
+            let flds = flds.iter().map(|fld| translate_type(fld)).collect();
+            Term::Cons((), cons.ident, flds)
+        }
+        ast::Type::Tuple { flds, span: _ } => {
+            let flds = flds.iter().map(|fld| translate_type(fld)).collect();
+            Term::Cons((), Ident::dummy(&"#"), flds)
+        }
     }
 }
 

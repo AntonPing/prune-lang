@@ -720,20 +720,28 @@ impl<'src> Parser<'src> {
     }
 
     fn parse_type(&mut self) -> ParseResult<Type> {
+        let start = self.start_pos();
         match self.peek_token() {
             Token::TyInt | Token::TyFloat | Token::TyBool | Token::TyChar | Token::TyUnit => {
-                let lit_typ = self.parse_lit_typ()?;
-                Ok(Type::Lit(lit_typ))
+                let lit = self.parse_lit_typ()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Type::Lit { lit, span })
             }
             Token::UpperIdent => {
+                let end = self.end_pos();
+                let span = Span { start, end };
                 let cons = self.parse_upper_var()?;
-                Ok(Type::Data(cons))
+                let flds = Vec::new();
+                Ok(Type::Cons { cons, flds, span })
             }
             Token::LParen => {
                 let typs =
                     self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
                         par.parse_type()
                     })?;
+                let end = self.end_pos();
+                let span = Span { start, end };
                 match typs.len() {
                     0 => Err(ParseError::FailedToParse(
                         "tuple of types",
@@ -741,7 +749,7 @@ impl<'src> Parser<'src> {
                         self.peek_span().clone(),
                     )),
                     1 => Ok(typs.into_iter().next().unwrap()),
-                    _ => Ok(Type::Tuple(typs)),
+                    _ => Ok(Type::Tuple { flds: typs, span }),
                 }
             }
             _tok => Err(ParseError::FailedToParse(

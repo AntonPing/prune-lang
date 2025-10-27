@@ -13,12 +13,19 @@ pub enum UnifyType {
 impl From<&Type> for UnifyType {
     fn from(value: &Type) -> Self {
         match value {
-            Type::Lit(lit) => UnifyType::Lit(*lit),
-            Type::Data(name) => UnifyType::Cons(name.ident, Vec::new()),
-            Type::Tuple(typs) => UnifyType::Cons(
-                Ident::dummy(&"#"),
-                typs.iter().map(|typ| typ.into()).collect(),
-            ),
+            Type::Lit { lit, span: _ } => UnifyType::Lit(*lit),
+            Type::Cons {
+                cons,
+                flds,
+                span: _,
+            } => {
+                let flds = flds.iter().map(|fld| fld.into()).collect();
+                UnifyType::Cons(cons.ident, flds)
+            }
+            Type::Tuple { flds, span: _ } => {
+                let flds = flds.iter().map(|fld| fld.into()).collect();
+                UnifyType::Cons(Ident::dummy(&"#"), flds)
+            }
         }
     }
 }

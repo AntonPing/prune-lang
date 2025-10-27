@@ -164,9 +164,16 @@ impl Renamer {
 
     fn visit_type(&mut self, typ: &mut Type) {
         match typ {
-            Type::Lit(_) => {}
-            Type::Data(var) => self.update_var(var, VarType::DataType),
-            Type::Tuple(flds) => {
+            Type::Lit { lit: _, span: _ } => {}
+            Type::Cons {
+                cons,
+                flds,
+                span: _,
+            } => {
+                self.update_var(cons, VarType::DataType);
+                flds.iter_mut().for_each(|fld| self.visit_type(fld));
+            }
+            Type::Tuple { flds, span: _ } => {
                 flds.iter_mut().for_each(|fld| self.visit_type(fld));
             }
         }
