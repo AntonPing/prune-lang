@@ -20,20 +20,18 @@ function is_balanced_help(tree: AVLTree) -> OptionInt
 begin
     match tree with
     | Node(left, _, right) => 
-        match is_balanced_help(left) with
-        | Some(left_height) => match is_balanced_help(right) with
-            | Some(right_height) => 
-                let diff_height = left_height - right_height;
-                if diff_height >= -1 && diff_height <= 1 then
-                    if left_height < right_height then 
-                        Some(right_height + 1)
-                    else
-                        Some(left_height + 1)
+        match (is_balanced_help(left), is_balanced_help(right)) with
+        | (Some(left_height), Some(right_height)) =>
+            let diff_height = left_height - right_height;
+            if diff_height >= -1 && diff_height <= 1 then
+                if left_height < right_height then 
+                    Some(right_height + 1)
                 else
-                    None
-            | None => None
-            end
-        | None => None
+                    Some(left_height + 1)
+            else
+                None
+        | (None, _) => None
+        | (_, None) => None
         end
     | Empty => Some(0)
     end

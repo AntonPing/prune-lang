@@ -541,10 +541,21 @@ impl<'src> Parser<'src> {
                 Ok(Expr::Undefined { span })
             }
             Token::LParen => {
-                self.match_token(Token::LParen)?;
-                let expr = self.parse_expr()?;
-                self.match_token(Token::RParen)?;
-                Ok(expr)
+                let exprs =
+                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                        par.parse_expr()
+                    })?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                match exprs.len() {
+                    0 => Err(ParseError::FailedToParse(
+                        "tuple of expressions",
+                        self.peek_token(),
+                        self.peek_span().clone(),
+                    )),
+                    1 => Ok(exprs.into_iter().next().unwrap()),
+                    _ => Ok(Expr::Tuple { flds: exprs, span }),
+                }
             }
             _tok => Err(ParseError::FailedToParse(
                 "expression",
@@ -601,6 +612,23 @@ impl<'src> Parser<'src> {
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Ok(Pattern::Cons { cons, flds, span })
+            }
+            Token::LParen => {
+                let patns =
+                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                        par.parse_pattern()
+                    })?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                match patns.len() {
+                    0 => Err(ParseError::FailedToParse(
+                        "tuple of patterns",
+                        self.peek_token(),
+                        self.peek_span().clone(),
+                    )),
+                    1 => Ok(patns.into_iter().next().unwrap()),
+                    _ => Ok(Pattern::Tuple { flds: patns, span }),
+                }
             }
             _tok => Err(ParseError::FailedToParse(
                 "pattern",
@@ -700,6 +728,21 @@ impl<'src> Parser<'src> {
             Token::UpperIdent => {
                 let cons = self.parse_upper_var()?;
                 Ok(Type::Data(cons))
+            }
+            Token::LParen => {
+                let typs =
+                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                        par.parse_type()
+                    })?;
+                match typs.len() {
+                    0 => Err(ParseError::FailedToParse(
+                        "tuple of types",
+                        self.peek_token(),
+                        self.peek_span().clone(),
+                    )),
+                    1 => Ok(typs.into_iter().next().unwrap()),
+                    _ => Ok(Type::Tuple(typs)),
+                }
             }
             _tok => Err(ParseError::FailedToParse(
                 "type",

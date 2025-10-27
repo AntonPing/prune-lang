@@ -114,6 +114,10 @@ impl Checker {
                 self.unify_many(&pars, &flds);
                 res
             }
+            Expr::Tuple { flds, span: _ } => {
+                let flds = flds.iter().map(|fld| self.check_expr(fld)).collect();
+                UnifyType::Cons(Ident::dummy(&"#"), flds)
+            }
             Expr::Match {
                 expr,
                 brchs,
@@ -270,6 +274,10 @@ impl Checker {
                     self.unify(par, &ty);
                 }
                 res
+            }
+            Pattern::Tuple { flds, span: _ } => {
+                let typs = flds.iter().map(|fld| self.check_patn(fld)).collect();
+                UnifyType::Cons(Ident::dummy(&"#"), typs)
             }
         }
     }

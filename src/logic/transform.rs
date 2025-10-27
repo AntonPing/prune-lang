@@ -76,6 +76,11 @@ fn translate_type(typ: &ast::Type) -> TypeId {
     match typ {
         ast::Type::Lit(lit) => Term::Lit((*lit).into()),
         ast::Type::Data(var) => Term::Cons((), var.ident, Vec::new()),
+        ast::Type::Tuple(flds) => Term::Cons(
+            (),
+            Ident::dummy(&"#"),
+            flds.iter().map(|fld| translate_type(fld)).collect(),
+        ),
     }
 }
 
@@ -122,6 +127,14 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             let (flds, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 flds.iter().map(|fld| translate_expr(vars, fld)).unzip();
             goals.push(Goal::Cons(x, cons.ident, flds));
+            (Term::Var(x), Goal::And(goals))
+        }
+        ast::Expr::Tuple { flds, span: _ } => {
+            let x = Ident::fresh(&"res_tuple");
+            vars.push(x);
+            let (flds, mut goals): (Vec<AtomId>, Vec<Goal>) =
+                flds.iter().map(|fld| translate_expr(vars, fld)).unzip();
+            goals.push(Goal::Cons(x, Ident::dummy(&"#"), flds));
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Match {
@@ -299,6 +312,10 @@ fn patn_to_term(vars: &mut Vec<Ident>, patn: &ast::Pattern) -> TermId {
         } => {
             let flds = flds.iter().map(|fld| patn_to_term(vars, fld)).collect();
             TermId::Cons((), cons.ident, flds)
+        }
+        ast::Pattern::Tuple { flds, span: _ } => {
+            let flds = flds.iter().map(|fld| patn_to_term(vars, fld)).collect();
+            TermId::Cons((), Ident::dummy(&"#"), flds)
         }
     }
 }

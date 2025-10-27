@@ -15,6 +15,10 @@ impl From<&Type> for UnifyType {
         match value {
             Type::Lit(lit) => UnifyType::Lit(*lit),
             Type::Data(name) => UnifyType::Cons(name.ident, Vec::new()),
+            Type::Tuple(typs) => UnifyType::Cons(
+                Ident::dummy(&"#"),
+                typs.iter().map(|typ| typ.into()).collect(),
+            ),
         }
     }
 }

@@ -40,6 +40,7 @@ pub struct Constructor {
 pub enum Type {
     Lit(LitType),
     Data(Var),
+    Tuple(Vec<Type>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,6 +67,10 @@ pub enum Pattern {
         flds: Vec<Pattern>,
         span: Span,
     },
+    Tuple {
+        flds: Vec<Pattern>,
+        span: Span,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -85,6 +90,10 @@ pub enum Expr {
     },
     Cons {
         cons: Var,
+        flds: Vec<Expr>,
+        span: Span,
+    },
+    Tuple {
         flds: Vec<Expr>,
         span: Span,
     },

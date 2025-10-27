@@ -166,6 +166,9 @@ impl Renamer {
         match typ {
             Type::Lit(_) => {}
             Type::Data(var) => self.update_var(var, VarType::DataType),
+            Type::Tuple(flds) => {
+                flds.iter_mut().for_each(|fld| self.visit_type(fld));
+            }
         }
     }
 
@@ -196,6 +199,9 @@ impl Renamer {
                 span: _,
             } => {
                 self.update_var(name, VarType::Constructor);
+                flds.iter_mut().for_each(|fld| self.visit_expr(fld));
+            }
+            Expr::Tuple { flds, span: _ } => {
                 flds.iter_mut().for_each(|fld| self.visit_expr(fld));
             }
             Expr::Match {
@@ -283,9 +289,10 @@ impl Renamer {
                 span: _,
             } => {
                 self.update_var(cons, VarType::Constructor);
-                for fld in flds {
-                    self.visit_pattern(fld);
-                }
+                flds.iter_mut().for_each(|fld| self.visit_pattern(fld));
+            }
+            Pattern::Tuple { flds, span: _ } => {
+                flds.iter_mut().for_each(|fld| self.visit_pattern(fld));
             }
         }
     }
