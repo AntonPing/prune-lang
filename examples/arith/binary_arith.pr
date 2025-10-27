@@ -1,0 +1,100 @@
+datatype Bit where
+| O
+| I
+end
+
+datatype BitList where
+| Nil
+| Cons(Bit, BitList)
+end
+
+function not_nil(xs: BitList) -> Unit
+begin
+    let Cons(_head, _tail) = xs;
+    ()
+end
+
+function well_formed(xs: BitList) -> Unit
+begin
+    match xs with
+    | Nil => ()
+    | Cons(I, Nil) => ()
+    | Cons(_, Cons(head, tail)) => well_formed(Cons(head, tail))
+    end
+end
+
+function full_adder_1(ci: Bit, x: Bit, y: Bit, z: Bit, co: Bit) -> Unit
+begin
+    alternative
+    | guard ci = O; guard x = O; guard y = O; guard z = O; guard co = O; ()
+    | guard ci = I; guard x = O; guard y = O; guard z = I; guard co = O; ()
+    | guard ci = O; guard x = I; guard y = O; guard z = I; guard co = O; ()
+    | guard ci = I; guard x = I; guard y = O; guard z = O; guard co = I; ()
+    | guard ci = O; guard x = O; guard y = I; guard z = I; guard co = O; ()
+    | guard ci = I; guard x = O; guard y = I; guard z = O; guard co = I; ()
+    | guard ci = O; guard x = I; guard y = I; guard z = O; guard co = I; ()
+    | guard ci = I; guard x = I; guard y = I; guard z = I; guard co = I; ()
+    end
+end
+
+function full_adder_n(ci: Bit, xs: BitList, ys: BitList) -> BitList
+begin
+    alternative
+    | guard xs = Nil; guard ys = Nil; 
+        match ci with
+        | O => Nil
+        | I => Cons(I, Nil)
+        end
+    | guard xs = Nil; guard not_nil(ys) = ();
+        match ci with
+        | O => ys
+        | I => full_adder_n(O, Cons(I, Nil), ys)
+        end
+    | guard ys = Nil; guard not_nil(xs) = ();
+        match ci with
+        | O => xs
+        | I => full_adder_n(O, xs, Cons(I, Nil))
+        end
+    | fresh x_head, x_tail, y_head, y_tail, z, co;
+        guard xs = Cons(x_head, x_tail);
+        guard ys = Cons(y_head, y_tail);
+        guard full_adder_1(ci, x_head, y_head, z, co) = ();
+        Cons(z, full_adder_n(co, x_tail, y_tail))
+    end
+end
+
+function add(xs: BitList, ys: BitList) -> BitList
+begin
+    full_adder_n(O, xs, ys)
+end
+
+function mul(xs: BitList, ys: BitList) -> BitList
+begin
+    match xs with
+    | Nil => Nil
+    | Cons(O, ks) => Cons(O, mul(ks, ys))
+    | Cons(I, ks) => add(Cons(O, mul(ks, ys)), ys)
+    end
+end
+
+predicate basic_add_test(xs: BitList, ys: BitList, zs: BitList)
+begin
+    and(
+        well_formed(xs) = (),
+        well_formed(ys) = (),
+        well_formed(zs) = (),
+        add(xs, ys) = zs,
+    )
+end
+
+predicate pythagorean_triple(xs: BitList, ys: BitList, zs: BitList)
+begin
+    and(
+        xs = Cons(I, Cons(I, Nil)),
+        ys = Cons(O, Cons(O, Cons(I, Nil))),
+        zs = Cons(I, Cons(O, Cons(I, Nil))),
+        add(mul(xs, xs), mul(ys, ys)) = mul(zs, zs)
+    )
+end
+
+query pythagorean_triple(depth_step=20, depth_limit=200, answer_limit=1)

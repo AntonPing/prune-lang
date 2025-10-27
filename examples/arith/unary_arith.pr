@@ -1,0 +1,34 @@
+datatype Nat where
+| Z
+| S(Nat)
+end
+
+function add(x: Nat, y: Nat) -> Nat
+begin
+    match x with
+    | Z => y
+    | S(k) => S(add(k, y))
+    end
+end
+
+function mul(x: Nat, y: Nat) -> Nat
+begin
+    match x with
+    | Z => Z
+    | S(k) => add(y, mul(k, y))
+    end
+end
+
+predicate pythagorean_triple(x: Nat, y: Nat, z: Nat)
+begin
+    fresh (x2, y2, z2) (
+        and(
+            x = S(x2),
+            y = S(y2),
+            z = S(z2),
+            add(mul(x, x), mul(y, y)) = mul(z, z)
+        )
+    )
+end
+
+query pythagorean_triple(depth_step=20, depth_limit=200, answer_limit=1)

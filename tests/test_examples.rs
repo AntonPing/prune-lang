@@ -139,3 +139,13 @@ fn test_pythagorean() {
 fn test_fermat_n3() {
     cli::run_cli_test(PathBuf::from("./examples/other/fermat_n3.pr")).unwrap();
 }
+
+#[test]
+fn test_unary_arith() {
+    cli::run_cli_test(PathBuf::from("./examples/arith/unary_arith.pr")).unwrap();
+}
+
+#[test]
+fn test_binary_arith() {
+    cli::run_cli_test(PathBuf::from("./examples/arith/binary_arith.pr")).unwrap();
+}
