@@ -86,40 +86,61 @@ impl PathLink {
 }
 
 #[derive(Debug, Clone)]
+struct PathInfo {
+    counter: usize,
+    last_conflit: usize,
+    last_branch: usize,
+}
+
+impl PathInfo {
+    fn new(tmsp: usize) -> PathInfo {
+        PathInfo {
+            counter: 0,
+            last_conflit: tmsp,
+            last_branch: tmsp,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct PathTree {
-    map: Trie<Vec<usize>, usize>,
+    time_stamp: usize,
+    map: Trie<Vec<usize>, PathInfo>,
 }
 
 impl PathTree {
     pub fn new() -> PathTree {
-        let map = Trie::new();
-        PathTree { map }
+        PathTree {
+            time_stamp: 0,
+            map: Trie::new(),
+        }
     }
 
     pub fn update_path_inc(&mut self, path: &Path) {
         let mut vec = path.link.to_usize_vec();
         assert_eq!(vec.len() % 2, 0);
 
-        let mut count = 4;
+        let mut new_counter = 4;
 
         while !vec.is_empty() {
-            self.map.map_with_default(
-                vec.clone(),
-                |val| {
-                    if *val < count {
-                        *val = count
-                    }
-                },
-                count,
-            );
+            if let Some(info) = self.map.get_mut(&vec) {
+                if info.counter < new_counter {
+                    info.counter = new_counter;
+                }
+                info.last_conflit = self.time_stamp;
+            } else {
+                let mut info = PathInfo::new(self.time_stamp);
+                info.counter = new_counter;
+                self.map.insert(vec.clone(), info);
+            }
 
             vec.pop().unwrap();
             vec.pop().unwrap();
 
-            if count == 1 {
+            if new_counter == 1 {
                 break;
             } else {
-                count /= 2;
+                new_counter /= 2;
             }
         }
     }
@@ -128,21 +149,50 @@ impl PathTree {
         let vec = path.link.to_usize_vec();
         assert_eq!(vec.len() % 2, 0);
 
-        self.map.map_with_default(
-            vec,
-            |val| {
-                if *val > 0 {
-                    *val -= 1;
-                }
-            },
-            0,
-        );
+        if let Some(info) = self.map.get_mut(&vec) {
+            if info.counter > 0 {
+                info.counter -= 1;
+            }
+            info.last_branch = self.time_stamp;
+        } else {
+            let info = PathInfo::new(self.time_stamp);
+            self.map.insert(vec, info);
+        }
+
+        self.time_stamp += 1;
     }
 
-    pub fn get(&self, path: &Path) -> usize {
+    pub fn get_counter(&self, path: &Path) -> isize {
         self.map
             .get(&path.link.to_usize_vec())
-            .cloned()
+            .map(|info| info.counter)
+            .unwrap_or(0) as isize
+    }
+
+    pub fn get_last_conflit(&self, path: &Path) -> isize {
+        self.map
+            .get(&path.link.to_usize_vec())
+            .map(|info| info.last_conflit)
+            .unwrap_or(0) as isize
+    }
+
+    pub fn get_neg_last_branch(&self, path: &Path) -> isize {
+        let res = self
+            .map
+            .get(&path.link.to_usize_vec())
+            .map(|info| info.last_branch)
+            .unwrap_or(0) as isize;
+        -res
+    }
+
+    pub fn get_last_conflict_branch_diff(&self, path: &Path) -> isize {
+        self.map
+            .get(&path.link.to_usize_vec())
+            .map(|info| {
+                let l_c = (self.time_stamp - info.last_conflit) as isize;
+                let l_b = (self.time_stamp - info.last_branch) as isize;
+                l_b - l_c
+            })
             .unwrap_or(0)
     }
 }

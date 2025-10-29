@@ -137,7 +137,10 @@ impl<'blk, 'io> Walker<'blk, 'io> {
         // let brchs = self.random_branching(state);
 
         // conflict-driven branching heuristic
-        let brchs = self.conflict_driven_branching(state);
+        // let brchs = self.conflict_driven_branching(state);
+
+        // conflict-driven branching heuristic with exploit-explore balancing
+        let brchs = self.exploit_explore_conflict_driven_branching(state);
 
         // look-ahead branching heuristic
         // let brchs = self.look_ahead_branching(state);
@@ -166,14 +169,14 @@ impl<'blk, 'io> Walker<'blk, 'io> {
         }
         assert!(len_vec.iter().all(|len| *len > 1));
 
-        let conj_vals: Vec<(usize, usize)> = state
+        let conj_vals: Vec<(usize, isize)> = state
             .queue
             .iter()
             .enumerate()
             .map(|(conj, paths)| {
-                let mut vec: Vec<usize> = Vec::new();
+                let mut vec: Vec<isize> = Vec::new();
                 for path in paths {
-                    vec.push(self.path_tree.get(path));
+                    vec.push(self.path_tree.get_counter(path));
                 }
                 vec.iter().map(|val| (conj, *val)).collect::<Vec<_>>()
             })
@@ -184,6 +187,44 @@ impl<'blk, 'io> Walker<'blk, 'io> {
             .iter()
             .rev()
             .max_by_key(|(_conj, val)| if *val > 0 { 1 } else { 0 })
+            .unwrap();
+
+        let paths = state.queue.remove(*conj).unwrap();
+        for path in paths.iter() {
+            self.path_tree.update_path_dec(&path);
+        }
+
+        paths
+    }
+
+    #[allow(dead_code)]
+    fn exploit_explore_conflict_driven_branching(&mut self, state: &mut State) -> Vec<Path> {
+        assert!(!state.queue.is_empty());
+
+        let mut len_vec = Vec::new();
+        for paths in state.queue.iter() {
+            len_vec.push(paths.len());
+        }
+        assert!(len_vec.iter().all(|len| *len > 1));
+
+        let conj_vals: Vec<(usize, isize)> = state
+            .queue
+            .iter()
+            .enumerate()
+            .map(|(conj, paths)| {
+                let mut vec: Vec<isize> = Vec::new();
+                for path in paths {
+                    vec.push(self.path_tree.get_last_conflict_branch_diff(path));
+                }
+                vec.iter().map(|val| (conj, *val)).collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect();
+
+        let (conj, _val) = conj_vals
+            .iter()
+            .rev()
+            .max_by_key(|(_conj, val)| *val)
             .unwrap();
 
         let paths = state.queue.remove(*conj).unwrap();
