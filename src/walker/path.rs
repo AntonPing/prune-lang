@@ -88,17 +88,30 @@ impl PathLink {
 #[derive(Debug, Clone)]
 struct PathInfo {
     counter: usize,
-    last_conflit: usize,
-    last_branch: usize,
+    vsids_score: isize,
+    vsids_tmsp: usize,
 }
+
+const ALPHA: f32 = 0.95;
 
 impl PathInfo {
     fn new(tmsp: usize) -> PathInfo {
         PathInfo {
             counter: 0,
-            last_conflit: tmsp,
-            last_branch: tmsp,
+            vsids_score: 0,
+            vsids_tmsp: tmsp,
         }
+    }
+
+    fn bump_score(&mut self, tmsp: usize, inc: isize) {
+        self.decay_update(tmsp);
+        self.vsids_score += inc;
+    }
+
+    fn decay_update(&mut self, tmsp: usize) {
+        let powered = ALPHA.powi((tmsp - self.vsids_tmsp) as i32);
+        self.vsids_score = ((self.vsids_score as f32) * powered) as isize;
+        self.vsids_tmsp = tmsp;
     }
 }
 
@@ -116,23 +129,23 @@ impl PathTree {
         }
     }
 
-    pub fn update_path_inc(&mut self, path: &Path) {
+    pub fn conflict_update(&mut self, path: &Path) {
         let mut vec = path.link.to_usize_vec();
         assert_eq!(vec.len() % 2, 0);
 
         let mut new_counter = 4;
 
         while !vec.is_empty() {
-            if let Some(info) = self.map.get_mut(&vec) {
-                if info.counter < new_counter {
-                    info.counter = new_counter;
-                }
-                info.last_conflit = self.time_stamp;
+            let info = if let Some(info) = self.map.get_mut(&vec) {
+                info
             } else {
-                let mut info = PathInfo::new(self.time_stamp);
-                info.counter = new_counter;
+                let info = PathInfo::new(self.time_stamp);
                 self.map.insert(vec.clone(), info);
-            }
+                self.map.get_mut(&vec).unwrap()
+            };
+
+            info.counter = std::cmp::max(info.counter, new_counter);
+            info.bump_score(self.time_stamp, new_counter as isize * 100);
 
             vec.pop().unwrap();
             vec.pop().unwrap();
@@ -145,19 +158,20 @@ impl PathTree {
         }
     }
 
-    pub fn update_path_dec(&mut self, path: &Path) {
+    pub fn branch_update(&mut self, path: &Path) {
         let vec = path.link.to_usize_vec();
         assert_eq!(vec.len() % 2, 0);
 
-        if let Some(info) = self.map.get_mut(&vec) {
-            if info.counter > 0 {
-                info.counter -= 1;
-            }
-            info.last_branch = self.time_stamp;
+        let info = if let Some(info) = self.map.get_mut(&vec) {
+            info
         } else {
             let info = PathInfo::new(self.time_stamp);
-            self.map.insert(vec, info);
-        }
+            self.map.insert(vec.clone(), info);
+            self.map.get_mut(&vec).unwrap()
+        };
+
+        info.counter = info.counter.saturating_sub(1);
+        info.bump_score(self.time_stamp, -200);
 
         self.time_stamp += 1;
     }
@@ -169,29 +183,12 @@ impl PathTree {
             .unwrap_or(0) as isize
     }
 
-    pub fn get_last_conflit(&self, path: &Path) -> isize {
+    pub fn get_mixed_vsids_score(&mut self, path: &Path) -> isize {
         self.map
-            .get(&path.link.to_usize_vec())
-            .map(|info| info.last_conflit)
-            .unwrap_or(0) as isize
-    }
-
-    pub fn get_neg_last_branch(&self, path: &Path) -> isize {
-        let res = self
-            .map
-            .get(&path.link.to_usize_vec())
-            .map(|info| info.last_branch)
-            .unwrap_or(0) as isize;
-        -res
-    }
-
-    pub fn get_last_conflict_branch_diff(&self, path: &Path) -> isize {
-        self.map
-            .get(&path.link.to_usize_vec())
+            .get_mut(&path.link.to_usize_vec())
             .map(|info| {
-                let l_c = (self.time_stamp - info.last_conflit) as isize;
-                let l_b = (self.time_stamp - info.last_branch) as isize;
-                l_b - l_c
+                info.decay_update(self.time_stamp);
+                info.vsids_score
             })
             .unwrap_or(0)
     }
