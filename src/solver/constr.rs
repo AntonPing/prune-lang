@@ -1,7 +1,6 @@
 use super::*;
 
 pub trait ConstrSolver {
-    fn new() -> Self;
     fn is_empty(&self) -> bool;
     fn reset(&mut self);
     fn savepoint(&mut self);

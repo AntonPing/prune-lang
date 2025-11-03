@@ -16,8 +16,8 @@ impl fmt::Debug for NonIncrSmtSolver {
     }
 }
 
-impl ConstrSolver for NonIncrSmtSolver {
-    fn new() -> Self {
+impl NonIncrSmtSolver {
+    pub fn new() -> Self {
         let mut ctx = ContextBuilder::new()
             .with_z3_defaults()
             // .replay_file(Some(std::fs::File::create("replay.smt2").unwrap()))
@@ -32,7 +32,9 @@ impl ConstrSolver for NonIncrSmtSolver {
             saves: Vec::new(),
         }
     }
+}
 
+impl ConstrSolver for NonIncrSmtSolver {
     fn is_empty(&self) -> bool {
         self.vars_vec.is_empty()
             && self.cons_vec.is_empty()

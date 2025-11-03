@@ -15,8 +15,8 @@ impl fmt::Debug for IncrSmtSolver {
     }
 }
 
-impl ConstrSolver for IncrSmtSolver {
-    fn new() -> Self {
+impl IncrSmtSolver {
+    pub fn new() -> Self {
         let mut ctx = ContextBuilder::new()
             .with_z3_defaults()
             // .replay_file(Some(std::fs::File::create("replay.smt2").unwrap()))
@@ -31,7 +31,9 @@ impl ConstrSolver for IncrSmtSolver {
             map: EnvMap::new(),
         }
     }
+}
 
+impl ConstrSolver for IncrSmtSolver {
     fn is_empty(&self) -> bool {
         self.map.is_empty()
     }

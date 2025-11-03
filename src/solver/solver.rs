@@ -4,17 +4,16 @@ use super::subst::*;
 
 use constr::ConstrSolver;
 
-#[derive(Debug)]
-pub struct Solver<CS: ConstrSolver> {
+pub struct Solver {
     ty_map: EnvMap<IdentCtx, TypeId>,
     subst: Subst,
-    constr: CS,
+    constr: Box<dyn ConstrSolver>,
     unify_vec: Vec<(IdentCtx, TermCtx)>,
     solve_vec: Vec<(Prim, Vec<AtomCtx>)>,
     saves: Vec<(usize, usize)>,
 }
 
-impl<CS: ConstrSolver + fmt::Display> fmt::Display for Solver<CS> {
+impl fmt::Display for Solver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let unify_vec = self
             .unify_vec
@@ -33,10 +32,10 @@ impl<CS: ConstrSolver + fmt::Display> fmt::Display for Solver<CS> {
     }
 }
 
-impl<CS: ConstrSolver> Solver<CS> {
-    pub fn new() -> Solver<CS> {
+impl Solver {
+    pub fn new() -> Solver {
         let subst = Subst::new();
-        let constr = CS::new();
+        let constr = Box::new(crate::solver::incr_smt::IncrSmtSolver::new());
         Solver {
             ty_map: EnvMap::new(),
             subst,
@@ -83,7 +82,7 @@ impl<CS: ConstrSolver> Solver<CS> {
     }
 }
 
-impl<CS: ConstrSolver> Solver<CS> {
+impl Solver {
     pub fn declare(&mut self, var: &IdentCtx, typ: &TypeId) {
         assert!(!self.ty_map.contains_key(var));
         self.ty_map.insert(*var, typ.clone());
@@ -158,7 +157,7 @@ fn test_solver() {
     let z = Ident::dummy(&"z");
     let cons = Ident::dummy(&"cons");
 
-    let mut sol: Solver<super::incr_smt::IncrSmtSolver> = Solver::new();
+    let mut sol: Solver = Solver::new();
 
     sol.declare(&x.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
     sol.declare(&y.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
