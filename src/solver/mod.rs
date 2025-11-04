@@ -3,14 +3,11 @@ use crate::utils::ident::*;
 use crate::utils::lit::*;
 use crate::utils::prim::*;
 use crate::utils::term::*;
-use constr::{ConstrSolver, SmtBackend};
 
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::fmt;
 
-pub mod constr;
-pub mod incr_smt;
-pub mod non_incr_smt;
+pub mod backend;
 pub mod solver;
 pub mod subst;

@@ -52,7 +52,7 @@ impl NonIncrSmtSolver {
     }
 }
 
-impl ConstrSolver for NonIncrSmtSolver {
+impl SmtSolver for NonIncrSmtSolver {
     fn is_empty(&self) -> bool {
         self.vars_vec.is_empty()
             && self.cons_vec.is_empty()

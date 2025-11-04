@@ -1,6 +1,10 @@
 use super::*;
+use easy_smt::{Context, ContextBuilder, SExpr};
 
-pub trait ConstrSolver {
+pub mod incr_smt;
+pub mod non_incr_smt;
+
+pub trait SmtSolver {
     fn is_empty(&self) -> bool;
     fn reset(&mut self);
     fn savepoint(&mut self);

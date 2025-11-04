@@ -1,7 +1,5 @@
 use super::*;
 
-use easy_smt::{Context, ContextBuilder, SExpr};
-
 pub struct IncrSmtSolver {
     pub ctx: Context,
     pub level: usize,
@@ -50,7 +48,7 @@ impl IncrSmtSolver {
     }
 }
 
-impl ConstrSolver for IncrSmtSolver {
+impl SmtSolver for IncrSmtSolver {
     fn is_empty(&self) -> bool {
         self.map.is_empty()
     }

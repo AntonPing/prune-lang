@@ -1,12 +1,12 @@
 use super::subst::*;
 use super::*;
 use crate::driver::cli;
-use constr::ConstrSolver;
+use backend::SmtSolver;
 
 pub struct Solver {
     ty_map: EnvMap<IdentCtx, TypeId>,
     subst: Subst,
-    constr: Box<dyn ConstrSolver>,
+    constr: Box<dyn SmtSolver>,
     unify_vec: Vec<(IdentCtx, TermCtx)>,
     solve_vec: Vec<(Prim, Vec<AtomCtx>)>,
     saves: Vec<(usize, usize)>,
@@ -36,18 +36,18 @@ impl Solver {
         let subst = Subst::new();
 
         let constr = match backend {
-            cli::SmtBackend::Z3 => Box::new(crate::solver::incr_smt::IncrSmtSolver::new(
-                constr::SmtBackend::Z3,
-            )) as Box<dyn ConstrSolver>,
-            cli::SmtBackend::Z3Single => Box::new(
-                crate::solver::non_incr_smt::NonIncrSmtSolver::new(constr::SmtBackend::Z3),
-            ) as Box<dyn ConstrSolver>,
-            cli::SmtBackend::CVC5 => Box::new(crate::solver::incr_smt::IncrSmtSolver::new(
-                constr::SmtBackend::CVC5,
-            )) as Box<dyn ConstrSolver>,
-            cli::SmtBackend::CVC5Single => Box::new(
-                crate::solver::non_incr_smt::NonIncrSmtSolver::new(constr::SmtBackend::CVC5),
-            ) as Box<dyn ConstrSolver>,
+            cli::SmtBackend::Z3 => Box::new(backend::incr_smt::IncrSmtSolver::new(
+                backend::SmtBackend::Z3,
+            )) as Box<dyn SmtSolver>,
+            cli::SmtBackend::Z3Single => Box::new(backend::non_incr_smt::NonIncrSmtSolver::new(
+                backend::SmtBackend::Z3,
+            )) as Box<dyn SmtSolver>,
+            cli::SmtBackend::CVC5 => Box::new(backend::incr_smt::IncrSmtSolver::new(
+                backend::SmtBackend::CVC5,
+            )) as Box<dyn SmtSolver>,
+            cli::SmtBackend::CVC5Single => Box::new(backend::non_incr_smt::NonIncrSmtSolver::new(
+                backend::SmtBackend::CVC5,
+            )) as Box<dyn SmtSolver>,
         };
 
         Solver {
