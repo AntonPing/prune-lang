@@ -48,6 +48,9 @@ impl Solver {
             cli::SmtBackend::CVC5Single => Box::new(backend::non_incr_smt::NonIncrSmtSolver::new(
                 backend::SmtBackend::CVC5,
             )) as Box<dyn SmtSolver>,
+            cli::SmtBackend::NoSmt => {
+                Box::new(backend::no_smt::NoSmtSolver::new()) as Box<dyn SmtSolver>
+            }
         };
 
         Solver {
@@ -138,7 +141,7 @@ impl Solver {
             .map(|var| self.subst.merge(&Term::Var(*var)))
             .collect();
 
-        let lit_vars = terms
+        let lit_vars: Vec<IdentCtx> = terms
             .iter()
             .map(|term| {
                 term.free_vars()
@@ -149,6 +152,10 @@ impl Solver {
             })
             .flatten()
             .collect();
+
+        if lit_vars.is_empty() {
+            return terms;
+        }
 
         let map = self
             .constr

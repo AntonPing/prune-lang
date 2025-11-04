@@ -2,6 +2,7 @@ use super::*;
 use easy_smt::{Context, ContextBuilder, SExpr};
 
 pub mod incr_smt;
+pub mod no_smt;
 pub mod non_incr_smt;
 
 pub trait SmtSolver {

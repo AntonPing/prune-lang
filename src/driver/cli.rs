@@ -8,6 +8,7 @@ pub enum SmtBackend {
     Z3Single,
     CVC5,
     CVC5Single,
+    NoSmt,
 }
 
 #[derive(Parser, Debug, Clone)]
