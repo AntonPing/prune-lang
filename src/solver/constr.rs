@@ -12,3 +12,9 @@ pub trait ConstrSolver {
     fn check_sound(&mut self) -> bool;
     fn get_value(&mut self, vars: &Vec<IdentCtx>) -> HashMap<IdentCtx, LitVal>;
 }
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum SmtBackend {
+    Z3,
+    CVC5,
+}

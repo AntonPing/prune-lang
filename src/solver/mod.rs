@@ -3,6 +3,7 @@ use crate::utils::ident::*;
 use crate::utils::lit::*;
 use crate::utils::prim::*;
 use crate::utils::term::*;
+use constr::{ConstrSolver, SmtBackend};
 
 use itertools::Itertools;
 use std::collections::HashMap;

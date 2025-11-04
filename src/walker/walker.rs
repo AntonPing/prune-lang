@@ -3,7 +3,7 @@ use super::path::{Path, PathTree};
 use super::*;
 
 use crate::block::ast::*;
-use crate::driver::cli::PipeIO;
+use crate::driver::cli::{PipeIO, SmtBackend};
 use crate::solver::solver::Solver;
 use crate::utils::ident::IdentCtx;
 
@@ -39,7 +39,11 @@ pub struct Walker<'blk, 'io> {
 }
 
 impl<'blk, 'io> Walker<'blk, 'io> {
-    pub fn new(dict: &'blk HashMap<Ident, PredDef>, pipe: &'io mut PipeIO) -> Walker<'blk, 'io> {
+    pub fn new(
+        dict: &'blk HashMap<Ident, PredDef>,
+        pipe: &'io mut PipeIO,
+        backend: SmtBackend,
+    ) -> Walker<'blk, 'io> {
         Walker {
             dict,
             pipe_io: pipe,
@@ -49,7 +53,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
             stack: Vec::new(),
             ansr_cnt: 0,
             ctx_cnt: 0,
-            sol: Solver::new(),
+            sol: Solver::new(backend),
         }
     }
 
@@ -414,7 +418,7 @@ query is_elem_after_append(depth_step=5, depth_limit=1000, answer_limit=1)
     // println!("{:#?}", dict);
 
     let mut pipe_io = PipeIO::empty();
-    let mut wlk = Walker::new(&prog.preds, &mut pipe_io);
+    let mut wlk = Walker::new(&prog.preds, &mut pipe_io, SmtBackend::Z3);
     let query = &prog.querys[0];
 
     for param in query.params.iter() {

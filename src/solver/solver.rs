@@ -1,7 +1,6 @@
-use super::*;
-
 use super::subst::*;
-
+use super::*;
+use crate::driver::cli;
 use constr::ConstrSolver;
 
 pub struct Solver {
@@ -33,9 +32,24 @@ impl fmt::Display for Solver {
 }
 
 impl Solver {
-    pub fn new() -> Solver {
+    pub fn new(backend: cli::SmtBackend) -> Solver {
         let subst = Subst::new();
-        let constr = Box::new(crate::solver::incr_smt::IncrSmtSolver::new());
+
+        let constr = match backend {
+            cli::SmtBackend::Z3 => Box::new(crate::solver::incr_smt::IncrSmtSolver::new(
+                constr::SmtBackend::Z3,
+            )) as Box<dyn ConstrSolver>,
+            cli::SmtBackend::Z3Single => Box::new(
+                crate::solver::non_incr_smt::NonIncrSmtSolver::new(constr::SmtBackend::Z3),
+            ) as Box<dyn ConstrSolver>,
+            cli::SmtBackend::CVC5 => Box::new(crate::solver::incr_smt::IncrSmtSolver::new(
+                constr::SmtBackend::CVC5,
+            )) as Box<dyn ConstrSolver>,
+            cli::SmtBackend::CVC5Single => Box::new(
+                crate::solver::non_incr_smt::NonIncrSmtSolver::new(constr::SmtBackend::CVC5),
+            ) as Box<dyn ConstrSolver>,
+        };
+
         Solver {
             ty_map: EnvMap::new(),
             subst,
@@ -157,7 +171,7 @@ fn test_solver() {
     let z = Ident::dummy(&"z");
     let cons = Ident::dummy(&"cons");
 
-    let mut sol: Solver = Solver::new();
+    let mut sol: Solver = Solver::new(cli::SmtBackend::Z3);
 
     sol.declare(&x.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
     sol.declare(&y.tag_ctx(0), &TypeId::Lit(LitType::TyInt));

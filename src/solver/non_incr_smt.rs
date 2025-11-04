@@ -1,5 +1,5 @@
 use super::*;
-use constr::ConstrSolver;
+
 use easy_smt::{Context, ContextBuilder, SExpr};
 
 pub struct NonIncrSmtSolver {
@@ -17,13 +17,31 @@ impl fmt::Debug for NonIncrSmtSolver {
 }
 
 impl NonIncrSmtSolver {
-    pub fn new() -> Self {
-        let mut ctx = ContextBuilder::new()
-            .with_z3_defaults()
-            // .replay_file(Some(std::fs::File::create("replay.smt2").unwrap()))
-            .build()
-            .unwrap();
-        ctx.set_option(":timeout", ctx.numeral(10)).unwrap();
+    pub fn new(backend: SmtBackend) -> Self {
+        let mut ctx_bld = ContextBuilder::new();
+        match backend {
+            SmtBackend::Z3 => {
+                ctx_bld.solver("z3").solver_args(["-smt2", "-in", "-v:0"]);
+            }
+            SmtBackend::CVC5 => {
+                ctx_bld
+                    .solver("cvc5")
+                    .solver_args(["--quiet", "--lang=smt2", "--incremental"]);
+            }
+        }
+
+        // ctx_bld.replay_file(Some(std::fs::File::create("replay.smt2").unwrap()));
+        let mut ctx = ctx_bld.build().unwrap();
+
+        match backend {
+            SmtBackend::Z3 => {
+                ctx.set_option(":timeout", ctx.numeral(5000)).unwrap();
+            }
+            SmtBackend::CVC5 => {
+                ctx.set_option(":tlimit-per", ctx.numeral(5000)).unwrap();
+            }
+        }
+
         NonIncrSmtSolver {
             ctx,
             vars_vec: Vec::new(),

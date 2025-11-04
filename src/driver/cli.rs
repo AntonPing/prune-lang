@@ -1,6 +1,14 @@
 use super::*;
 use crate::driver::command::Pipeline;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
+
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
+pub enum SmtBackend {
+    Z3,
+    Z3Single,
+    CVC5,
+    CVC5Single,
+}
 
 #[derive(Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
@@ -15,6 +23,9 @@ pub struct CliArgs {
 
     #[arg(short, long, default_value_t = 10, value_name = "INT")]
     pub verbosity: u8,
+
+    #[arg(long, value_enum)]
+    pub backend: SmtBackend,
 
     #[arg(long, default_value_t = false)]
     pub mute_output: bool,
@@ -63,6 +74,7 @@ pub fn run_cli_test(prog_name: PathBuf) -> Result<Vec<usize>, io::Error> {
         output: None,
         stat_log: None,
         verbosity: 10,
+        backend: SmtBackend::Z3,
         mute_output: true,
         mute_stat_log: true,
         warn_as_err: true,
