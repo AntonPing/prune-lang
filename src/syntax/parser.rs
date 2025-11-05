@@ -552,6 +552,17 @@ impl<'src> Parser<'src> {
                     span,
                 })
             }
+            Token::Bang => {
+                self.match_token(Token::Bang)?;
+                let arg = self.parse_expr_factor()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Expr::Prim {
+                    prim: Prim::BNot,
+                    args: vec![arg],
+                    span,
+                })
+            }
             Token::Undefined => {
                 self.match_token(Token::Undefined)?;
                 let end = self.end_pos();
