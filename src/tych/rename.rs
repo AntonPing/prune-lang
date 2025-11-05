@@ -275,7 +275,7 @@ impl Renamer {
                 span: _,
             } => {
                 self.visit_expr(lhs);
-                self.visit_expr(rhs);
+                rhs.iter_mut().for_each(|rhs| self.visit_expr(rhs));
                 self.visit_expr(cont);
             }
             Expr::Undefined { span: _ } => {}

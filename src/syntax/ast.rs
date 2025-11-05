@@ -144,7 +144,7 @@ pub enum Expr {
     },
     Guard {
         lhs: Box<Expr>,
-        rhs: Box<Expr>,
+        rhs: Option<Box<Expr>>,
         cont: Box<Expr>,
         span: Span,
     },

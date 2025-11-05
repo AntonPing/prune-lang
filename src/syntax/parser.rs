@@ -521,8 +521,26 @@ impl<'src> Parser<'src> {
             Token::Guard => {
                 self.match_token(Token::Guard)?;
                 let lhs = Box::new(self.parse_expr()?);
-                self.match_token(Token::Equal)?;
-                let rhs = Box::new(self.parse_expr()?);
+
+                let rhs = match self.peek_token() {
+                    Token::Equal => {
+                        // guard e1 = e2; e3, in which e1 and e2 have the same type
+                        self.match_token(Token::Equal)?;
+                        Some(Box::new(self.parse_expr()?))
+                    }
+                    Token::Semi => {
+                        // guard e1; e2, if e1 has Bool type
+                        None
+                    }
+                    _ => {
+                        return Err(ParseError::FailedToParse(
+                            "right-hand-side of guard expression",
+                            self.peek_token(),
+                            self.peek_span().clone(),
+                        ));
+                    }
+                };
+
                 self.match_token(Token::Semi)?;
                 let cont = Box::new(self.parse_expr()?);
                 let end = self.end_pos();

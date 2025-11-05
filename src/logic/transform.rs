@@ -288,7 +288,13 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             span: _,
         } => {
             let (atom1, goal1) = translate_expr(vars, lhs);
-            let (atom2, goal2) = translate_expr(vars, rhs);
+            let (atom2, goal2) = translate_expr(
+                vars,
+                rhs.as_deref().unwrap_or(&Box::new(ast::Expr::Lit {
+                    lit: LitVal::Bool(true),
+                    span: logos::Span { start: 0, end: 0 },
+                })),
+            );
             let (atom3, goal3) = translate_expr(vars, cont);
             (
                 atom3,

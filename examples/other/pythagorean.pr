@@ -1,8 +1,8 @@
 function pythagorean_triple(a: Int, b: Int, c: Int) -> Unit
 begin
-    guard a > 0 = true;
-    guard b > 0 = true;
-    guard c > 0 = true;
+    guard a > 0;
+    guard b > 0;
+    guard c > 0;
     guard a * a + b * b = c * c;
     ()
 end

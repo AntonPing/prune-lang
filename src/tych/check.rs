@@ -203,8 +203,12 @@ impl Checker {
                 span: _,
             } => {
                 let lhs = self.check_expr(lhs);
-                let rhs = self.check_expr(rhs);
-                self.unify(&lhs, &rhs);
+                if let Some(rhs) = rhs {
+                    let rhs = self.check_expr(rhs);
+                    self.unify(&lhs, &rhs);
+                } else {
+                    self.unify(&lhs, &UnifyType::Lit(LitType::TyBool));
+                }
                 self.check_expr(cont)
             }
             Expr::Undefined { span: _ } => {
