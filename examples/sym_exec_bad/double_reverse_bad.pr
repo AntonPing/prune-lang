@@ -25,9 +25,10 @@ begin
     end
 end
 
-predicate double_reverse_same(xs: IntList)
+function double_reverse_same(xs: IntList) -> Bool
 begin
-    intlist_eq(reverse(reverse(xs)), xs) = false
+    guard !intlist_eq(reverse(reverse(xs)), xs);
+    true
 end
 
 query double_reverse_same(depth_step=5, depth_limit=1000, answer_limit=1)

@@ -77,24 +77,13 @@ begin
     end
 end
 
-predicate basic_add_test(xs: BitList, ys: BitList, zs: BitList)
+function pythagorean_triple(xs: BitList, ys: BitList, zs: BitList) -> Bool
 begin
-    and(
-        well_formed(xs) = (),
-        well_formed(ys) = (),
-        well_formed(zs) = (),
-        add(xs, ys) = zs,
-    )
-end
-
-predicate pythagorean_triple(xs: BitList, ys: BitList, zs: BitList)
-begin
-    and(
-        xs = Cons(I, Cons(I, Nil)),
-        ys = Cons(O, Cons(O, Cons(I, Nil))),
-        zs = Cons(I, Cons(O, Cons(I, Nil))),
-        add(mul(xs, xs), mul(ys, ys)) = mul(zs, zs)
-    )
+    guard xs = Cons(I, Cons(I, Nil));
+    guard ys = Cons(O, Cons(O, Cons(I, Nil)));
+    guard zs = Cons(I, Cons(O, Cons(I, Nil)));
+    guard add(mul(xs, xs), mul(ys, ys)) = mul(zs, zs);
+    true
 end
 
 query pythagorean_triple(depth_step=20, depth_limit=200, answer_limit=1)

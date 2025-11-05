@@ -19,16 +19,14 @@ begin
     end
 end
 
-predicate pythagorean_triple(x: Nat, y: Nat, z: Nat)
+function pythagorean_triple(x: Nat, y: Nat, z: Nat) -> Bool
 begin
-    fresh (x2, y2, z2) (
-        and(
-            x = S(x2),
-            y = S(y2),
-            z = S(z2),
-            add(mul(x, x), mul(y, y)) = mul(z, z)
-        )
-    )
+    fresh x2, y2, z2;
+    guard x = S(x2);
+    guard y = S(y2);
+    guard z = S(z2);
+    guard add(mul(x, x), mul(y, y)) = mul(z, z);
+    true
 end
 
 query pythagorean_triple(depth_step=20, depth_limit=200, answer_limit=1)

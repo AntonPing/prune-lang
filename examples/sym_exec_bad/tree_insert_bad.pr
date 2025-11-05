@@ -55,12 +55,11 @@ begin
     end
 end
 
-predicate keep_sorted(tree: Tree, x: Int)
+function keep_sorted(tree: Tree, x: Int) -> Bool
 begin
-    and(
-        is_sorted(tree) = true,
-        is_sorted(insert(tree, x)) = false,
-    )
+    guard is_sorted(tree);
+    guard !is_sorted(insert(tree, x));
+    true
 end
 
 query keep_sorted(depth_step=5, depth_limit=50, answer_limit=1)

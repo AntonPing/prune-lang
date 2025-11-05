@@ -117,14 +117,16 @@ begin
     end
 end
 
-predicate well_type_expr_gen(expr: Expr, ty: Type)
+function well_type_expr_gen(expr: Expr, ty: Type) -> Bool
 begin
-    well_type_expr(NilCtx, expr) = SomeType(ty)
+    guard well_type_expr(NilCtx, expr) = SomeType(ty);
+    true
 end
 
-predicate well_type_stmts_gen(stmt: Stmts, ctx: Context)
+function well_type_stmts_gen(stmt: Stmts, ctx: Context) -> Bool
 begin
-    well_type_stmts(NilCtx, stmt) = SomeCtx(ctx)
+    guard well_type_stmts(NilCtx, stmt) = SomeCtx(ctx);
+    true
 end
 
 query well_type_stmts_gen(depth_step=5, depth_limit=200, answer_limit=100)

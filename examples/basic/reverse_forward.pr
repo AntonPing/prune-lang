@@ -24,14 +24,10 @@ begin
         Cons(n, rev_nat_list(n - 1))
 end
 
-predicate reverse_forward(ys: IntList)
+function reverse_forward(ys: IntList) -> Bool
 begin
-    fresh(xs) (
-        and(
-            ys = reverse(xs),
-            xs = rev_nat_list(100),
-        ) 
-    )
+    guard ys = reverse(rev_nat_list(100));
+    true
 end
 
 query reverse_forward(depth_step=50, depth_limit=1000, answer_limit=1)

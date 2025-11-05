@@ -87,12 +87,11 @@ begin
     end
 end
 
-predicate gen_sorted_balanced(tree: AVLTree)
+function gen_sorted_balanced(tree: AVLTree) -> Bool
 begin
-    and(
-        is_sorted(tree) = true,
-        is_balanced(tree) = true,
-    )
+    guard is_sorted(tree);
+    guard is_balanced(tree);
+    true
 end
 
 query gen_sorted_balanced(depth_step=5, depth_limit=200, answer_limit=10)

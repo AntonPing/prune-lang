@@ -1,10 +1,10 @@
-function fermat_n3_triple(a: Int, b: Int, c: Int) -> Unit
+function fermat_n3_triple(a: Int, b: Int, c: Int) -> Bool
 begin
     guard a > 0;
     guard b > 0;
     guard c > 0;
     guard a * a * a + b * b * b = c * c * c;
-    ()
+    true
 end
 
 query fermat_n3_triple(depth_step=1, depth_limit=1, answer_limit=1)

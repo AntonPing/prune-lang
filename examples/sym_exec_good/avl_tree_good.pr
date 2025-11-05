@@ -147,19 +147,13 @@ begin
     end
 end
 
-predicate keep_sorted_and_balanced(tree: AVLTree, x: Int)
+function keep_sorted_and_balanced(tree: AVLTree, x: Int) -> Bool
 begin
-    fresh(res) (
-        and(
-            is_sorted(tree) = true,
-            is_balanced(tree) = true,
-            res = insert(tree, x),
-            or(
-                is_sorted(res) = false,
-                is_balanced(res) = false,
-            ),
-        )
-    )
+    guard is_sorted(tree);
+    guard is_balanced(tree);
+    let res = insert(tree, x);
+    guard !is_sorted(res) || !is_balanced(res);
+    true
 end
 
 query keep_sorted_and_balanced(depth_step=5, depth_limit=50, answer_limit=1)
