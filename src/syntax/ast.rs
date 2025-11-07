@@ -4,7 +4,6 @@ use super::*;
 pub struct Program {
     pub datas: Vec<DataDecl>,
     pub funcs: Vec<FuncDecl>,
-    pub preds: Vec<PredDecl>,
     pub querys: Vec<QueryDecl>,
 }
 
@@ -12,7 +11,6 @@ pub struct Program {
 pub enum Declaration {
     Data(DataDecl),
     Func(FuncDecl),
-    Pred(PredDecl),
     Query(QueryDecl),
 }
 
@@ -149,45 +147,6 @@ pub enum Expr {
         span: Span,
     },
     Undefined {
-        span: Span,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct PredDecl {
-    pub name: Var,
-    pub pars: Vec<(Var, Type)>,
-    pub body: Goal,
-    pub span: Span,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Goal {
-    Fresh {
-        vars: Vec<Var>,
-        body: Box<Goal>,
-        span: Span,
-    },
-    Eq {
-        lhs: Expr,
-        rhs: Expr,
-        span: Span,
-    },
-    Pred {
-        pred: Var,
-        args: Vec<Expr>,
-        span: Span,
-    },
-    And {
-        goals: Vec<Goal>,
-        span: Span,
-    },
-    Or {
-        goals: Vec<Goal>,
-        span: Span,
-    },
-    Lit {
-        val: bool,
         span: Span,
     },
 }

@@ -667,87 +667,6 @@ impl<'src> Parser<'src> {
         }
     }
 
-    fn parse_goal_seq(&mut self, left: Token, right: Token) -> ParseResult<Goal> {
-        let start = self.start_pos();
-        let goals = self.delimited_list(left, Token::Semi, right, |par| par.parse_goal())?;
-        let end = self.end_pos();
-        let span = Span { start, end };
-        Ok(Goal::And { goals, span })
-    }
-
-    fn parse_goal(&mut self) -> ParseResult<Goal> {
-        let start = self.start_pos();
-        match self.peek_token() {
-            Token::Fresh => {
-                self.match_token(Token::Fresh)?;
-                let vars =
-                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
-                        par.parse_lower_var()
-                    })?;
-                self.match_token(Token::LParen)?;
-                let body = Box::new(self.parse_goal()?);
-                self.match_token(Token::RParen)?;
-                let end = self.end_pos();
-                let span = Span { start, end };
-                Ok(Goal::Fresh { vars, body, span })
-            }
-            Token::And => {
-                self.match_token(Token::And)?;
-                let goals =
-                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
-                        par.parse_goal()
-                    })?;
-                let end = self.end_pos();
-                let span = Span { start, end };
-                Ok(Goal::And { goals, span })
-            }
-            Token::Or => {
-                self.match_token(Token::Or)?;
-                let goals =
-                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
-                        par.parse_goal()
-                    })?;
-                let end = self.end_pos();
-                let span = Span { start, end };
-                Ok(Goal::Or { goals, span })
-            }
-            Token::Fail => {
-                self.match_token(Token::Fail)?;
-                let end = self.end_pos();
-                let span = Span { start, end };
-                Ok(Goal::Lit { val: false, span })
-            }
-            Token::Success => {
-                self.match_token(Token::Success)?;
-                let end = self.end_pos();
-                let span = Span { start, end };
-                Ok(Goal::Lit { val: true, span })
-            }
-            _ => {
-                let lhs = self.parse_expr()?;
-                if let Token::Equal = self.peek_token() {
-                    self.match_token(Token::Equal)?;
-                    let rhs = self.parse_expr()?;
-                    let end = self.end_pos();
-                    let span = Span { start, end };
-                    Ok(Goal::Eq { lhs, rhs, span })
-                } else if let Expr::App { func, args, span } = lhs {
-                    Ok(Goal::Pred {
-                        pred: func,
-                        args,
-                        span,
-                    })
-                } else {
-                    Err(ParseError::FailedToParse(
-                        "goal",
-                        self.peek_token(),
-                        self.peek_span().clone(),
-                    ))
-                }
-            }
-        }
-    }
-
     fn parse_type(&mut self) -> ParseResult<Type> {
         let start = self.start_pos();
         match self.peek_token() {
@@ -841,27 +760,6 @@ impl<'src> Parser<'src> {
             name,
             pars,
             res,
-            body,
-            span,
-        })
-    }
-
-    fn parse_pred_decl(&mut self) -> ParseResult<PredDecl> {
-        let start = self.start_pos();
-        self.match_token(Token::Predicate)?;
-        let name = self.parse_lower_var()?;
-        let pars = self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
-            let ident = par.parse_lower_var()?;
-            par.match_token(Token::Colon)?;
-            let typ = par.parse_type()?;
-            Ok((ident, typ))
-        })?;
-        let body = self.parse_goal_seq(Token::Begin, Token::End)?;
-        let end = self.end_pos();
-        let span = Span { start, end };
-        Ok(PredDecl {
-            name,
-            pars,
             body,
             span,
         })
@@ -978,10 +876,6 @@ impl<'src> Parser<'src> {
                 let decl = self.parse_func_decl()?;
                 Ok(Declaration::Func(decl))
             }
-            Token::Predicate => {
-                let decl = self.parse_pred_decl()?;
-                Ok(Declaration::Pred(decl))
-            }
             Token::Query => {
                 let decl = self.parse_query_decl()?;
                 Ok(Declaration::Query(decl))
@@ -998,7 +892,7 @@ impl<'src> Parser<'src> {
         let mut decls: Vec<Declaration> = Vec::new();
         loop {
             match self.peek_token() {
-                Token::Datatype | Token::Function | Token::Predicate | Token::Query => {
+                Token::Datatype | Token::Function | Token::Query => {
                     // toplevel error recovering
                     match self.parse_decl() {
                         Ok(res) => decls.push(res),
@@ -1020,14 +914,12 @@ impl<'src> Parser<'src> {
 
         let mut datas = Vec::new();
         let mut funcs = Vec::new();
-        let mut preds = Vec::new();
         let mut querys = Vec::new();
 
         for decl in decls.into_iter() {
             match decl {
                 Declaration::Data(data) => datas.push(data),
                 Declaration::Func(func) => funcs.push(func),
-                Declaration::Pred(pred) => preds.push(pred),
                 Declaration::Query(query) => querys.push(query),
             }
         }
@@ -1035,7 +927,6 @@ impl<'src> Parser<'src> {
         Program {
             datas,
             funcs,
-            preds,
             querys,
         }
     }
@@ -1066,24 +957,25 @@ function append(xs: IntList, x: Int) -> IntList
 begin
     match xs with
     | Cons(head, tail) => Cons(head, append(tail, x))
-    | Nil => Nil
+    | Nil => Cons(x, Nil)
     end
 end
 
 function is_elem(xs: IntList, x: Int) -> Bool
 begin
     match xs with
-    | Cons(head, tail) => if @icmpeq(head, x) then true else is_elem(tail, x) 
+    | Cons(head, tail) => if head == x then true else is_elem(tail, x) 
     | Nil => false
     end
 end
 
-predicate is_elem_after_append(xs: IntList, x: Int)
+function is_elem_after_append(xs: IntList, x: Int) -> Bool
 begin
-    is_elem(append(xs, x), x) = false
+    guard !is_elem(append(xs, x), x);
+    true
 end
 
-query is_elem_after_append(depth_step=5, depth_limit=1000, answer_limit=1)
+query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=1)
 "#;
     let (_prog, errs) = parse_program(&src);
     // println!("{:#?}", prog);

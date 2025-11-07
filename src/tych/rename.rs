@@ -7,9 +7,9 @@ use crate::syntax::ast::*;
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum VarType {
     Value,
+    Function,
     DataType,
     Constructor,
-    FuncPred,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -28,9 +28,9 @@ impl VarType {
     pub fn get_name(&self) -> &'static str {
         match self {
             VarType::Value => "value",
+            VarType::Function => "function",
             VarType::DataType => "datatype",
             VarType::Constructor => "constructor",
-            VarType::FuncPred => "func-pred",
         }
     }
 }
@@ -197,7 +197,7 @@ impl Renamer {
                 args,
                 span: _,
             } => {
-                self.update_var(func, VarType::FuncPred);
+                self.update_var(func, VarType::Function);
                 args.iter_mut().for_each(|arg| self.visit_expr(arg));
             }
             Expr::Cons {
@@ -304,43 +304,8 @@ impl Renamer {
         }
     }
 
-    fn visit_goal(&mut self, goal: &mut Goal) {
-        match goal {
-            Goal::Fresh {
-                vars,
-                body,
-                span: _,
-            } => {
-                self.enter_scope();
-                vars.iter_mut()
-                    .for_each(|var| self.intro_var(var, VarType::Value));
-                self.visit_goal(body);
-                self.leave_scope();
-            }
-            Goal::Eq { lhs, rhs, span: _ } => {
-                self.visit_expr(lhs);
-                self.visit_expr(rhs);
-            }
-            Goal::Pred {
-                pred,
-                args,
-                span: _,
-            } => {
-                self.update_var(pred, VarType::FuncPred);
-                args.iter_mut().for_each(|arg| self.visit_expr(arg));
-            }
-            Goal::And { goals, span: _ } => {
-                goals.iter_mut().for_each(|goal| self.visit_goal(goal));
-            }
-            Goal::Or { goals, span: _ } => {
-                goals.iter_mut().for_each(|goal| self.visit_goal(goal));
-            }
-            Goal::Lit { val: _, span: _ } => {}
-        }
-    }
-
     fn visit_func_decl_head(&mut self, func_decl: &mut FuncDecl) {
-        self.intro_var(&mut func_decl.name, VarType::FuncPred);
+        self.intro_var(&mut func_decl.name, VarType::Function);
     }
 
     fn visit_func_decl(&mut self, func_decl: &mut FuncDecl) {
@@ -351,20 +316,6 @@ impl Renamer {
         });
         self.visit_type(&mut func_decl.res);
         self.visit_expr(&mut func_decl.body);
-        self.leave_scope();
-    }
-
-    fn visit_pred_decl_head(&mut self, pred_decl: &mut PredDecl) {
-        self.intro_var(&mut pred_decl.name, VarType::FuncPred);
-    }
-
-    fn visit_pred_decl(&mut self, pred_decl: &mut PredDecl) {
-        self.enter_scope();
-        pred_decl.pars.iter_mut().for_each(|(par, typ)| {
-            self.intro_var(par, VarType::Value);
-            self.visit_type(typ);
-        });
-        self.visit_goal(&mut pred_decl.body);
         self.leave_scope();
     }
 
@@ -384,7 +335,7 @@ impl Renamer {
     }
 
     fn visit_query_decl(&mut self, query_decl: &mut QueryDecl) {
-        self.update_var(&mut query_decl.entry, VarType::FuncPred);
+        self.update_var(&mut query_decl.entry, VarType::Function);
     }
 
     fn visit_prog(&mut self, prog: &mut Program) {
@@ -395,9 +346,6 @@ impl Renamer {
         prog.funcs
             .iter_mut()
             .for_each(|func_decl| self.visit_func_decl_head(func_decl));
-        prog.preds
-            .iter_mut()
-            .for_each(|pred_decl| self.visit_pred_decl_head(pred_decl));
 
         // second iteration: visit body
         prog.datas
@@ -406,9 +354,6 @@ impl Renamer {
         prog.funcs
             .iter_mut()
             .for_each(|func_decl| self.visit_func_decl(func_decl));
-        prog.preds
-            .iter_mut()
-            .for_each(|pred_decl| self.visit_pred_decl(pred_decl));
         prog.querys
             .iter_mut()
             .for_each(|query_decl| self.visit_query_decl(query_decl));
@@ -433,24 +378,25 @@ function append(xs: IntList, x: Int) -> IntList
 begin
     match xs with
     | Cons(head, tail) => Cons(head, append(tail, x))
-    | Nil => Nil
+    | Nil => Cons(x, Nil)
     end
 end
 
 function is_elem(xs: IntList, x: Int) -> Bool
 begin
     match xs with
-    | Cons(head, tail) => if @icmpeq(head, x) then true else is_elem(tail, x) 
+    | Cons(head, tail) => if head == x then true else is_elem(tail, x) 
     | Nil => false
     end
 end
 
-predicate is_elem_after_append(xs: IntList, x: Int)
+function is_elem_after_append(xs: IntList, x: Int) -> Bool
 begin
-    is_elem(append(xs, x), x) = false
+    guard !is_elem(append(xs, x), x);
+    true
 end
 
-query is_elem_after_append(depth_step=5, depth_limit=1000, answer_limit=1)
+query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=1)
 "#;
 
     let (mut prog, errs) = crate::syntax::parser::parse_program(&src);

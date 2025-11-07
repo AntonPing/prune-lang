@@ -101,18 +101,12 @@ pub enum Token {
     Or,
     #[token("guard")]
     Guard,
-    #[token("fail!")]
-    Fail,
-    #[token("success!")]
-    Success,
     #[token("undefined")]
     Undefined,
     #[token("datatype")]
     Datatype,
     #[token("function")]
     Function,
-    #[token("predicate")]
-    Predicate,
     #[token("query")]
     Query,
     #[token("where")]

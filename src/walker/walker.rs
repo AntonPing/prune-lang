@@ -394,12 +394,13 @@ begin
     end
 end
 
-predicate is_elem_after_append(xs: IntList, x: Int)
+function is_elem_after_append(xs: IntList, x: Int) -> Bool
 begin
-    is_elem(append(xs, x), x) = false
+    guard !is_elem(append(xs, x), x);
+    true
 end
 
-query is_elem_after_append(depth_step=5, depth_limit=1000, answer_limit=1)
+query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=1)
     "#;
 
     let (mut prog, errs) = crate::syntax::parser::parse_program(&src);

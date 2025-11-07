@@ -8,7 +8,6 @@ use crate::utils::prim::Prim;
 struct Checker {
     val_ctx: HashMap<Ident, UnifyType>,
     func_ctx: HashMap<Ident, (Vec<UnifyType>, UnifyType)>,
-    pred_ctx: HashMap<Ident, Vec<UnifyType>>,
     cons_ctx: HashMap<Ident, (Vec<UnifyType>, UnifyType)>,
     data_ctx: HashMap<Ident, Vec<Ident>>,
     solver: UnifySolver,
@@ -20,7 +19,6 @@ impl Checker {
         Checker {
             val_ctx: HashMap::new(),
             func_ctx: HashMap::new(),
-            pred_ctx: HashMap::new(),
             cons_ctx: HashMap::new(),
             data_ctx: HashMap::new(),
             solver: UnifySolver::new(),
@@ -218,47 +216,6 @@ impl Checker {
         }
     }
 
-    fn check_goal(&mut self, goal: &Goal) {
-        match goal {
-            Goal::Fresh {
-                vars,
-                body,
-                span: _,
-            } => {
-                for var in vars {
-                    let cell = self.fresh();
-                    self.val_ctx.insert(var.ident, cell);
-                }
-                self.check_goal(&body);
-            }
-            Goal::Eq { lhs, rhs, span: _ } => {
-                let lhs = self.check_expr(lhs);
-                let rhs = self.check_expr(rhs);
-                self.unify(&lhs, &rhs);
-            }
-            Goal::Pred {
-                pred,
-                args,
-                span: _,
-            } => {
-                let pars = self.pred_ctx[&pred.ident].clone();
-                let args = args.iter().map(|arg| self.check_expr(arg)).collect();
-                self.unify_many(&pars, &args);
-            }
-            Goal::And { goals, span: _ } => {
-                for goal in goals {
-                    self.check_goal(goal);
-                }
-            }
-            Goal::Or { goals, span: _ } => {
-                for goal in goals {
-                    self.check_goal(goal);
-                }
-            }
-            Goal::Lit { val: _, span: _ } => {}
-        }
-    }
-
     fn check_patn(&mut self, patn: &Pattern) -> UnifyType {
         match patn {
             Pattern::Lit { lit, span: _ } => UnifyType::Lit(lit.get_typ()),
@@ -309,15 +266,6 @@ impl Checker {
         self.func_ctx.insert(func_decl.name.ident, (pars, res));
     }
 
-    fn scan_pred_decl_head(&mut self, pred_decl: &PredDecl) {
-        let pars = pred_decl
-            .pars
-            .iter()
-            .map(|(_par, typ)| typ.into())
-            .collect();
-        self.pred_ctx.insert(pred_decl.name.ident, pars);
-    }
-
     fn check_func_decl(&mut self, func_decl: &FuncDecl) {
         let (pars_ty, res_ty) = self.func_ctx[&func_decl.name.ident].clone();
 
@@ -329,16 +277,6 @@ impl Checker {
         self.unify(&res_ty, &body_ty);
     }
 
-    fn check_pred_decl(&mut self, pred_decl: &PredDecl) {
-        let pars_ty = self.pred_ctx[&pred_decl.name.ident].clone();
-
-        for ((par, _), par_ty) in pred_decl.pars.iter().zip(pars_ty) {
-            self.val_ctx.insert(par.ident, par_ty);
-        }
-
-        self.check_goal(&pred_decl.body);
-    }
-
     fn check_prog(&mut self, prog: &Program) {
         for data_decl in prog.datas.iter() {
             self.scan_data_decl_head(&data_decl);
@@ -348,16 +286,8 @@ impl Checker {
             self.scan_func_decl_head(&func_decl);
         }
 
-        for pred_decl in prog.preds.iter() {
-            self.scan_pred_decl_head(&pred_decl);
-        }
-
         for func_decl in prog.funcs.iter() {
             self.check_func_decl(&func_decl);
-        }
-
-        for pred_decl in prog.preds.iter() {
-            self.check_pred_decl(&pred_decl);
         }
     }
 }
