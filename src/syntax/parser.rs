@@ -586,6 +586,14 @@ impl<'src> Parser<'src> {
                     _ => Ok(Expr::Tuple { flds: exprs, span }),
                 }
             }
+            Token::End | Token::Bar | Token::Else => {
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Expr::Lit {
+                    lit: LitVal::Unit,
+                    span,
+                })
+            }
             _tok => Err(ParseError::FailedToParse(
                 "expression",
                 self.peek_token(),
@@ -749,8 +757,22 @@ impl<'src> Parser<'src> {
             let typ = par.parse_type()?;
             Ok((ident, typ))
         })?;
-        self.match_token(Token::Arrow)?;
-        let res = self.parse_type()?;
+
+        let res: Type = self
+            .option(|par| {
+                par.match_token(Token::Arrow)?;
+                par.parse_type()
+            })?
+            .unwrap_or_else(|| {
+                let start = self.start_pos();
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Type::Lit {
+                    lit: LitType::TyUnit,
+                    span,
+                }
+            });
+
         self.match_token(Token::Begin)?;
         let body = self.parse_expr()?;
         self.match_token(Token::End)?;

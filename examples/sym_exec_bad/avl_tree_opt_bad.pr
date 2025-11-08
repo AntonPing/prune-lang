@@ -129,7 +129,7 @@ begin
     end
 end
 
-function keep_sorted_and_balanced(tree: AVLTree, x: Int) -> Bool
+function keep_sorted_and_balanced(tree: AVLTree, x: Int)
 begin
     guard is_sorted(tree);
     guard is_balanced(tree);

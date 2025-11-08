@@ -19,10 +19,9 @@ begin
     end
 end
 
-function is_elem_after_append(xs: IntList, x: Int) -> Bool
+function is_elem_after_append(xs: IntList, x: Int)
 begin
     guard !is_elem(append(xs, x), x);
-    true
 end
 
 query is_elem_after_append(depth_step=5, depth_limit=1000, answer_limit=1)

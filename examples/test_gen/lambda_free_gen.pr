@@ -45,10 +45,9 @@ begin
     end
 end
 
-function gen_lambda_free(expr: Expr) -> Bool
+function gen_lambda_free(expr: Expr)
 begin
     guard free_vars(expr) = Nil;
-    true
 end
 
 query gen_lambda_free(depth_step=5, depth_limit=200, answer_limit=100)

@@ -24,10 +24,9 @@ begin
         Cons(n, rev_nat_list(n - 1))
 end
 
-function reverse_forward(ys: IntList) -> Bool
+function reverse_forward(ys: IntList)
 begin
     guard ys = reverse(rev_nat_list(100));
-    true
 end
 
 query reverse_forward(depth_step=50, depth_limit=1000, answer_limit=1)

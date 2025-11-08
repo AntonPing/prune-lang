@@ -24,10 +24,9 @@ begin
     end
 end
 
-function same_length_after_reverse(xs: IntList) -> Bool
+function same_length_after_reverse(xs: IntList)
 begin
     guard length(reverse(xs)) != length(xs);
-    true
 end
 
 query same_length_after_reverse(depth_step=5, depth_limit=50, answer_limit=1)

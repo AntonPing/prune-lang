@@ -25,10 +25,9 @@ begin
     end
 end
 
-function double_reverse_same(xs: IntList) -> Bool
+function double_reverse_same(xs: IntList)
 begin
     guard !intlist_eq(reverse(reverse(xs)), xs);
-    true
 end
 
 query double_reverse_same(depth_step=5, depth_limit=1000, answer_limit=1)

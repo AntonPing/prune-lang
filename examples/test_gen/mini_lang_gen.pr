@@ -123,10 +123,9 @@ begin
     true
 end
 
-function well_type_stmts_gen(stmt: Stmts, ctx: Context) -> Bool
+function well_type_stmts_gen(stmt: Stmts, ctx: Context)
 begin
     guard well_type_stmts(NilCtx, stmt) = SomeCtx(ctx);
-    true
 end
 
 query well_type_stmts_gen(depth_step=5, depth_limit=200, answer_limit=100)

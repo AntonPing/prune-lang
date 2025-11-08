@@ -77,13 +77,12 @@ begin
     end
 end
 
-function pythagorean_triple(xs: BitList, ys: BitList, zs: BitList) -> Bool
+function pythagorean_triple(xs: BitList, ys: BitList, zs: BitList)
 begin
     guard xs = Cons(I, Cons(I, Nil));
     guard ys = Cons(O, Cons(O, Cons(I, Nil)));
     guard zs = Cons(I, Cons(O, Cons(I, Nil)));
     guard add(mul(xs, xs), mul(ys, ys)) = mul(zs, zs);
-    true
 end
 
 query pythagorean_triple(depth_step=20, depth_limit=200, answer_limit=1)
