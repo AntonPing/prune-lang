@@ -120,8 +120,6 @@ pub enum Token {
     Bool,
     #[regex(r"'(.|\\.)'")]
     Char,
-    #[token("()")]
-    Unit,
     #[token("Int")]
     TyInt,
     #[token("Float")]
@@ -130,8 +128,8 @@ pub enum Token {
     TyBool,
     #[token("Char")]
     TyChar,
-    #[token("Unit")]
-    TyUnit,
+    #[token("()")] // both for unit type and unit value
+    Unit,
     // LowerIdent could be just wildcard "_", it is handled in parser
     #[regex(r"([a-z]|_)([a-zA-Z0-9]|_)*")]
     LowerIdent,

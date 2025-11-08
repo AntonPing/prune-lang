@@ -8,13 +8,12 @@ datatype BitList where
 | Cons(Bit, BitList)
 end
 
-function not_nil(xs: BitList) -> Unit
+function not_nil(xs: BitList)
 begin
     let Cons(_head, _tail) = xs;
-    ()
 end
 
-function well_formed(xs: BitList) -> Unit
+function well_formed(xs: BitList)
 begin
     match xs with
     | Nil => ()
@@ -23,17 +22,17 @@ begin
     end
 end
 
-function full_adder_1(ci: Bit, x: Bit, y: Bit, z: Bit, co: Bit) -> Unit
+function full_adder_1(ci: Bit, x: Bit, y: Bit, z: Bit, co: Bit)
 begin
     alternative
-    | guard ci = O; guard x = O; guard y = O; guard z = O; guard co = O; ()
-    | guard ci = I; guard x = O; guard y = O; guard z = I; guard co = O; ()
-    | guard ci = O; guard x = I; guard y = O; guard z = I; guard co = O; ()
-    | guard ci = I; guard x = I; guard y = O; guard z = O; guard co = I; ()
-    | guard ci = O; guard x = O; guard y = I; guard z = I; guard co = O; ()
-    | guard ci = I; guard x = O; guard y = I; guard z = O; guard co = I; ()
-    | guard ci = O; guard x = I; guard y = I; guard z = O; guard co = I; ()
-    | guard ci = I; guard x = I; guard y = I; guard z = I; guard co = I; ()
+    | guard ci = O; guard x = O; guard y = O; guard z = O; guard co = O;
+    | guard ci = I; guard x = O; guard y = O; guard z = I; guard co = O;
+    | guard ci = O; guard x = I; guard y = O; guard z = I; guard co = O;
+    | guard ci = I; guard x = I; guard y = O; guard z = O; guard co = I;
+    | guard ci = O; guard x = O; guard y = I; guard z = I; guard co = O;
+    | guard ci = I; guard x = O; guard y = I; guard z = O; guard co = I;
+    | guard ci = O; guard x = I; guard y = I; guard z = O; guard co = I;
+    | guard ci = I; guard x = I; guard y = I; guard z = I; guard co = I;
     end
 end
 

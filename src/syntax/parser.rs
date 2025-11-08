@@ -220,10 +220,6 @@ impl<'src> Parser<'src> {
                     Err(ParseError::LexerError(self.peek_span().clone()))
                 }
             }
-            Token::Unit => {
-                self.next_token()?;
-                Ok(LitVal::Unit)
-            }
             _tok => Err(ParseError::FailedToParse(
                 &"literal value",
                 self.peek_token(),
@@ -249,10 +245,6 @@ impl<'src> Parser<'src> {
             Token::TyChar => {
                 self.next_token()?;
                 Ok(LitType::TyChar)
-            }
-            Token::TyUnit => {
-                self.next_token()?;
-                Ok(LitType::TyUnit)
             }
             _tok => Err(ParseError::FailedToParse(
                 &"literal type",
@@ -406,7 +398,7 @@ impl<'src> Parser<'src> {
     fn parse_expr_factor(&mut self) -> ParseResult<Expr> {
         let start = self.start_pos();
         match self.peek_token() {
-            Token::Int | Token::Float | Token::Bool | Token::Char | Token::Unit => {
+            Token::Int | Token::Float | Token::Bool | Token::Char => {
                 let lit = self.parse_lit_val()?;
                 let end = self.end_pos();
                 let span = Span { start, end };
@@ -586,11 +578,20 @@ impl<'src> Parser<'src> {
                     _ => Ok(Expr::Tuple { flds: exprs, span }),
                 }
             }
+            Token::Unit => {
+                self.next_token()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Expr::Tuple {
+                    flds: Vec::new(),
+                    span,
+                })
+            }
             Token::End | Token::Bar | Token::Else => {
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Ok(Expr::Lit {
-                    lit: LitVal::Unit,
+                Ok(Expr::Tuple {
+                    flds: Vec::new(),
                     span,
                 })
             }
@@ -678,7 +679,7 @@ impl<'src> Parser<'src> {
     fn parse_type(&mut self) -> ParseResult<Type> {
         let start = self.start_pos();
         match self.peek_token() {
-            Token::TyInt | Token::TyFloat | Token::TyBool | Token::TyChar | Token::TyUnit => {
+            Token::TyInt | Token::TyFloat | Token::TyBool | Token::TyChar => {
                 let lit = self.parse_lit_typ()?;
                 let end = self.end_pos();
                 let span = Span { start, end };
@@ -707,6 +708,15 @@ impl<'src> Parser<'src> {
                     1 => Ok(typs.into_iter().next().unwrap()),
                     _ => Ok(Type::Tuple { flds: typs, span }),
                 }
+            }
+            Token::Unit => {
+                self.next_token()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Type::Tuple {
+                    flds: Vec::new(),
+                    span,
+                })
             }
             _tok => Err(ParseError::FailedToParse(
                 "type",
@@ -767,8 +777,8 @@ impl<'src> Parser<'src> {
                 let start = self.start_pos();
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Type::Lit {
-                    lit: LitType::TyUnit,
+                Type::Tuple {
+                    flds: Vec::new(),
                     span,
                 }
             });

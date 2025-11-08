@@ -37,10 +37,9 @@ begin
     end
 end
 
-function is_balanced2(tree: AVLTree) -> Unit
+function is_balanced2(tree: AVLTree) -> ()
 begin
     let _ = is_balanced_help2(tree);
-    ()
 end
 
 function is_balanced_help2(tree: AVLTree) -> Int

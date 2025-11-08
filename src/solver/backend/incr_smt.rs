@@ -81,7 +81,6 @@ impl SmtSolver for IncrSmtSolver {
             LitType::TyFloat => self.ctx.real_sort(),
             LitType::TyBool => self.ctx.bool_sort(),
             LitType::TyChar => todo!(),
-            LitType::TyUnit => self.ctx.bool_sort(),
         };
         let sexp = self.ctx.declare_const(format!("{:?}", var), sort).unwrap();
         self.map.insert(*var, sexp);
@@ -191,7 +190,6 @@ impl IncrSmtSolver {
                 }
             }
             Term::Lit(LitVal::Char(_x)) => todo!(),
-            Term::Lit(LitVal::Unit) => self.ctx.true_(),
             Term::Cons(_, _ident, _terms) => unreachable!(),
         }
     }

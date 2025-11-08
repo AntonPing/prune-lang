@@ -7,7 +7,6 @@ pub enum LitType {
     TyFloat,
     TyBool,
     TyChar,
-    TyUnit,
 }
 
 impl fmt::Display for LitType {
@@ -17,7 +16,6 @@ impl fmt::Display for LitType {
             LitType::TyFloat => "Float".fmt(f),
             LitType::TyBool => "Bool".fmt(f),
             LitType::TyChar => "Char".fmt(f),
-            LitType::TyUnit => "Unit".fmt(f),
         }
     }
 }
@@ -31,7 +29,6 @@ impl FromStr for LitType {
             "Float" => Ok(LitType::TyFloat),
             "Bool" => Ok(LitType::TyBool),
             "Char" => Ok(LitType::TyChar),
-            "Unit" => Ok(LitType::TyUnit),
             _ => Err(()),
         }
     }
@@ -43,7 +40,6 @@ pub enum LitVal {
     Float(f64),
     Bool(bool),
     Char(char),
-    Unit,
 }
 
 impl LitVal {
@@ -53,7 +49,6 @@ impl LitVal {
             LitVal::Float(_) => LitType::TyFloat,
             LitVal::Bool(_) => LitType::TyBool,
             LitVal::Char(_) => LitType::TyChar,
-            LitVal::Unit => LitType::TyUnit,
         }
     }
 }
@@ -65,7 +60,6 @@ impl fmt::Display for LitVal {
             LitVal::Float(x) => x.fmt(f),
             LitVal::Bool(x) => x.fmt(f),
             LitVal::Char(x) => x.fmt(f),
-            LitVal::Unit => "()".fmt(f),
         }
     }
 }
@@ -88,9 +82,6 @@ impl FromStr for LitVal {
             }
             "false" => {
                 return Ok(LitVal::Bool(false));
-            }
-            "()" => {
-                return Ok(LitVal::Unit);
             }
             _ => {}
         }

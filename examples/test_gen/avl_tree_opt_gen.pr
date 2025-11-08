@@ -28,7 +28,7 @@ begin
     end
 end
 
-function is_balanced2(tree: AVLTree) -> Unit
+function is_balanced2(tree: AVLTree) -> ()
 begin
     match tree with
     | Node(left, _key, right, height) =>
@@ -39,11 +39,9 @@ begin
         if left_height < right_height then
             guard height = right_height + 1;
             guard right_height - left_height <= 1 = true;
-            ()
         else
             guard height = left_height + 1;
             guard left_height - right_height <= 1 = true;
-            ()
     | Empty => ()
     end
 end
