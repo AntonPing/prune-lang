@@ -4,16 +4,19 @@ use clap::{Parser, ValueEnum};
 
 #[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SmtBackend {
-    Z3,
-    Z3Single,
-    CVC5,
-    CVC5Single,
+    Z3Inc,
+    Z3Sq,
+    CVC5Inc,
+    CVC5Sq,
     NoSmt,
 }
 
 #[derive(Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
 pub struct CliArgs {
+    #[arg(value_enum)]
+    pub backend: SmtBackend,
+
     pub input: PathBuf,
 
     #[arg(short, long, value_name = "FILE")]
@@ -24,9 +27,6 @@ pub struct CliArgs {
 
     #[arg(short, long, default_value_t = 10, value_name = "INT")]
     pub verbosity: u8,
-
-    #[arg(long, value_enum)]
-    pub backend: SmtBackend,
 
     #[arg(long, default_value_t = false)]
     pub mute_output: bool,
@@ -68,7 +68,7 @@ pub fn run_cli_test(prog_name: PathBuf) -> Result<Vec<usize>, io::Error> {
         output: None,
         stat_log: None,
         verbosity: 10,
-        backend: SmtBackend::Z3,
+        backend: SmtBackend::Z3Inc,
         mute_output: true,
         mute_stat_log: true,
         warn_as_err: true,

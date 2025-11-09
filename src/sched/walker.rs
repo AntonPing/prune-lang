@@ -412,7 +412,7 @@ query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=1)
     // println!("{:#?}", dict);
 
     let mut pipe_io = PipeIO::empty();
-    let mut wlk = Walker::new(&prog.preds, &mut pipe_io, SmtBackend::Z3);
+    let mut wlk = Walker::new(&prog.preds, &mut pipe_io, SmtBackend::Z3Inc);
     let query = &prog.querys[0];
 
     for param in query.params.iter() {

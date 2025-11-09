@@ -36,16 +36,16 @@ impl Solver {
         let subst = Subst::new();
 
         let constr = match backend {
-            cli::SmtBackend::Z3 => Box::new(backend::incr_smt::IncrSmtSolver::new(
+            cli::SmtBackend::Z3Inc => Box::new(backend::incr_smt::IncrSmtSolver::new(
                 backend::SmtBackend::Z3,
             )) as Box<dyn SmtSolver>,
-            cli::SmtBackend::Z3Single => Box::new(backend::non_incr_smt::NonIncrSmtSolver::new(
+            cli::SmtBackend::Z3Sq => Box::new(backend::non_incr_smt::NonIncrSmtSolver::new(
                 backend::SmtBackend::Z3,
             )) as Box<dyn SmtSolver>,
-            cli::SmtBackend::CVC5 => Box::new(backend::incr_smt::IncrSmtSolver::new(
+            cli::SmtBackend::CVC5Inc => Box::new(backend::incr_smt::IncrSmtSolver::new(
                 backend::SmtBackend::CVC5,
             )) as Box<dyn SmtSolver>,
-            cli::SmtBackend::CVC5Single => Box::new(backend::non_incr_smt::NonIncrSmtSolver::new(
+            cli::SmtBackend::CVC5Sq => Box::new(backend::non_incr_smt::NonIncrSmtSolver::new(
                 backend::SmtBackend::CVC5,
             )) as Box<dyn SmtSolver>,
             cli::SmtBackend::NoSmt => {
@@ -177,7 +177,7 @@ fn test_solver() {
     let z = Ident::dummy(&"z");
     let cons = Ident::dummy(&"cons");
 
-    let mut sol: Solver = Solver::new(cli::SmtBackend::Z3);
+    let mut sol: Solver = Solver::new(cli::SmtBackend::Z3Inc);
 
     sol.declare(&x.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
     sol.declare(&y.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
