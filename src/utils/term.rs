@@ -23,7 +23,7 @@ impl<V: fmt::Display, L: fmt::Display, C> fmt::Display for Term<V, L, C> {
                 if flds.is_empty() {
                     fmt::Display::fmt(&cons, f)
                 } else {
-                    let flds = flds.iter().format(&", ");
+                    let flds = flds.iter().format(", ");
                     write!(f, "{cons}({flds})")
                 }
             }
@@ -58,7 +58,7 @@ impl<L: Copy, C: Copy> Term<Ident, L, C> {
             Term::Var(var) => Term::Var(var.tag_ctx(ctx)),
             Term::Lit(lit) => Term::Lit(*lit),
             Term::Cons(c, cons, flds) => {
-                let flds = flds.into_iter().map(|fld| fld.tag_ctx(ctx)).collect();
+                let flds = flds.iter().map(|fld| fld.tag_ctx(ctx)).collect();
                 Term::Cons(*c, *cons, flds)
             }
         }
@@ -127,7 +127,7 @@ impl<V: Copy + Eq + std::hash::Hash, L: Copy, C: Copy> Term<V, L, C> {
             }
             Term::Lit(lit) => Term::Lit(*lit),
             Term::Cons(c, cons, flds) => {
-                let flds = flds.into_iter().map(|fld| fld.substitute(map)).collect();
+                let flds = flds.iter().map(|fld| fld.substitute(map)).collect();
                 Term::Cons(*c, *cons, flds)
             }
         }

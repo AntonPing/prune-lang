@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::collections::{hash_map, HashMap};
+use std::collections::{HashMap, hash_map};
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -38,6 +38,15 @@ pub struct EnvMap<K, V> {
 }
 
 /// Many implementations are just the same as HashMap
+impl<K, V> Default for EnvMap<K, V>
+where
+    K: Eq + Hash + Clone,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<K, V> EnvMap<K, V>
 where
     K: Eq + Hash + Clone,
@@ -99,28 +108,28 @@ where
     }
 
     /// Returns a reference to the value corresponding to the key.
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
+    pub fn get<Q>(&self, k: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: ?Sized + Hash + Eq,
     {
         self.base_map.get(k)
     }
 
     /// Returns the key-value pair corresponding to the supplied key.
-    pub fn get_key_value<Q: ?Sized>(&self, k: &Q) -> Option<(&K, &V)>
+    pub fn get_key_value<Q>(&self, k: &Q) -> Option<(&K, &V)>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: ?Sized + Hash + Eq,
     {
         self.base_map.get_key_value(k)
     }
 
     /// Returns `true` if the map contains a value for the specified key.
-    pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
+    pub fn contains_key<Q>(&self, k: &Q) -> bool
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: ?Sized + Hash + Eq,
     {
         self.base_map.contains_key(k)
     }

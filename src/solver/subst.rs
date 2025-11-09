@@ -16,6 +16,12 @@ impl std::fmt::Display for Subst {
     }
 }
 
+impl Default for Subst {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Subst {
     pub fn new() -> Subst {
         Subst { map: EnvMap::new() }
@@ -43,7 +49,7 @@ impl Subst {
         let mut term = term;
         loop {
             if let Term::Var(var) = term {
-                if let Some(term2) = self.map.get(&var) {
+                if let Some(term2) = self.map.get(var) {
                     term = term2;
                     continue;
                 } else {
@@ -58,7 +64,7 @@ impl Subst {
     pub fn merge(&self, term: &TermCtx) -> TermCtx {
         match term {
             Term::Var(var) => {
-                if let Some(term) = self.map.get(&var) {
+                if let Some(term) = self.map.get(var) {
                     self.merge(term)
                 } else {
                     Term::Var(*var)
@@ -67,7 +73,8 @@ impl Subst {
             Term::Lit(lit) => Term::Lit(*lit),
             Term::Cons(c, cons, flds) => {
                 let flds = flds.iter().map(|fld| self.merge(fld)).collect();
-                Term::Cons(*c, *cons, flds)
+                let _: () = *c;
+                Term::Cons((), *cons, flds)
             }
         }
     }
@@ -81,16 +88,16 @@ impl Subst {
         }
     }
 
-    pub fn bind(&mut self, x: IdentCtx, term: TermCtx) -> Result<Vec<(IdentCtx, AtomCtx)>, ()> {
+    pub fn bind(&mut self, x: IdentCtx, term: TermCtx) -> Option<Vec<(IdentCtx, AtomCtx)>> {
         let mut subst = Vec::new();
         self.unify_help(&mut subst, Term::Var(x), term)?;
-        Ok(subst)
+        Some(subst)
     }
 
-    pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Result<Vec<(IdentCtx, AtomCtx)>, ()> {
+    pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Option<Vec<(IdentCtx, AtomCtx)>> {
         let mut subst = Vec::new();
         self.unify_help(&mut subst, lhs, rhs)?;
-        Ok(subst)
+        Some(subst)
     }
 
     fn unify_help(
@@ -98,14 +105,14 @@ impl Subst {
         subst: &mut Vec<(IdentCtx, AtomCtx)>,
         lhs: TermCtx,
         rhs: TermCtx,
-    ) -> Result<(), ()> {
+    ) -> Option<()> {
         let lhs = self.deref(&lhs).clone();
         let rhs = self.deref(&rhs).clone();
         match (lhs, rhs) {
-            (Term::Var(x1), Term::Var(x2)) if x1 == x2 => Ok(()),
+            (Term::Var(x1), Term::Var(x2)) if x1 == x2 => Some(()),
             (Term::Var(x), term) | (term, Term::Var(x)) => {
                 if self.occur_check(&x, &term) {
-                    Err(())
+                    None
                 } else {
                     match term {
                         Term::Var(var) => {
@@ -117,14 +124,14 @@ impl Subst {
                         Term::Cons(_, _, _) => {}
                     }
                     self.map.insert(x, term.clone());
-                    Ok(())
+                    Some(())
                 }
             }
             (Term::Lit(lit1), Term::Lit(lit2)) => {
                 if lit1 == lit2 {
-                    Ok(())
+                    Some(())
                 } else {
-                    Err(())
+                    None
                 }
             }
             (Term::Cons(_, cons1, flds1), Term::Cons(_, cons2, flds2)) => {
@@ -133,9 +140,9 @@ impl Subst {
                     for (fld1, fld2) in flds1.into_iter().zip(flds2.into_iter()) {
                         self.unify_help(subst, fld1, fld2)?;
                     }
-                    Ok(())
+                    Some(())
                 } else {
-                    Err(())
+                    None
                 }
             }
             (_, _) => panic!("unify simple and complex type!"),

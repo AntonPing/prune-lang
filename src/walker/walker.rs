@@ -92,40 +92,35 @@ impl<'blk, 'io> Walker<'blk, 'io> {
             if !self.run_state_loop(depth, &mut state) {
                 continue;
             }
-            if self.sol.check_sound() {
-                if state.depth > depth_last && state.depth <= depth {
-                    writeln!(self.pipe_io.output, "[ANSWER]: (depth = {})", state.depth).unwrap();
-                    let val = self.sol.get_value(&pars);
-                    for (par, val) in pars.iter().zip(val.iter()) {
-                        writeln!(self.pipe_io.output, "{} = {}", par.ident, val).unwrap();
-                    }
-                    self.ansr_cnt += 1;
-                    if self.ansr_cnt == self.config.answer_limit {
-                        break;
-                    }
+            if self.sol.check_sound() && state.depth > depth_last && state.depth <= depth {
+                writeln!(self.pipe_io.output, "[ANSWER]: (depth = {})", state.depth).unwrap();
+                let val = self.sol.get_value(&pars);
+                for (par, val) in pars.iter().zip(val.iter()) {
+                    writeln!(self.pipe_io.output, "{} = {}", par.ident, val).unwrap();
+                }
+                self.ansr_cnt += 1;
+                if self.ansr_cnt == self.config.answer_limit {
+                    break;
                 }
             }
         }
     }
 
     fn run_state_loop(&mut self, depth: usize, state: &mut State) -> bool {
-        loop {
-            if state.depth + state.queue.len() > depth {
-                return false;
-            }
-            self.stats.step();
-            if !self.run_block(state) {
-                // conflict-driven update weight
-                self.path_tree.conflict_update(&state.path);
-                return false;
-            }
-            if state.queue.is_empty() {
-                return true;
-            } else {
-                self.split_branch(state);
-                return false;
-            }
+        if state.depth + state.queue.len() > depth {
+            return false;
         }
+        self.stats.step();
+        if !self.run_block(state) {
+            // conflict-driven update weight
+            self.path_tree.conflict_update(&state.path);
+            return false;
+        }
+        if !state.queue.is_empty() {
+            self.split_branch(state);
+            return false;
+        }
+        true
     }
 
     fn split_branch(&mut self, state: &mut State) {
@@ -174,7 +169,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
             .queue
             .iter()
             .enumerate()
-            .map(|(conj, paths)| {
+            .flat_map(|(conj, paths)| {
                 let mut vec: Vec<isize> = Vec::new();
                 for path in paths {
                     // ad-hoc counter metric
@@ -185,7 +180,6 @@ impl<'blk, 'io> Walker<'blk, 'io> {
                 }
                 vec.iter().map(|val| (conj, *val)).collect::<Vec<_>>()
             })
-            .flatten()
             .collect();
 
         let (conj, _val) = conj_vals
@@ -198,7 +192,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
 
         let paths = state.queue.remove(*conj).unwrap();
         for path in paths.iter() {
-            self.path_tree.branch_update(&path);
+            self.path_tree.branch_update(path);
         }
 
         paths
@@ -261,7 +255,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
         for (var, atom) in curr_blk.eqs.iter() {
             let var = var.tag_ctx(curr_ctx);
             let atom = atom.tag_ctx(curr_ctx);
-            let res = self.sol.bind(var, atom.to_term()).is_ok();
+            let res = self.sol.bind(var, atom.to_term()).is_some();
             if !res {
                 return false;
             }
@@ -273,7 +267,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
                 .iter()
                 .map(|fld| fld.tag_ctx(curr_ctx).to_term())
                 .collect();
-            let res = self.sol.bind(var, Term::Cons((), *cons, flds)).is_ok();
+            let res = self.sol.bind(var, Term::Cons((), *cons, flds)).is_some();
             if !res {
                 return false;
             }
@@ -281,7 +275,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
 
         for (prim, args) in curr_blk.prims.iter() {
             let args = args.iter().map(|arg| arg.tag_ctx(curr_ctx)).collect();
-            let res = self.sol.solve(*prim, args).is_ok();
+            let res = self.sol.solve(*prim, args).is_some();
             if !res {
                 return false;
             }
@@ -296,7 +290,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
         }
 
         for (pred, args) in curr_blk.calls.iter() {
-            let callee = &self.dict[&pred];
+            let callee = &self.dict[pred];
             assert_eq!(callee.name, *pred);
             let (pars, vars) = (callee.pars.clone(), callee.vars.clone());
             self.ctx_cnt += 1;
@@ -327,9 +321,8 @@ impl<'blk, 'io> Walker<'blk, 'io> {
     }
 
     pub fn run_loop(&mut self, entry: Ident) -> usize {
-        for depth in (self.config.depth_step..=self.config.depth_limit)
-            .into_iter()
-            .step_by(self.config.depth_step)
+        for depth in
+            (self.config.depth_step..=self.config.depth_limit).step_by(self.config.depth_step)
         {
             writeln!(
                 self.pipe_io.stat_log,
@@ -366,7 +359,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
                 return self.ansr_cnt;
             }
         }
-        return self.ansr_cnt;
+        self.ansr_cnt
     }
 }
 

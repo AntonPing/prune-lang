@@ -38,15 +38,17 @@ pub enum UnifyError {
 }
 
 use crate::driver::diagnostic::Diagnostic;
-impl Into<Diagnostic> for UnifyError {
+impl From<UnifyError> for Diagnostic {
     // todo: better error message
-    fn into(self) -> Diagnostic {
-        match self {
-            UnifyError::VecDiffLen(_, _) => Diagnostic::error(format!("VecDiffLen!")),
+    fn from(val: UnifyError) -> Self {
+        match val {
+            UnifyError::VecDiffLen(_, _) => Diagnostic::error("VecDiffLen!".to_string()),
             UnifyError::CannotUnify(lhs, rhs) => {
                 Diagnostic::error(format!("CannotUnify {:?} and {:?}!", lhs, rhs))
             }
-            UnifyError::OccurCheckFailed(_, _) => Diagnostic::error(format!("OccurCheckFailed!")),
+            UnifyError::OccurCheckFailed(_, _) => {
+                Diagnostic::error("OccurCheckFailed!".to_string())
+            }
         }
     }
 }
@@ -55,6 +57,12 @@ type UnifyResult = Result<(), UnifyError>;
 
 pub struct UnifySolver {
     arena: Vec<Option<UnifyType>>,
+}
+
+impl Default for UnifySolver {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl UnifySolver {
@@ -82,11 +90,11 @@ impl UnifySolver {
         }
     }
 
-    pub fn unify_many(&mut self, typs1: &Vec<UnifyType>, typs2: &Vec<UnifyType>) -> UnifyResult {
+    pub fn unify_many(&mut self, typs1: &[UnifyType], typs2: &[UnifyType]) -> UnifyResult {
         if typs1.len() != typs2.len() {
-            Err(UnifyError::VecDiffLen(typs1.clone(), typs2.clone()))
+            Err(UnifyError::VecDiffLen(typs1.to_vec(), typs2.to_vec()))
         } else {
-            for (typ1, typ2) in typs1.into_iter().zip(typs2.into_iter()) {
+            for (typ1, typ2) in typs1.iter().zip(typs2.iter()) {
                 self.unify(typ1, typ2)?;
             }
             Ok(())

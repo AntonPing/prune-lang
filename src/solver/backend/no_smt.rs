@@ -8,6 +8,12 @@ impl fmt::Debug for NoSmtSolver {
     }
 }
 
+impl Default for NoSmtSolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NoSmtSolver {
     pub fn new() -> Self {
         NoSmtSolver {}
@@ -39,7 +45,7 @@ impl SmtSolver for NoSmtSolver {
         true
     }
 
-    fn get_value(&mut self, _vars: &Vec<IdentCtx>) -> HashMap<IdentCtx, LitVal> {
+    fn get_value(&mut self, _vars: &[IdentCtx]) -> HashMap<IdentCtx, LitVal> {
         panic!("use SMT solver api in `NoSmt` mode!");
     }
 }

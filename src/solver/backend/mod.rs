@@ -15,7 +15,7 @@ pub trait SmtSolver {
     fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx);
     fn check_complete(&mut self) -> bool;
     fn check_sound(&mut self) -> bool;
-    fn get_value(&mut self, vars: &Vec<IdentCtx>) -> HashMap<IdentCtx, LitVal>;
+    fn get_value(&mut self, vars: &[IdentCtx]) -> HashMap<IdentCtx, LitVal>;
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

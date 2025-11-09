@@ -56,9 +56,9 @@ pub enum RenameError {
 }
 
 use crate::driver::diagnostic::Diagnostic;
-impl Into<Diagnostic> for RenameError {
-    fn into(self) -> Diagnostic {
-        match self {
+impl From<RenameError> for Diagnostic {
+    fn from(val: RenameError) -> Self {
+        match val {
             RenameError::UnboundedVariable {
                 ident,
                 span,
@@ -82,7 +82,7 @@ impl Into<Diagnostic> for RenameError {
                         span1.clone(),
                         format!("the identifier {} is defined here", ident),
                     )
-                    .line_span(span2.clone(), format!("and it is defined here again"))
+                    .line_span(span2.clone(), "and it is defined here again".to_string())
             }
             RenameError::UnusedVarible {
                 ident,
@@ -114,7 +114,7 @@ impl Renamer {
     fn leave_scope(&mut self) {
         let scope = self.scopes.pop().unwrap();
         for ((id, var_ty), info) in scope.into_iter() {
-            if !info.used && id.as_str().chars().next().unwrap() != '_' {
+            if !info.used && !id.as_str().starts_with('_') {
                 self.errors.push(RenameError::UnusedVarible {
                     ident: info.new_id,
                     span: info.span,

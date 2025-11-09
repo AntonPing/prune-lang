@@ -51,13 +51,6 @@ impl PipeIO {
         }
     }
 
-    pub fn default() -> PipeIO {
-        PipeIO {
-            output: Box::new(io::stdout()),
-            stat_log: Box::new(io::stdout()),
-        }
-    }
-
     pub fn set_output(&mut self, pipe: Box<dyn Write>) {
         self.output = pipe;
     }

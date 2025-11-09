@@ -53,7 +53,7 @@ fn goal_reorder_help(goal: Goal) -> (Goal, usize) {
         Goal::And(goals) => {
             let (goals, priors): (Vec<Goal>, Vec<usize>) = goals
                 .into_iter()
-                .map(|goal| goal_reorder_help(goal))
+                .map(goal_reorder_help)
                 .sorted_by(|x, y| Ord::cmp(&x.1, &y.1))
                 .unzip();
 
@@ -62,7 +62,7 @@ fn goal_reorder_help(goal: Goal) -> (Goal, usize) {
         Goal::Or(goals) => {
             let (goals, priors): (Vec<Goal>, Vec<usize>) = goals
                 .into_iter()
-                .map(|goal| goal_reorder_help(goal))
+                .map(goal_reorder_help)
                 .sorted_by(|x, y| Ord::cmp(&x.1, &y.1))
                 .unzip();
 
@@ -74,6 +74,5 @@ fn goal_reorder_help(goal: Goal) -> (Goal, usize) {
 
 pub fn goal_optimize(goal: Goal) -> Goal {
     let goal = goal_flatten(goal);
-    let goal = goal_reorder(goal);
-    goal
+    goal_reorder(goal)
 }

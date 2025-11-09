@@ -50,7 +50,7 @@ impl InternStr {
 
     pub fn as_str(&self) -> &'static str {
         let interner = INTERNER.lock().unwrap();
-        &interner.idx_to_str[self.0]
+        interner.idx_to_str[self.0]
     }
 }
 

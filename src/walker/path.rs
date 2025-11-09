@@ -121,6 +121,12 @@ pub struct PathTree {
     map: Trie<Vec<usize>, PathInfo>,
 }
 
+impl Default for PathTree {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PathTree {
     pub fn new() -> PathTree {
         PathTree {

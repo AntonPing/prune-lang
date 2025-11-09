@@ -39,7 +39,7 @@ impl Checker {
         }
     }
 
-    fn unify_many(&mut self, typs1: &Vec<UnifyType>, typs2: &Vec<UnifyType>) {
+    fn unify_many(&mut self, typs1: &[UnifyType], typs2: &[UnifyType]) {
         match self.solver.unify_many(typs1, typs2) {
             Ok(()) => {}
             Err(err) => {
@@ -48,13 +48,13 @@ impl Checker {
         }
     }
 
-    fn check_prim(&mut self, prim: &Prim, args: &Vec<Expr>) -> UnifyType {
-        let args = args.iter().map(|arg| self.check_expr(arg)).collect();
+    fn check_prim(&mut self, prim: &Prim, args: &[Expr]) -> UnifyType {
+        let args: Vec<_> = args.iter().map(|arg| self.check_expr(arg)).collect();
 
         match prim {
             Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem => {
                 self.unify_many(
-                    &vec![
+                    &[
                         UnifyType::Lit(LitType::TyInt),
                         UnifyType::Lit(LitType::TyInt),
                     ],
@@ -63,12 +63,12 @@ impl Checker {
                 UnifyType::Lit(LitType::TyInt)
             }
             Prim::INeg => {
-                self.unify_many(&vec![UnifyType::Lit(LitType::TyInt)], &args);
+                self.unify_many(&[UnifyType::Lit(LitType::TyInt)], &args);
                 UnifyType::Lit(LitType::TyInt)
             }
             Prim::ICmp(_) => {
                 self.unify_many(
-                    &vec![
+                    &[
                         UnifyType::Lit(LitType::TyInt),
                         UnifyType::Lit(LitType::TyInt),
                     ],
@@ -78,7 +78,7 @@ impl Checker {
             }
             Prim::BAnd | Prim::BOr => {
                 self.unify_many(
-                    &vec![
+                    &[
                         UnifyType::Lit(LitType::TyBool),
                         UnifyType::Lit(LitType::TyBool),
                     ],
@@ -87,7 +87,7 @@ impl Checker {
                 UnifyType::Lit(LitType::TyBool)
             }
             Prim::BNot => {
-                self.unify_many(&vec![UnifyType::Lit(LitType::TyBool)], &args);
+                self.unify_many(&[UnifyType::Lit(LitType::TyBool)], &args);
                 UnifyType::Lit(LitType::TyBool)
             }
         }
@@ -107,7 +107,7 @@ impl Checker {
                 flds,
                 span: _,
             } => {
-                let flds = flds.iter().map(|fld| self.check_expr(fld)).collect();
+                let flds: Vec<_> = flds.iter().map(|fld| self.check_expr(fld)).collect();
                 let (pars, res) = self.cons_ctx[&cons.ident].clone();
                 self.unify_many(&pars, &flds);
                 res
@@ -140,7 +140,7 @@ impl Checker {
                 let expr = self.check_expr(expr);
                 let patn = self.check_patn(patn);
                 self.unify(&patn, &expr);
-                self.check_expr(&cont)
+                self.check_expr(cont)
             }
             Expr::App {
                 func,
@@ -148,7 +148,7 @@ impl Checker {
                 span: _,
             } => {
                 let (pars, res) = self.func_ctx[&func.ident].clone();
-                let args = args.iter().map(|arg| self.check_expr(arg)).collect();
+                let args: Vec<_> = args.iter().map(|arg| self.check_expr(arg)).collect();
                 self.unify_many(&pars, &args);
                 res
             }
@@ -209,10 +209,7 @@ impl Checker {
                 }
                 self.check_expr(cont)
             }
-            Expr::Undefined { span: _ } => {
-                let res = self.fresh();
-                res
-            }
+            Expr::Undefined { span: _ } => self.fresh(),
         }
     }
 
@@ -279,15 +276,15 @@ impl Checker {
 
     fn check_prog(&mut self, prog: &Program) {
         for data_decl in prog.datas.iter() {
-            self.scan_data_decl_head(&data_decl);
+            self.scan_data_decl_head(data_decl);
         }
 
         for func_decl in prog.funcs.iter() {
-            self.scan_func_decl_head(&func_decl);
+            self.scan_func_decl_head(func_decl);
         }
 
         for func_decl in prog.funcs.iter() {
-            self.check_func_decl(&func_decl);
+            self.check_func_decl(func_decl);
         }
     }
 }

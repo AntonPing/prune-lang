@@ -10,12 +10,18 @@ pub struct WalkerConfig {
     pub answer_pause: bool,
 }
 
+impl Default for WalkerConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WalkerConfig {
     pub fn new() -> WalkerConfig {
         WalkerConfig {
             depth_step: 5,
             depth_limit: 100,
-            answer_limit: std::usize::MAX,
+            answer_limit: usize::MAX,
             print_iter: true,
             print_stat: true,
             answer_pause: false,
@@ -25,7 +31,7 @@ impl WalkerConfig {
     pub fn reset_default(&mut self) {
         self.depth_step = 5;
         self.depth_limit = 100;
-        self.answer_limit = std::usize::MAX;
+        self.answer_limit = usize::MAX;
         self.print_iter = true;
         self.print_stat = true;
         self.answer_pause = true;
@@ -55,6 +61,12 @@ pub struct WalkerStat {
     pub step_cnt_la: usize,
     pub total_step: usize,
     pub acc_total_step: usize,
+}
+
+impl Default for WalkerStat {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl WalkerStat {

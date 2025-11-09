@@ -18,9 +18,9 @@ pub enum ParseError {
     FailedToParse(&'static str, Token, Span),
 }
 
-impl Into<Diagnostic> for ParseError {
-    fn into(self) -> Diagnostic {
-        match self {
+impl From<ParseError> for Diagnostic {
+    fn from(val: ParseError) -> Self {
+        match val {
             ParseError::LexerError(span) => Diagnostic::error("cannot scan next token!")
                 .line_span(span.clone(), "here is the bad token"),
 
@@ -206,12 +206,7 @@ impl<'src> Parser<'src> {
             Token::Char => {
                 let x = self.peek_slice().trim_matches('\'');
                 // transform from 'c' to "c"
-                let x: String = "\""
-                    .chars()
-                    .into_iter()
-                    .chain(x.chars().into_iter())
-                    .chain("\"".chars().into_iter())
-                    .collect();
+                let x: String = "\"".chars().chain(x.chars()).chain("\"".chars()).collect();
                 if let Ok(s) = snailquote::unescape(&x) {
                     assert_eq!(s.len(), 1);
                     self.next_token()?;
@@ -221,7 +216,7 @@ impl<'src> Parser<'src> {
                 }
             }
             _tok => Err(ParseError::FailedToParse(
-                &"literal value",
+                "literal value",
                 self.peek_token(),
                 self.peek_span().clone(),
             )),
@@ -247,7 +242,7 @@ impl<'src> Parser<'src> {
                 Ok(LitType::TyChar)
             }
             _tok => Err(ParseError::FailedToParse(
-                &"literal type",
+                "literal type",
                 self.peek_token(),
                 self.peek_span().clone(),
             )),
@@ -964,7 +959,7 @@ impl<'src> Parser<'src> {
     }
 }
 
-pub fn parse_program<'src, 'diag>(src: &'src str) -> (Program, Vec<ParseError>) {
+pub fn parse_program(src: &str) -> (Program, Vec<ParseError>) {
     let mut pass = Parser::new(src);
     let prog = pass.parse_program();
     (prog, pass.errors)

@@ -117,7 +117,7 @@ impl SmtSolver for NonIncrSmtSolver {
         }
     }
 
-    fn get_value(&mut self, vars: &Vec<IdentCtx>) -> HashMap<IdentCtx, LitVal> {
+    fn get_value(&mut self, vars: &[IdentCtx]) -> HashMap<IdentCtx, LitVal> {
         let map = self.solve_constraints();
         let result = self.ctx.check().unwrap();
         assert_eq!(result, easy_smt::Response::Sat);
@@ -218,6 +218,7 @@ impl NonIncrSmtSolver {
         map
     }
 
+    #[allow(clippy::type_complexity)]
     fn propagate_eqs(&self) -> (Vec<(IdentCtx, LitType)>, Vec<(Prim, Vec<AtomCtx>)>) {
         let eq_map: HashMap<IdentCtx, AtomCtx> = self.eq_vec.iter().cloned().collect();
         let mut subst: HashMap<IdentCtx, AtomCtx> = HashMap::new();
@@ -226,7 +227,7 @@ impl NonIncrSmtSolver {
             let mut value = value;
             loop {
                 if let Term::Var(var) = value {
-                    if let Some(value2) = eq_map.get(&var) {
+                    if let Some(value2) = eq_map.get(var) {
                         value = value2;
                         continue;
                     } else {
@@ -261,7 +262,7 @@ impl NonIncrSmtSolver {
 
         let set: std::collections::HashSet<IdentCtx> = cons_vec
             .iter()
-            .map(|(_prim, args)| {
+            .flat_map(|(_prim, args)| {
                 args.iter().filter_map(|arg| {
                     if let Term::Var(key) = arg {
                         Some(*key)
@@ -270,7 +271,6 @@ impl NonIncrSmtSolver {
                     }
                 })
             })
-            .flatten()
             .collect();
 
         let vars_vec: Vec<(IdentCtx, LitType)> = self
@@ -285,7 +285,7 @@ impl NonIncrSmtSolver {
 
     fn atom_to_sexp(&self, atom: &AtomCtx, map: &HashMap<IdentCtx, SExpr>) -> SExpr {
         match atom {
-            Term::Var(var) => map[var].clone(),
+            Term::Var(var) => map[var],
             Term::Lit(LitVal::Int(x)) => self.ctx.numeral(*x),
             Term::Lit(LitVal::Float(x)) => self.ctx.decimal(*x),
             Term::Lit(LitVal::Bool(x)) => {

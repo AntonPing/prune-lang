@@ -18,14 +18,14 @@ impl fmt::Display for Solver {
             .unify_vec
             .iter()
             .map(|(var, term)| format!("{} = {}", var, term))
-            .format(&", ");
+            .format(", ");
         writeln!(f, "unify: [{}]", unify_vec)?;
 
         let solve_vec = self
             .solve_vec
             .iter()
-            .map(|(prim, args)| format!("{:?}({})", prim, args.iter().format(&", ")))
-            .format(&",");
+            .map(|(prim, args)| format!("{:?}({})", prim, args.iter().format(", ")))
+            .format(",");
         writeln!(f, "solve: [{}]", solve_vec)?;
         Ok(())
     }
@@ -108,34 +108,34 @@ impl Solver {
         }
     }
 
-    pub fn bind(&mut self, var: IdentCtx, term: TermCtx) -> Result<(), ()> {
-        self.unify_vec.push((var.clone(), term.clone()));
+    pub fn bind(&mut self, var: IdentCtx, term: TermCtx) -> Option<()> {
+        self.unify_vec.push((var, term.clone()));
         let mut subst = self.subst.bind(var, term)?;
         for (x, term) in subst.drain(..) {
             if self.ty_map[&x].is_lit() {
                 self.constr.push_eq(x, term);
                 if !self.constr.check_complete() {
-                    return Err(());
+                    return None;
                 }
             }
         }
-        Ok(())
+        Some(())
     }
 
-    pub fn solve(&mut self, prim: Prim, args: Vec<AtomCtx>) -> Result<(), ()> {
-        self.solve_vec.push((prim.clone(), args.clone()));
+    pub fn solve(&mut self, prim: Prim, args: Vec<AtomCtx>) -> Option<()> {
+        self.solve_vec.push((prim, args.clone()));
         self.constr.push_cons(prim, args);
         if !self.constr.check_complete() {
-            return Err(());
+            return None;
         }
-        Ok(())
+        Some(())
     }
 
     pub fn check_sound(&mut self) -> bool {
         self.constr.check_sound()
     }
 
-    pub fn get_value(&mut self, vars: &Vec<IdentCtx>) -> Vec<TermCtx> {
+    pub fn get_value(&mut self, vars: &[IdentCtx]) -> Vec<TermCtx> {
         let terms: Vec<TermCtx> = vars
             .iter()
             .map(|var| self.subst.merge(&Term::Var(*var)))
@@ -143,14 +143,13 @@ impl Solver {
 
         let lit_vars: Vec<IdentCtx> = terms
             .iter()
-            .map(|term| {
+            .flat_map(|term| {
                 term.free_vars()
                     .iter()
                     .filter(|var| self.ty_map[var].is_lit())
                     .cloned()
                     .collect::<Vec<_>>()
             })
-            .flatten()
             .collect();
 
         if lit_vars.is_empty() {
@@ -195,7 +194,7 @@ fn test_solver() {
 
     sol.savepoint();
 
-    sol.bind(x.tag_ctx(0), Term::Var(y.tag_ctx(0))).unwrap_err();
+    assert!(sol.bind(x.tag_ctx(0), Term::Var(y.tag_ctx(0))).is_none());
 
     sol.backtrack();
     sol.savepoint();
@@ -205,11 +204,14 @@ fn test_solver() {
         Term::Cons((), cons, vec![Term::Var(x.tag_ctx(0))]),
     )
     .unwrap();
-    sol.bind(
-        z.tag_ctx(0),
-        Term::Cons((), cons, vec![Term::Var(y.tag_ctx(0))]),
-    )
-    .unwrap_err();
+
+    assert!(
+        sol.bind(
+            z.tag_ctx(0),
+            Term::Cons((), cons, vec![Term::Var(y.tag_ctx(0))]),
+        )
+        .is_none()
+    );
 
     sol.backtrack();
 }

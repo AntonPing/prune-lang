@@ -31,12 +31,12 @@ impl<'arg> Pipeline<'arg> {
         flag
     }
 
-    pub fn run_pipline<'src, 'io>(
+    pub fn run_pipline(
         &mut self,
-        src: &'src str,
-        pipe_io: &'io mut PipeIO,
+        src: &str,
+        pipe_io: &mut PipeIO,
     ) -> Result<Vec<usize>, io::Error> {
-        let mut prog = self.parse_program(&src)?;
+        let mut prog = self.parse_program(src)?;
 
         self.rename_pass(&mut prog)?;
 
@@ -48,10 +48,7 @@ impl<'arg> Pipeline<'arg> {
         Ok(res)
     }
 
-    pub fn parse_program<'src>(
-        &mut self,
-        src: &'src str,
-    ) -> Result<syntax::ast::Program, io::Error> {
+    pub fn parse_program(&mut self, src: &str) -> Result<syntax::ast::Program, io::Error> {
         let (prog, errs) = syntax::parser::parse_program(src);
         if self.emit_diags(errs) {
             return Err(io::Error::other("failed to parse program!"));
@@ -76,16 +73,11 @@ impl<'arg> Pipeline<'arg> {
     }
 
     pub fn compile_pass(&mut self, prog: &syntax::ast::Program) -> block::ast::Program {
-        let prog = logic::transform::logic_translation(&prog);
-        let prog = block::compile::compile_dict(&prog);
-        prog
+        let prog = logic::transform::logic_translation(prog);
+        block::compile::compile_dict(&prog)
     }
 
-    pub fn run_backend<'io>(
-        &self,
-        prog: &block::ast::Program,
-        pipe_io: &'io mut PipeIO,
-    ) -> Vec<usize> {
+    pub fn run_backend(&self, prog: &block::ast::Program, pipe_io: &mut PipeIO) -> Vec<usize> {
         let mut res_vec = Vec::new();
         let mut wlk = walker::walker::Walker::new(&prog.preds, pipe_io, self.args.backend);
         for query_decl in &prog.querys {

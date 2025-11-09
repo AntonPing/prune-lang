@@ -22,12 +22,12 @@ impl fmt::Display for Block {
         }
 
         for (var, cons, flds) in self.cons.iter() {
-            let flds = flds.iter().format(&", ");
+            let flds = flds.iter().format(", ");
             writeln!(f, "    {} = {}({})", var, cons, flds)?;
         }
 
         for (prim, args) in self.prims.iter() {
-            let args = args.iter().format(&", ");
+            let args = args.iter().format(", ");
             writeln!(f, "    {:?}({})", prim, args)?;
         }
 
@@ -36,10 +36,16 @@ impl fmt::Display for Block {
         }
 
         for (pred, args) in self.calls.iter() {
-            let args = args.iter().format(&", ");
+            let args = args.iter().format(", ");
             writeln!(f, "    call {}({})", pred, args)?;
         }
         Ok(())
+    }
+}
+
+impl Default for Block {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

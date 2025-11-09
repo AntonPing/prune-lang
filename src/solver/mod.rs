@@ -9,5 +9,6 @@ use std::collections::HashMap;
 use std::fmt;
 
 pub mod backend;
+#[allow(clippy::module_inception)]
 pub mod solver;
 pub mod subst;

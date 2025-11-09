@@ -58,33 +58,29 @@ fn unify_decompose_help(vars: &mut Vec<Ident>, vec: &mut Vec<Goal>, lhs: TermId,
 
 fn translate_data_decl(data: &ast::DataDecl) -> logic::ast::DataDecl {
     let name = data.name.ident;
-    let cons = data
-        .cons
-        .iter()
-        .map(|cons| translate_constructor(cons))
-        .collect();
+    let cons = data.cons.iter().map(translate_constructor).collect();
     logic::ast::DataDecl { name, cons }
 }
 
 fn translate_constructor(cons: &ast::Constructor) -> logic::ast::Constructor {
     let name = cons.name.ident;
-    let flds = cons.flds.iter().map(|fld| translate_type(fld)).collect();
+    let flds = cons.flds.iter().map(translate_type).collect();
     Constructor { name, flds }
 }
 
 fn translate_type(typ: &ast::Type) -> TypeId {
     match typ {
-        ast::Type::Lit { lit, span: _ } => Term::Lit((*lit).into()),
+        ast::Type::Lit { lit, span: _ } => Term::Lit(*lit),
         ast::Type::Cons {
             cons,
             flds,
             span: _,
         } => {
-            let flds = flds.iter().map(|fld| translate_type(fld)).collect();
+            let flds = flds.iter().map(translate_type).collect();
             Term::Cons((), cons.ident, flds)
         }
         ast::Type::Tuple { flds, span: _ } => {
-            let flds = flds.iter().map(|fld| translate_type(fld)).collect();
+            let flds = flds.iter().map(translate_type).collect();
             Term::Cons((), Ident::dummy(&"#"), flds)
         }
     }

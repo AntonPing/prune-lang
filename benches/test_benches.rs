@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use prune_lang::driver::cli;
 
 fn bench_append_good(c: &mut Criterion) {

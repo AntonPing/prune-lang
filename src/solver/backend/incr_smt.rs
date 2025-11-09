@@ -137,7 +137,7 @@ impl SmtSolver for IncrSmtSolver {
     }
 
     fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx) {
-        let lhs = self.map[&x].clone();
+        let lhs = self.map[&x];
         let rhs = self.atom_to_sexp(&atom);
         self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
     }
@@ -160,7 +160,7 @@ impl SmtSolver for IncrSmtSolver {
         }
     }
 
-    fn get_value(&mut self, vars: &Vec<IdentCtx>) -> HashMap<IdentCtx, LitVal> {
+    fn get_value(&mut self, vars: &[IdentCtx]) -> HashMap<IdentCtx, LitVal> {
         let vars_sexp = vars.iter().map(|var| self.map[var]).collect();
         let map_sexp = self.ctx.get_value(vars_sexp).unwrap();
         let map: HashMap<IdentCtx, LitVal> = vars
@@ -179,7 +179,7 @@ impl SmtSolver for IncrSmtSolver {
 impl IncrSmtSolver {
     fn atom_to_sexp(&self, atom: &AtomCtx) -> SExpr {
         match atom {
-            Term::Var(var) => self.map[var].clone(),
+            Term::Var(var) => self.map[var],
             Term::Lit(LitVal::Int(x)) => self.ctx.numeral(*x),
             Term::Lit(LitVal::Float(x)) => self.ctx.decimal(*x),
             Term::Lit(LitVal::Bool(x)) => {

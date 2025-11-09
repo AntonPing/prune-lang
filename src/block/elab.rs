@@ -30,7 +30,7 @@ impl Elaborator {
         self.solver.unify(typ1, typ2).unwrap()
     }
 
-    fn unify_many(&mut self, typs1: &Vec<UnifyType>, typs2: &Vec<UnifyType>) {
+    fn unify_many(&mut self, typs1: &[UnifyType], typs2: &[UnifyType]) {
         self.solver.unify_many(typs1, typs2).unwrap()
     }
 
@@ -54,12 +54,12 @@ impl Elaborator {
         }
     }
 
-    fn elab_type(&mut self, typ: &TypeId) -> UnifyType {
+    fn elab_type(typ: &TypeId) -> UnifyType {
         match typ {
             Term::Var(_var) => panic!("generics not supported yet!"),
             Term::Lit(lit) => UnifyType::Lit(*lit),
             Term::Cons(_, cons, flds) => {
-                let flds = flds.iter().map(|fld| self.elab_type(fld)).collect();
+                let flds = flds.iter().map(Self::elab_type).collect();
                 UnifyType::Cons(*cons, flds)
             }
         }
@@ -81,18 +81,18 @@ impl Elaborator {
                 } else {
                     let (flds_ty, var_ty) = self.cons_ctx[cons].clone();
                     let var = self.elab_var(var);
-                    let flds = flds.iter().map(|fld| self.elab_atom(fld)).collect();
+                    let flds: Vec<_> = flds.iter().map(|fld| self.elab_atom(fld)).collect();
                     self.unify(&var, &var_ty);
                     self.unify_many(&flds, &flds_ty);
                 }
             }
             ast::Goal::Prim(prim, args) => {
-                let pars = prim
+                let pars: Vec<_> = prim
                     .get_typ()
                     .iter()
                     .map(|lit| UnifyType::Lit(*lit))
                     .collect();
-                let args = args.iter().map(|arg| self.elab_atom(arg)).collect();
+                let args: Vec<_> = args.iter().map(|arg| self.elab_atom(arg)).collect();
                 self.unify_many(&pars, &args);
             }
             ast::Goal::And(goals) => {
@@ -107,7 +107,7 @@ impl Elaborator {
             }
             ast::Goal::Call(pred, args) => {
                 let pars = self.pred_ctx[pred].clone();
-                let args = args.iter().map(|arg| self.elab_atom(arg)).collect();
+                let args: Vec<_> = args.iter().map(|arg| self.elab_atom(arg)).collect();
                 self.unify_many(&pars, &args);
             }
         }
@@ -118,7 +118,7 @@ impl Elaborator {
         self.data_ctx.insert(data_decl.name, cons_names);
 
         for cons in data_decl.cons.iter() {
-            let flds = cons.flds.iter().map(|fld| self.elab_type(fld)).collect();
+            let flds = cons.flds.iter().map(Self::elab_type).collect();
             self.cons_ctx.insert(
                 cons.name,
                 (flds, UnifyType::Cons(data_decl.name, Vec::new())),
@@ -150,15 +150,15 @@ impl Elaborator {
 
     fn elab_prog(&mut self, prog: &ast::Program) {
         for data_decl in prog.datas.values() {
-            self.scan_data_decl_head(&data_decl);
+            self.scan_data_decl_head(data_decl);
         }
 
         for pred_decl in prog.preds.values() {
-            self.scan_pred_decl_head(&pred_decl);
+            self.scan_pred_decl_head(pred_decl);
         }
 
         for pred_decl in prog.preds.values() {
-            self.elab_pred_decl(&pred_decl);
+            self.elab_pred_decl(pred_decl);
         }
     }
 }
@@ -167,12 +167,10 @@ pub fn elab_pass(prog: &ast::Program) -> HashMap<Ident, TypeId> {
     let mut pass = Elaborator::new();
     pass.elab_prog(prog);
     let sol = pass.solver;
-    let map = pass
-        .val_ctx
+    pass.val_ctx
         .iter()
-        .map(|(k, v)| (*k, sol.merge(&v)))
-        .collect();
-    map
+        .map(|(k, v)| (*k, sol.merge(v)))
+        .collect()
 }
 
 #[test]

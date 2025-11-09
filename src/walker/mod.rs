@@ -6,4 +6,5 @@ use std::collections::HashMap;
 
 pub mod config;
 pub mod path;
+#[allow(clippy::module_inception)]
 pub mod walker;

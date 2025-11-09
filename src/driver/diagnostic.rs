@@ -182,13 +182,15 @@ impl Diagnostic {
                     if start_line == end_line {
                         vec.push((start_col, end_col))
                     } else {
-                        for line in start_line..=end_line {
-                            if line == start_line {
-                                vec.push((start_col, text[line].chars().count()))
-                            } else if line == end_line {
+                        for (idx, line) in
+                            text.iter().enumerate().take(end_line + 1).skip(start_line)
+                        {
+                            if idx == start_line {
+                                vec.push((start_col, line.chars().count()))
+                            } else if idx == end_line {
                                 vec.push((0, end_col))
                             } else {
-                                vec.push((0, text[line].chars().count()))
+                                vec.push((0, line.chars().count()))
                             }
                         }
                     }
