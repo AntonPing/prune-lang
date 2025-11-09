@@ -21,10 +21,9 @@ end
 
 function pythagorean_triple(x: Nat, y: Nat, z: Nat)
 begin
-    fresh x2, y2, z2;
-    guard x = S(x2);
-    guard y = S(y2);
-    guard z = S(z2);
+    let S(_) = x;
+    let S(_) = y;
+    let S(_) = z;
     guard add(mul(x, x), mul(y, y)) = mul(z, z);
 end
 

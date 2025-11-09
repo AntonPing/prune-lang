@@ -28,24 +28,6 @@ begin
     end
 end
 
-function is_balanced2(tree: AVLTree) -> ()
-begin
-    match tree with
-    | Node(left, _key, right, height) =>
-        guard is_balanced2(left) = ();
-        guard is_balanced2(right) = ();
-        let left_height = get_height(left);
-        let right_height = get_height(right);
-        if left_height < right_height then
-            guard height = right_height + 1;
-            guard right_height - left_height <= 1 = true;
-        else
-            guard height = left_height + 1;
-            guard left_height - right_height <= 1 = true;
-    | Empty => ()
-    end
-end
-
 function is_sorted(tree: AVLTree) -> Bool
 begin
     match tree with
