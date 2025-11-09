@@ -2,7 +2,7 @@ use super::cli::CliArgs;
 use super::diagnostic::{DiagLevel, Diagnostic};
 use super::*;
 use crate::driver::cli::PipeIO;
-use crate::{block, logic, syntax, tych, walker};
+use crate::{block, logic, sched, syntax, tych};
 
 pub struct Pipeline<'arg> {
     pub args: &'arg CliArgs,
@@ -79,7 +79,7 @@ impl<'arg> Pipeline<'arg> {
 
     pub fn run_backend(&self, prog: &block::ast::Program, pipe_io: &mut PipeIO) -> Vec<usize> {
         let mut res_vec = Vec::new();
-        let mut wlk = walker::walker::Walker::new(&prog.preds, pipe_io, self.args.backend);
+        let mut wlk = sched::walker::Walker::new(&prog.preds, pipe_io, self.args.backend);
         for query_decl in &prog.querys {
             wlk.config_reset_default();
             for param in query_decl.params.iter() {
