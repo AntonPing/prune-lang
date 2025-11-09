@@ -8,9 +8,12 @@ datatype BitList where
 | Cons(Bit, BitList)
 end
 
-function not_nil(xs: BitList)
+function not_zero_well_formed(xs: BitList)
 begin
-    let Cons(_head, _tail) = xs;
+    match xs with
+    | Cons(I, Nil) => ()
+    | Cons(_, Cons(head, tail)) => not_zero_well_formed(Cons(head, tail))
+    end
 end
 
 function well_formed(xs: BitList)
@@ -22,42 +25,41 @@ begin
     end
 end
 
-function full_adder_1(ci: Bit, x: Bit, y: Bit, z: Bit, co: Bit)
+// adder (ci, x, y) -> (z, co)
+function full_adder_1(ci: Bit, x: Bit, y: Bit) -> (Bit, Bit) 
 begin
-    alternative
-    | guard ci = O; guard x = O; guard y = O; guard z = O; guard co = O;
-    | guard ci = I; guard x = O; guard y = O; guard z = I; guard co = O;
-    | guard ci = O; guard x = I; guard y = O; guard z = I; guard co = O;
-    | guard ci = I; guard x = I; guard y = O; guard z = O; guard co = I;
-    | guard ci = O; guard x = O; guard y = I; guard z = I; guard co = O;
-    | guard ci = I; guard x = O; guard y = I; guard z = O; guard co = I;
-    | guard ci = O; guard x = I; guard y = I; guard z = O; guard co = I;
-    | guard ci = I; guard x = I; guard y = I; guard z = I; guard co = I;
+    match (ci, x, y) with
+    | (O, O, O) => (O, O)
+    | (I, O, O) => (I, O)
+    | (O, I, O) => (I, O)
+    | (I, I, O) => (O, I)
+    | (O, O, I) => (I, O)
+    | (I, O, I) => (O, I)
+    | (O, I, I) => (O, I)
+    | (I, I, I) => (I, I)
     end
 end
 
 function full_adder_n(ci: Bit, xs: BitList, ys: BitList) -> BitList
 begin
-    alternative
-    | guard xs = Nil; guard ys = Nil; 
-        match ci with
+    match (xs, ys) with
+    | (Nil, Nil) => match ci with
         | O => Nil
         | I => Cons(I, Nil)
         end
-    | guard xs = Nil; guard not_nil(ys) = ();
-        match ci with
-        | O => ys
-        | I => full_adder_n(O, Cons(I, Nil), ys)
-        end
-    | guard ys = Nil; guard not_nil(xs) = ();
+    | (xs, Nil) => guard not_zero_well_formed(xs) = ();
         match ci with
         | O => xs
         | I => full_adder_n(O, xs, Cons(I, Nil))
         end
-    | fresh x_head, x_tail, y_head, y_tail, z, co;
-        guard xs = Cons(x_head, x_tail);
-        guard ys = Cons(y_head, y_tail);
-        guard full_adder_1(ci, x_head, y_head, z, co) = ();
+    | (Nil, ys) => guard not_zero_well_formed(ys) = ();
+        match ci with
+        | O => ys
+        | I => full_adder_n(O, Cons(I, Nil), ys)
+        end
+    | (xs, ys) => let Cons(x_head, x_tail) = xs;
+        let Cons(y_head, y_tail) = ys;
+        let (z, co) = full_adder_1(ci, x_head, y_head);
         Cons(z, full_adder_n(co, x_tail, y_tail))
     end
 end
