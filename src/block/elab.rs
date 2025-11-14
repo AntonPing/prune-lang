@@ -74,16 +74,16 @@ impl Elaborator {
                 self.unify(&typ1, &typ2);
             }
             ast::Goal::Cons(var, cons, flds) => {
-                if cons.is_dummy() && *cons == Ident::dummy(&"#") {
-                    let var = self.elab_var(var);
-                    let flds = flds.iter().map(|fld| self.elab_atom(fld)).collect();
-                    self.unify(&var, &UnifyType::Cons(Ident::dummy(&"#"), flds));
-                } else {
+                if let Some(cons) = cons {
                     let (flds_ty, var_ty) = self.cons_ctx[cons].clone();
                     let var = self.elab_var(var);
                     let flds: Vec<_> = flds.iter().map(|fld| self.elab_atom(fld)).collect();
                     self.unify(&var, &var_ty);
                     self.unify_many(&flds, &flds_ty);
+                } else {
+                    let var = self.elab_var(var);
+                    let flds = flds.iter().map(|fld| self.elab_atom(fld)).collect();
+                    self.unify(&var, &UnifyType::Cons(None, flds));
                 }
             }
             ast::Goal::Prim(prim, args) => {
@@ -121,7 +121,7 @@ impl Elaborator {
             let flds = cons.flds.iter().map(Self::elab_type).collect();
             self.cons_ctx.insert(
                 cons.name,
-                (flds, UnifyType::Cons(data_decl.name, Vec::new())),
+                (flds, UnifyType::Cons(Some(data_decl.name), Vec::new())),
             );
         }
     }

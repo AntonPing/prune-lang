@@ -6,7 +6,7 @@ use crate::syntax::ast::Type;
 pub enum UnifyType {
     Lit(LitType),
     Var(Ident),
-    Cons(Ident, Vec<UnifyType>),
+    Cons(Option<Ident>, Vec<UnifyType>),
     Cell(usize),
 }
 
@@ -20,11 +20,11 @@ impl From<&Type> for UnifyType {
                 span: _,
             } => {
                 let flds = flds.iter().map(|fld| fld.into()).collect();
-                UnifyType::Cons(cons.ident, flds)
+                UnifyType::Cons(Some(cons.ident), flds)
             }
             Type::Tuple { flds, span: _ } => {
                 let flds = flds.iter().map(|fld| fld.into()).collect();
-                UnifyType::Cons(Ident::dummy(&"#"), flds)
+                UnifyType::Cons(None, flds)
             }
         }
     }

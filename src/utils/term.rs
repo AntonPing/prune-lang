@@ -14,12 +14,12 @@ pub enum Term<V, L, C> {
     Cons(C, Vec<Term<V, L, C>>),
 }
 
-impl<V: fmt::Display, L: fmt::Display, C: fmt::Display> fmt::Display for Term<V, L, C> {
+impl<V: fmt::Display, L: fmt::Display, C: fmt::Display> fmt::Display for Term<V, L, Option<C>> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Term::Var(var) => fmt::Display::fmt(&var, f),
             Term::Lit(lit) => fmt::Display::fmt(&lit, f),
-            Term::Cons(cons, flds) => {
+            Term::Cons(Some(cons), flds) => {
                 if flds.is_empty() {
                     fmt::Display::fmt(&cons, f)
                 } else {
@@ -27,16 +27,33 @@ impl<V: fmt::Display, L: fmt::Display, C: fmt::Display> fmt::Display for Term<V,
                     write!(f, "{cons}({flds})")
                 }
             }
+            Term::Cons(None, flds) => {
+                let flds = flds.iter().format(", ");
+                write!(f, "({flds})")
+            }
         }
     }
 }
 
-pub type TermId = Term<Ident, LitVal, Ident>;
-pub type TermCtx = Term<IdentCtx, LitVal, Ident>;
+impl<V: fmt::Display, L: fmt::Display> fmt::Display for Term<V, L, Infallible> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Term::Var(var) => fmt::Display::fmt(&var, f),
+            Term::Lit(lit) => fmt::Display::fmt(&lit, f),
+            Term::Cons(_cons, _flds) => {
+                unreachable!()
+            }
+        }
+    }
+}
+
+// Term::Cons(Some(cons), flds) for constructors, and Term::Cons(None, flds) for tuples
+pub type TermId = Term<Ident, LitVal, Option<Ident>>;
+pub type TermCtx = Term<IdentCtx, LitVal, Option<Ident>>;
 pub type AtomId = Term<Ident, LitVal, Infallible>;
 pub type AtomCtx = Term<IdentCtx, LitVal, Infallible>;
 
-pub type TypeId = Term<Ident, LitType, Ident>;
+pub type TypeId = Term<Ident, LitType, Option<Ident>>;
 
 impl<V, L, C> Term<V, L, C> {
     pub fn is_var(&self) -> bool {

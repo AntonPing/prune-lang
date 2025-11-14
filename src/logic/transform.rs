@@ -77,11 +77,11 @@ fn translate_type(typ: &ast::Type) -> TypeId {
             span: _,
         } => {
             let flds = flds.iter().map(translate_type).collect();
-            Term::Cons(cons.ident, flds)
+            Term::Cons(Some(cons.ident), flds)
         }
         ast::Type::Tuple { flds, span: _ } => {
             let flds = flds.iter().map(translate_type).collect();
-            Term::Cons(Ident::dummy(&"#"), flds)
+            Term::Cons(None, flds)
         }
     }
 }
@@ -128,7 +128,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             vars.push(x);
             let (flds, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 flds.iter().map(|fld| translate_expr(vars, fld)).unzip();
-            goals.push(Goal::Cons(x, cons.ident, flds));
+            goals.push(Goal::Cons(x, Some(cons.ident), flds));
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Tuple { flds, span: _ } => {
@@ -136,7 +136,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             vars.push(x);
             let (flds, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 flds.iter().map(|fld| translate_expr(vars, fld)).unzip();
-            goals.push(Goal::Cons(x, Ident::dummy(&"#"), flds));
+            goals.push(Goal::Cons(x, None, flds));
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Match {
@@ -319,11 +319,11 @@ fn patn_to_term(vars: &mut Vec<Ident>, patn: &ast::Pattern) -> TermId {
             span: _,
         } => {
             let flds = flds.iter().map(|fld| patn_to_term(vars, fld)).collect();
-            TermId::Cons(cons.ident, flds)
+            TermId::Cons(Some(cons.ident), flds)
         }
         ast::Pattern::Tuple { flds, span: _ } => {
             let flds = flds.iter().map(|fld| patn_to_term(vars, fld)).collect();
-            TermId::Cons(Ident::dummy(&"#"), flds)
+            TermId::Cons(None, flds)
         }
     }
 }

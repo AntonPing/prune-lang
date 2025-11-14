@@ -201,14 +201,14 @@ fn test_solver() {
 
     sol.bind(
         z.tag_ctx(0),
-        Term::Cons(cons, vec![Term::Var(x.tag_ctx(0))]),
+        Term::Cons(Some(cons), vec![Term::Var(x.tag_ctx(0))]),
     )
     .unwrap();
 
     assert!(
         sol.bind(
             z.tag_ctx(0),
-            Term::Cons(cons, vec![Term::Var(y.tag_ctx(0))]),
+            Term::Cons(Some(cons), vec![Term::Var(y.tag_ctx(0))]),
         )
         .is_none()
     );

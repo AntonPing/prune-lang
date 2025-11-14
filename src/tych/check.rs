@@ -114,7 +114,7 @@ impl Checker {
             }
             Expr::Tuple { flds, span: _ } => {
                 let flds = flds.iter().map(|fld| self.check_expr(fld)).collect();
-                UnifyType::Cons(Ident::dummy(&"#"), flds)
+                UnifyType::Cons(None, flds)
             }
             Expr::Match {
                 expr,
@@ -235,7 +235,7 @@ impl Checker {
             }
             Pattern::Tuple { flds, span: _ } => {
                 let typs = flds.iter().map(|fld| self.check_patn(fld)).collect();
-                UnifyType::Cons(Ident::dummy(&"#"), typs)
+                UnifyType::Cons(None, typs)
             }
         }
     }
@@ -248,7 +248,10 @@ impl Checker {
             let flds = cons.flds.iter().map(|fld| fld.into()).collect();
             self.cons_ctx.insert(
                 cons.name.ident,
-                (flds, UnifyType::Cons(data_decl.name.ident, Vec::new())),
+                (
+                    flds,
+                    UnifyType::Cons(Some(data_decl.name.ident), Vec::new()),
+                ),
             );
         }
     }
