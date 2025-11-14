@@ -296,7 +296,7 @@ impl NonIncrSmtSolver {
                 }
             }
             Term::Lit(LitVal::Char(_x)) => todo!(),
-            Term::Cons(_, _ident, _terms) => unreachable!(),
+            Term::Cons(_cons, _flds) => unreachable!(),
         }
     }
 

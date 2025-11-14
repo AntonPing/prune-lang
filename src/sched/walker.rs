@@ -267,7 +267,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
                 .iter()
                 .map(|fld| fld.tag_ctx(curr_ctx).to_term())
                 .collect();
-            let res = self.sol.bind(var, Term::Cons((), *cons, flds)).is_some();
+            let res = self.sol.bind(var, Term::Cons(*cons, flds)).is_some();
             if !res {
                 return false;
             }

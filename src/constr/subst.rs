@@ -71,10 +71,9 @@ impl Subst {
                 }
             }
             Term::Lit(lit) => Term::Lit(*lit),
-            Term::Cons(c, cons, flds) => {
+            Term::Cons(cons, flds) => {
                 let flds = flds.iter().map(|fld| self.merge(fld)).collect();
-                let _: () = *c;
-                Term::Cons((), *cons, flds)
+                Term::Cons(*cons, flds)
             }
         }
     }
@@ -84,7 +83,7 @@ impl Subst {
         match term {
             Term::Var(y) => x == y,
             Term::Lit(_) => false,
-            Term::Cons(_, _cons, flds) => flds.iter().any(|fld| self.occur_check(x, fld)),
+            Term::Cons(_cons, flds) => flds.iter().any(|fld| self.occur_check(x, fld)),
         }
     }
 
@@ -121,7 +120,7 @@ impl Subst {
                         Term::Lit(lit) => {
                             subst.push((x, Term::Lit(lit)));
                         }
-                        Term::Cons(_, _, _) => {}
+                        Term::Cons(_, _) => {}
                     }
                     self.map.insert(x, term.clone());
                     Some(())
@@ -134,7 +133,7 @@ impl Subst {
                     None
                 }
             }
-            (Term::Cons(_, cons1, flds1), Term::Cons(_, cons2, flds2)) => {
+            (Term::Cons(cons1, flds1), Term::Cons(cons2, flds2)) => {
                 if cons1 == cons2 {
                     assert_eq!(flds1.len(), flds2.len());
                     for (fld1, fld2) in flds1.into_iter().zip(flds2.into_iter()) {

@@ -11,15 +11,15 @@ use std::fmt;
 pub enum Term<V, L, C> {
     Var(V),
     Lit(L),
-    Cons(C, Ident, Vec<Term<V, L, C>>),
+    Cons(C, Vec<Term<V, L, C>>),
 }
 
-impl<V: fmt::Display, L: fmt::Display, C> fmt::Display for Term<V, L, C> {
+impl<V: fmt::Display, L: fmt::Display, C: fmt::Display> fmt::Display for Term<V, L, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Term::Var(var) => fmt::Display::fmt(&var, f),
             Term::Lit(lit) => fmt::Display::fmt(&lit, f),
-            Term::Cons(_, cons, flds) => {
+            Term::Cons(cons, flds) => {
                 if flds.is_empty() {
                     fmt::Display::fmt(&cons, f)
                 } else {
@@ -31,12 +31,12 @@ impl<V: fmt::Display, L: fmt::Display, C> fmt::Display for Term<V, L, C> {
     }
 }
 
-pub type TermId = Term<Ident, LitVal, ()>;
-pub type TermCtx = Term<IdentCtx, LitVal, ()>;
+pub type TermId = Term<Ident, LitVal, Ident>;
+pub type TermCtx = Term<IdentCtx, LitVal, Ident>;
 pub type AtomId = Term<Ident, LitVal, Infallible>;
 pub type AtomCtx = Term<IdentCtx, LitVal, Infallible>;
 
-pub type TypeId = Term<Ident, LitType, ()>;
+pub type TypeId = Term<Ident, LitType, Ident>;
 
 impl<V, L, C> Term<V, L, C> {
     pub fn is_var(&self) -> bool {
@@ -48,7 +48,7 @@ impl<V, L, C> Term<V, L, C> {
     }
 
     pub fn is_cons(&self) -> bool {
-        matches!(self, Term::Cons(_, _, _))
+        matches!(self, Term::Cons(_, _))
     }
 }
 
@@ -57,30 +57,30 @@ impl<L: Copy, C: Copy> Term<Ident, L, C> {
         match self {
             Term::Var(var) => Term::Var(var.tag_ctx(ctx)),
             Term::Lit(lit) => Term::Lit(*lit),
-            Term::Cons(c, cons, flds) => {
+            Term::Cons(cons, flds) => {
                 let flds = flds.iter().map(|fld| fld.tag_ctx(ctx)).collect();
-                Term::Cons(*c, *cons, flds)
+                Term::Cons(*cons, flds)
             }
         }
     }
 }
 
-impl<V: Copy, L: Copy> Term<V, L, ()> {
+impl<V: Copy, L: Copy, C: Copy> Term<V, L, C> {
     pub fn to_atom(&self) -> Option<Term<V, L, Infallible>> {
         match self {
             Term::Var(var) => Some(Term::Var(*var)),
             Term::Lit(lit) => Some(Term::Lit(*lit)),
-            Term::Cons(_c, _cons, _flds) => None,
+            Term::Cons(_cons, _flds) => None,
         }
     }
 }
 
 impl<V: Copy, L: Copy> Term<V, L, Infallible> {
-    pub fn to_term(&self) -> Term<V, L, ()> {
+    pub fn to_term<C>(&self) -> Term<V, L, C> {
         match self {
             Term::Var(var) => Term::Var(*var),
             Term::Lit(lit) => Term::Lit(*lit),
-            Term::Cons(_c, _cons, _flds) => unreachable!(),
+            Term::Cons(_cons, _flds) => unreachable!(),
         }
     }
 }
@@ -90,7 +90,7 @@ impl<V: Copy + Eq, L, C> Term<V, L, C> {
         match self {
             Term::Var(y) => x == y,
             Term::Lit(_) => false,
-            Term::Cons(_, _cons, flds) => flds.iter().any(|fld| fld.occurs(x)),
+            Term::Cons(_cons, flds) => flds.iter().any(|fld| fld.occurs(x)),
         }
     }
 
@@ -108,7 +108,7 @@ impl<V: Copy + Eq, L, C> Term<V, L, C> {
                 }
             }
             Term::Lit(_lit) => {}
-            Term::Cons(_, _cons, flds) => {
+            Term::Cons(_cons, flds) => {
                 flds.iter().for_each(|fld| fld.free_vars_help(vec));
             }
         }
@@ -126,9 +126,9 @@ impl<V: Copy + Eq + std::hash::Hash, L: Copy, C: Copy> Term<V, L, C> {
                 }
             }
             Term::Lit(lit) => Term::Lit(*lit),
-            Term::Cons(c, cons, flds) => {
+            Term::Cons(cons, flds) => {
                 let flds = flds.iter().map(|fld| fld.substitute(map)).collect();
-                Term::Cons(*c, *cons, flds)
+                Term::Cons(*cons, flds)
             }
         }
     }

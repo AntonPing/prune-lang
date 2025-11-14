@@ -153,7 +153,7 @@ impl UnifySolver {
             UnifyType::Var(var) => Term::Var(*var),
             UnifyType::Cons(cons, args) => {
                 let args = args.iter().map(|arg| self.merge(arg)).collect();
-                Term::Cons((), *cons, args)
+                Term::Cons(*cons, args)
             }
             UnifyType::Cell(cell) => {
                 if self.arena[*cell].is_some() {

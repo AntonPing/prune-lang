@@ -16,7 +16,7 @@ fn unify_decompose_help(vars: &mut Vec<Ident>, vec: &mut Vec<Goal>, lhs: TermId,
         (Term::Var(lhs), rhs) | (rhs, Term::Var(lhs)) => match rhs {
             Term::Var(var) => vec.push(Goal::Eq(lhs, Term::Var(var))),
             Term::Lit(lit) => vec.push(Goal::Eq(lhs, Term::Lit(lit))),
-            Term::Cons(_, cons, flds) => {
+            Term::Cons(cons, flds) => {
                 let mut atoms: Vec<AtomId> = Vec::new();
                 for fld in flds {
                     match fld {
@@ -24,7 +24,7 @@ fn unify_decompose_help(vars: &mut Vec<Ident>, vec: &mut Vec<Goal>, lhs: TermId,
                             let atom = fld.to_atom().unwrap();
                             atoms.push(atom);
                         }
-                        Term::Cons(_, _, _) => {
+                        Term::Cons(_, _) => {
                             let x = Ident::fresh(&"x_fld");
                             vars.push(x);
                             atoms.push(Term::Var(x));
@@ -40,7 +40,7 @@ fn unify_decompose_help(vars: &mut Vec<Ident>, vec: &mut Vec<Goal>, lhs: TermId,
                 vec.push(Goal::Lit(false));
             }
         }
-        (Term::Cons(_, cons1, flds1), Term::Cons(_, cons2, flds2)) => {
+        (Term::Cons(cons1, flds1), Term::Cons(cons2, flds2)) => {
             if cons1 == cons2 {
                 assert_eq!(flds1.len(), flds2.len());
                 for (fld1, fld2) in flds1.into_iter().zip(flds2.into_iter()) {
@@ -77,11 +77,11 @@ fn translate_type(typ: &ast::Type) -> TypeId {
             span: _,
         } => {
             let flds = flds.iter().map(translate_type).collect();
-            Term::Cons((), cons.ident, flds)
+            Term::Cons(cons.ident, flds)
         }
         ast::Type::Tuple { flds, span: _ } => {
             let flds = flds.iter().map(translate_type).collect();
-            Term::Cons((), Ident::dummy(&"#"), flds)
+            Term::Cons(Ident::dummy(&"#"), flds)
         }
     }
 }
@@ -319,11 +319,11 @@ fn patn_to_term(vars: &mut Vec<Ident>, patn: &ast::Pattern) -> TermId {
             span: _,
         } => {
             let flds = flds.iter().map(|fld| patn_to_term(vars, fld)).collect();
-            TermId::Cons((), cons.ident, flds)
+            TermId::Cons(cons.ident, flds)
         }
         ast::Pattern::Tuple { flds, span: _ } => {
             let flds = flds.iter().map(|fld| patn_to_term(vars, fld)).collect();
-            TermId::Cons((), Ident::dummy(&"#"), flds)
+            TermId::Cons(Ident::dummy(&"#"), flds)
         }
     }
 }

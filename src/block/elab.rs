@@ -50,7 +50,7 @@ impl Elaborator {
                 .cloned()
                 .unwrap_or_else(|| self.fresh()),
             Term::Lit(lit) => UnifyType::Lit(lit.get_typ()),
-            Term::Cons(_, _cons, _flds) => unreachable!(),
+            Term::Cons(_cons, _flds) => unreachable!(),
         }
     }
 
@@ -58,7 +58,7 @@ impl Elaborator {
         match typ {
             Term::Var(_var) => panic!("generics not supported yet!"),
             Term::Lit(lit) => UnifyType::Lit(*lit),
-            Term::Cons(_, cons, flds) => {
+            Term::Cons(cons, flds) => {
                 let flds = flds.iter().map(Self::elab_type).collect();
                 UnifyType::Cons(*cons, flds)
             }
