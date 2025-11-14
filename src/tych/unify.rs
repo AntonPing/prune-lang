@@ -37,7 +37,7 @@ pub enum UnifyError {
     OccurCheckFailed(usize, UnifyType),
 }
 
-use crate::driver::diagnostic::Diagnostic;
+use crate::cli::diagnostic::Diagnostic;
 impl From<UnifyError> for Diagnostic {
     // todo: better error message
     fn from(val: UnifyError) -> Self {

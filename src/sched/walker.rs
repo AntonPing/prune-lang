@@ -3,8 +3,8 @@ use super::path::{Path, PathTree};
 use super::*;
 
 use crate::block::ast::*;
+use crate::cli::args::{PipeIO, SmtBackend};
 use crate::constr::solver::Solver;
-use crate::driver::cli::{PipeIO, SmtBackend};
 use crate::utils::ident::IdentCtx;
 
 use std::collections::VecDeque;

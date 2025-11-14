@@ -1,5 +1,5 @@
-use prune_lang::driver;
+use prune_lang::cli;
 
 fn main() {
-    let _ = driver::cli::run_cli();
+    let _ = cli::args::run_cli();
 }

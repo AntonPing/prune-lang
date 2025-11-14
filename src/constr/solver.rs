@@ -1,6 +1,6 @@
 use super::subst::*;
 use super::*;
-use crate::driver::cli;
+use crate::cli::args;
 use backend::SmtSolver;
 
 pub struct Solver {
@@ -32,23 +32,23 @@ impl fmt::Display for Solver {
 }
 
 impl Solver {
-    pub fn new(backend: cli::SmtBackend) -> Solver {
+    pub fn new(backend: args::SmtBackend) -> Solver {
         let subst = Subst::new();
 
         let constr = match backend {
-            cli::SmtBackend::Z3Inc => Box::new(backend::incr_smt::IncrSmtSolver::new(
+            args::SmtBackend::Z3Inc => Box::new(backend::incr_smt::IncrSmtSolver::new(
                 backend::SmtBackend::Z3,
             )) as Box<dyn SmtSolver>,
-            cli::SmtBackend::Z3Sq => Box::new(backend::non_incr_smt::NonIncrSmtSolver::new(
+            args::SmtBackend::Z3Sq => Box::new(backend::non_incr_smt::NonIncrSmtSolver::new(
                 backend::SmtBackend::Z3,
             )) as Box<dyn SmtSolver>,
-            cli::SmtBackend::CVC5Inc => Box::new(backend::incr_smt::IncrSmtSolver::new(
+            args::SmtBackend::CVC5Inc => Box::new(backend::incr_smt::IncrSmtSolver::new(
                 backend::SmtBackend::CVC5,
             )) as Box<dyn SmtSolver>,
-            cli::SmtBackend::CVC5Sq => Box::new(backend::non_incr_smt::NonIncrSmtSolver::new(
+            args::SmtBackend::CVC5Sq => Box::new(backend::non_incr_smt::NonIncrSmtSolver::new(
                 backend::SmtBackend::CVC5,
             )) as Box<dyn SmtSolver>,
-            cli::SmtBackend::NoSmt => {
+            args::SmtBackend::NoSmt => {
                 Box::new(backend::no_smt::NoSmtSolver::new()) as Box<dyn SmtSolver>
             }
         };
@@ -177,7 +177,7 @@ fn test_solver() {
     let z = Ident::dummy(&"z");
     let cons = Ident::dummy(&"cons");
 
-    let mut sol: Solver = Solver::new(cli::SmtBackend::Z3Inc);
+    let mut sol: Solver = Solver::new(args::SmtBackend::Z3Inc);
 
     sol.declare(&x.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
     sol.declare(&y.tag_ctx(0), &TypeId::Lit(LitType::TyInt));

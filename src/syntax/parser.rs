@@ -1,6 +1,6 @@
 use super::lexer::*;
 use super::*;
-use crate::driver::diagnostic::Diagnostic;
+use crate::cli::diagnostic::Diagnostic;
 use crate::syntax::ast::*;
 
 pub struct Parser<'src> {

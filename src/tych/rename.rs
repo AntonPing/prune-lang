@@ -55,7 +55,7 @@ pub enum RenameError {
     },
 }
 
-use crate::driver::diagnostic::Diagnostic;
+use crate::cli::diagnostic::Diagnostic;
 impl From<RenameError> for Diagnostic {
     fn from(val: RenameError) -> Self {
         match val {

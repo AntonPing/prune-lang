@@ -1,5 +1,5 @@
 use super::*;
-use crate::driver::command::Pipeline;
+use crate::cli::pipeline::Pipeline;
 use clap::{Parser, ValueEnum};
 
 #[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]

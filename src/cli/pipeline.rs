@@ -1,7 +1,7 @@
-use super::cli::CliArgs;
+use super::args::CliArgs;
 use super::diagnostic::{DiagLevel, Diagnostic};
 use super::*;
-use crate::driver::cli::PipeIO;
+use crate::cli::args::PipeIO;
 use crate::{block, logic, sched, syntax, tych};
 
 pub struct Pipeline<'arg> {
