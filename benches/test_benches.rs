@@ -1,12 +1,13 @@
 use std::path::PathBuf;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use prune_lang::cli::args;
+use prune_lang::cli;
 
 fn bench_append_good(c: &mut Criterion) {
     c.bench_function("append_good", |b| {
         b.iter(|| {
-            args::run_cli_test(PathBuf::from("./examples/sym_exec_good/append_good.pr")).unwrap()
+            cli::pipeline::run_cli_test(PathBuf::from("./examples/sym_exec_good/append_good.pr"))
+                .unwrap()
         })
     });
 }

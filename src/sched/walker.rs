@@ -3,7 +3,8 @@ use super::path::{Path, PathTree};
 use super::*;
 
 use crate::block::ast::*;
-use crate::cli::args::{PipeIO, SmtBackend};
+use crate::cli::args::SmtBackend;
+use crate::cli::pipeline::PipeIO;
 use crate::constr::solver::Solver;
 use crate::utils::ident::IdentCtx;
 

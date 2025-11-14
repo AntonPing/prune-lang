@@ -1,8 +1,28 @@
 use super::args::CliArgs;
 use super::diagnostic::{DiagLevel, Diagnostic};
 use super::*;
-use crate::cli::args::PipeIO;
 use crate::{block, logic, sched, syntax, tych};
+
+pub struct PipeIO {
+    pub output: Box<dyn Write>,
+    pub stat_log: Box<dyn Write>,
+}
+
+impl PipeIO {
+    pub fn empty() -> PipeIO {
+        PipeIO {
+            output: Box::new(io::empty()),
+            stat_log: Box::new(io::empty()),
+        }
+    }
+
+    pub fn stdout() -> PipeIO {
+        PipeIO {
+            output: Box::new(io::stdout()),
+            stat_log: Box::new(io::stdout()),
+        }
+    }
+}
 
 pub struct Pipeline<'arg> {
     pub args: &'arg CliArgs,
@@ -90,4 +110,54 @@ impl<'arg> Pipeline<'arg> {
         }
         res_vec
     }
+}
+
+pub fn run_pipline(args: &CliArgs) -> Result<Vec<usize>, io::Error> {
+    let src = std::fs::read_to_string(&args.input)?;
+
+    let mut pipe_io = PipeIO::empty();
+
+    if args.mute_output {
+        pipe_io.output = Box::new(std::io::empty());
+    } else if let Some(path) = &args.output {
+        pipe_io.output = Box::new(File::create(path)?);
+    } else {
+        pipe_io.output = Box::new(std::io::stdout());
+    }
+
+    if args.mute_stat_log {
+        pipe_io.stat_log = Box::new(std::io::empty());
+    } else if let Some(path) = &args.stat_log {
+        pipe_io.stat_log = Box::new(File::create(path)?);
+    } else {
+        pipe_io.stat_log = Box::new(std::io::stdout());
+    }
+
+    let mut pipe = Pipeline::new(args);
+    match pipe.run_pipline(&src, &mut pipe_io) {
+        Ok(res) => {
+            for diag in pipe.diags.into_iter() {
+                eprintln!("{}", diag.report(&src, args.verbosity));
+            }
+            Ok(res)
+        }
+        Err(err) => {
+            for diag in pipe.diags.into_iter() {
+                eprintln!("{}", diag.report(&src, args.verbosity));
+            }
+            Err(err)
+        }
+    }
+}
+
+pub fn run_cli() -> Result<Vec<usize>, io::Error> {
+    let args = args::parse_cli_args();
+    let res = pipeline::run_pipline(&args)?;
+    Ok(res)
+}
+
+pub fn run_cli_test(prog_name: PathBuf) -> Result<Vec<usize>, io::Error> {
+    let args = args::get_test_cli_args(prog_name);
+    let res = pipeline::run_pipline(&args)?;
+    Ok(res)
 }
