@@ -28,7 +28,7 @@ cargo install prune-lang
 
 ### Method 2: Build binary from source
 ```bash
-git clone https://github.com/yourusername/prune-lang
+git clone https://github.com/AntonPing/prune-lang
 cd prune-lang
 cargo build --release
 # The binary will be available at: ./target/release/prune
