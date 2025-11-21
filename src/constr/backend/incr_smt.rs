@@ -28,13 +28,13 @@ impl IncrSmtSolver {
 
         // ctx_bld.replay_file(Some(std::fs::File::create("replay.smt2").unwrap()));
         let mut ctx = ctx_bld.build().unwrap();
-
+        ctx.set_logic("QF_NIA").unwrap();
         match backend {
             SmtBackend::Z3 => {
-                ctx.set_option(":timeout", ctx.numeral(10)).unwrap();
+                ctx.set_option(":timeout", ctx.numeral(100)).unwrap();
             }
             SmtBackend::CVC5 => {
-                ctx.set_option(":tlimit-per", ctx.numeral(10)).unwrap();
+                ctx.set_option(":tlimit-per", ctx.numeral(100)).unwrap();
             }
         }
 

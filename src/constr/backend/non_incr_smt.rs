@@ -30,9 +30,9 @@ impl NonIncrSmtSolver {
             }
         }
 
-        // ctx_bld.replay_file(Some(std::fs::File::create("replay.smt2").unwrap()));
+        ctx_bld.replay_file(Some(std::fs::File::create("replay.smt2").unwrap()));
         let mut ctx = ctx_bld.build().unwrap();
-
+        ctx.set_logic("QF_NIA").unwrap();
         match backend {
             SmtBackend::Z3 => {
                 ctx.set_option(":timeout", ctx.numeral(5000)).unwrap();
@@ -42,6 +42,8 @@ impl NonIncrSmtSolver {
             }
         }
 
+        // push an empty context for reset
+        ctx.push().unwrap();
         NonIncrSmtSolver {
             ctx,
             vars_vec: Vec::new(),
@@ -139,10 +141,8 @@ impl SmtSolver for NonIncrSmtSolver {
 impl NonIncrSmtSolver {
     fn solve_constraints(&mut self) -> HashMap<IdentCtx, SExpr> {
         // reset solver state
-        self.ctx
-            .raw_send(self.ctx.list(vec![self.ctx.atom("reset")]))
-            .unwrap();
-        self.ctx.raw_recv().unwrap();
+        self.ctx.pop().unwrap();
+        self.ctx.push().unwrap();
 
         let (_vars_vec, cons_vec) = self.propagate_eqs();
 
