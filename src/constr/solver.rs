@@ -114,21 +114,18 @@ impl Solver {
         for (x, term) in subst.drain(..) {
             if self.ty_map[&x].is_lit() {
                 self.constr.push_eq(x, term);
-                if !self.constr.check_complete() {
-                    return None;
-                }
             }
         }
         Some(())
     }
 
-    pub fn solve(&mut self, prim: Prim, args: Vec<AtomCtx>) -> Option<()> {
+    pub fn push_cons(&mut self, prim: Prim, args: Vec<AtomCtx>) {
         self.solve_vec.push((prim, args.clone()));
         self.constr.push_cons(prim, args);
-        if !self.constr.check_complete() {
-            return None;
-        }
-        Some(())
+    }
+
+    pub fn check_complete(&mut self) -> bool {
+        self.constr.check_complete()
     }
 
     pub fn check_sound(&mut self) -> bool {
@@ -182,19 +179,20 @@ fn test_solver() {
     sol.declare(&x.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
     sol.declare(&y.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
 
-    sol.solve(
+    sol.push_cons(
         Prim::ICmp(Compare::Lt),
         vec![
             Term::Var(x.tag_ctx(0)),
             Term::Var(y.tag_ctx(0)),
             Term::Lit(LitVal::Bool(true)),
         ],
-    )
-    .unwrap();
+    );
 
     sol.savepoint();
 
-    assert!(sol.bind(x.tag_ctx(0), Term::Var(y.tag_ctx(0))).is_none());
+    sol.bind(x.tag_ctx(0), Term::Var(y.tag_ctx(0))).unwrap();
+
+    assert!(!sol.check_complete());
 
     sol.backtrack();
     sol.savepoint();
@@ -205,13 +203,12 @@ fn test_solver() {
     )
     .unwrap();
 
-    assert!(
-        sol.bind(
-            z.tag_ctx(0),
-            Term::Cons(Some(cons), vec![Term::Var(y.tag_ctx(0))]),
-        )
-        .is_none()
+    sol.bind(
+        z.tag_ctx(0),
+        Term::Cons(Some(cons), vec![Term::Var(y.tag_ctx(0))]),
     );
+
+    assert!(!sol.check_complete());
 
     sol.backtrack();
 }

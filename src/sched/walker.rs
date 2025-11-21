@@ -276,10 +276,11 @@ impl<'blk, 'io> Walker<'blk, 'io> {
 
         for (prim, args) in curr_blk.prims.iter() {
             let args = args.iter().map(|arg| arg.tag_ctx(curr_ctx)).collect();
-            let res = self.sol.solve(*prim, args).is_some();
-            if !res {
-                return false;
-            }
+            self.sol.push_cons(*prim, args);
+        }
+
+        if !self.sol.check_complete() {
+            return false;
         }
 
         for brchs in curr_blk.brchss.iter() {
