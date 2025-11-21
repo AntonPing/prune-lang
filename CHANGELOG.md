@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Modify `avl_tree` examples for better performance.
 - Fix a bug in SMT solver configuration.
 - Fix a bug in example `avl_tree_bad`.
 - Fix a vibe typo in `README.md`.
