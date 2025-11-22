@@ -70,6 +70,18 @@ impl<'blk, 'io> Walker<'blk, 'io> {
         &self.dict[pred].blks[idx]
     }
 
+    fn get_min_depth(&self, state: &State) -> usize {
+        let mut min_depth = 0;
+        for brchs in state.queue.iter() {
+            min_depth += brchs
+                .iter()
+                .map(|path| self.get_block(&path.pred, path.idx).min_depth)
+                .min()
+                .unwrap_or(0)
+        }
+        min_depth + state.depth
+    }
+
     fn reset(&mut self) {
         self.stats.reset();
         assert!(self.stack.is_empty());
@@ -108,7 +120,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
     }
 
     fn run_state_loop(&mut self, depth: usize, state: &mut State) -> bool {
-        if state.depth + state.queue.len() > depth {
+        if self.get_min_depth(state) > depth {
             return false;
         }
         self.stats.step();
@@ -143,7 +155,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
         }
 
         // optional: use look-ahead filter
-        // let rand_num = rand::random::<u32>().rem_euclid(10 as u32);
+        // let rand_num = rand::random::<u32>().rem_euclid(10);
         // if rand_num == 0 {
         //     self.look_ahead_filter(state);
         //     return self.split_branch(state);
@@ -175,7 +187,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
     #[allow(dead_code)]
     fn check_empty_and_unit_clause(&mut self, state: &mut State) -> Option<Option<usize>> {
         for (idx, brchs) in state.queue.iter().enumerate() {
-            if brchs.len() == 0 {
+            if brchs.is_empty() {
                 return None;
             } else if brchs.len() == 1 {
                 return Some(Some(idx));

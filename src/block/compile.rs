@@ -11,7 +11,7 @@ pub fn compile_goal(pred: Ident, goal: &ast::Goal) -> Vec<Block> {
     blks
 }
 
-pub fn compile_goal_help(goal: &ast::Goal, blks: &mut Vec<Block>) -> usize {
+fn compile_goal_help(goal: &ast::Goal, blks: &mut Vec<Block>) -> usize {
     // push a placeholder
     blks.push(Block::new());
     let idx = blks.len() - 1;
@@ -21,7 +21,7 @@ pub fn compile_goal_help(goal: &ast::Goal, blks: &mut Vec<Block>) -> usize {
     idx
 }
 
-pub fn emit_goal(goal: &ast::Goal, blks: &mut Vec<Block>, blk: &mut Block) {
+fn emit_goal(goal: &ast::Goal, blks: &mut Vec<Block>, blk: &mut Block) {
     match goal {
         ast::Goal::Lit(_) => {
             panic!("no literal value after optimize!");
@@ -53,7 +53,62 @@ pub fn emit_goal(goal: &ast::Goal, blks: &mut Vec<Block>, blk: &mut Block) {
     }
 }
 
-pub fn compile_pred(pred: &ast::PredDecl, map: &HashMap<Ident, TypeId>) -> PredDef {
+fn get_block_min_depth(preds: &HashMap<Ident, PredDef>, pred: &PredDef, blk: &Block) -> usize {
+    let mut calls_depth = 0;
+    for (pred, _args) in blk.calls.iter() {
+        let blk = &preds[pred].blks[0];
+        calls_depth += blk.min_depth;
+    }
+
+    let mut brchs_depth = 0;
+    for brchs in blk.brchss.iter() {
+        let min_depth = brchs
+            .iter()
+            .map(|brch| pred.blks[*brch].min_depth)
+            .min()
+            .unwrap_or(0);
+        brchs_depth += min_depth;
+    }
+
+    calls_depth + brchs_depth + 1
+}
+
+fn update_min_depth_iter(preds: &mut HashMap<Ident, PredDef>) -> bool {
+    let mut map: HashMap<Ident, Vec<usize>> = HashMap::new();
+    for (name, pred) in preds.iter() {
+        let mut vec = Vec::new();
+        for blk in pred.blks.iter() {
+            let min_depth = get_block_min_depth(preds, pred, blk);
+            vec.push(min_depth);
+        }
+        map.insert(*name, vec);
+    }
+
+    let mut flag = false;
+    for (name, vec) in map.iter() {
+        for (blk, depth) in preds.get_mut(name).unwrap().blks.iter_mut().zip(vec.iter()) {
+            assert!(blk.min_depth <= *depth);
+            if blk.min_depth < *depth {
+                blk.min_depth = *depth;
+                flag = true;
+            }
+        }
+    }
+
+    flag
+}
+
+fn update_min_depth(preds: &mut HashMap<Ident, PredDef>) {
+    for _ in 0..10000 {
+        let res = update_min_depth_iter(preds);
+        if !res {
+            return;
+        }
+    }
+    panic!("potential infinite recursive without branching point!");
+}
+
+fn compile_pred(pred: &ast::PredDecl, map: &HashMap<Ident, TypeId>) -> PredDef {
     let pars = pred
         .pars
         .iter()
@@ -77,12 +132,13 @@ pub fn compile_pred(pred: &ast::PredDecl, map: &HashMap<Ident, TypeId>) -> PredD
 
 pub fn compile_dict(prog: &ast::Program) -> Program {
     let ty_map = super::elab::elab_pass(prog);
-    let preds = prog
+    let mut preds = prog
         .preds
         .iter()
         .map(|(name, pred)| (*name, compile_pred(pred, &ty_map)))
         .collect();
 
+    update_min_depth(&mut preds);
     let querys = prog.querys.clone();
 
     Program {

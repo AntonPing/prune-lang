@@ -6,6 +6,7 @@ use std::fmt;
 pub struct Block {
     pub blk_pred: Ident,
     pub blk_idx: usize,
+    pub min_depth: usize,
     pub eqs: Vec<(Ident, AtomId)>,
     pub cons: Vec<(Ident, Option<Ident>, Vec<AtomId>)>,
     pub prims: Vec<(Prim, Vec<AtomId>)>,
@@ -15,7 +16,11 @@ pub struct Block {
 
 impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "block {} {{{}}}:", self.blk_pred, self.blk_idx)?;
+        writeln!(
+            f,
+            "block {}.{} {{{}}}:",
+            self.blk_pred, self.blk_idx, self.min_depth
+        )?;
 
         for (var, atom) in self.eqs.iter() {
             writeln!(f, "    {} = {}; ", var, atom)?;
@@ -58,6 +63,7 @@ impl Block {
         Block {
             blk_pred: Ident::dummy(&"?"),
             blk_idx: 0,
+            min_depth: 0,
             eqs: Vec::new(),
             cons: Vec::new(),
             prims: Vec::new(),
@@ -79,11 +85,11 @@ impl std::fmt::Display for PredDef {
         writeln!(f, "define {}:", self.name)?;
 
         for (par, par_ty) in self.pars.iter() {
-            writeln!(f, "par {par}: {par_ty:?}")?;
+            writeln!(f, "par {par}: {par_ty}")?;
         }
 
         for (var, var_ty) in self.vars.iter() {
-            writeln!(f, "var {var}: {var_ty:?}")?;
+            writeln!(f, "var {var}: {var_ty}")?;
         }
 
         for blk in self.blks.iter() {
