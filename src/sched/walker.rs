@@ -127,6 +127,28 @@ impl<'blk, 'io> Walker<'blk, 'io> {
     fn split_branch(&mut self, state: &mut State) {
         assert!(!state.queue.is_empty());
 
+        // check if there is clause with only one branch
+        match self.check_empty_and_unit_clause(state) {
+            None => {
+                return;
+            }
+            Some(None) => {}
+            Some(Some(idx)) => {
+                let brch = state.queue.remove(idx).unwrap().into_iter().next().unwrap();
+                let mut new_state = state.clone();
+                new_state.path = brch;
+                self.push_state(new_state);
+                return;
+            }
+        }
+
+        // optional: use look-ahead filter
+        // let rand_num = rand::random::<u32>().rem_euclid(10 as u32);
+        // if rand_num == 0 {
+        //     self.look_ahead_filter(state);
+        //     return self.split_branch(state);
+        // }
+
         // DFS branching strategy
         // let brchs = state.queue.pop_back().unwrap();
 
@@ -139,14 +161,27 @@ impl<'blk, 'io> Walker<'blk, 'io> {
         // conflict-driven branching heuristic
         let brchs = self.conflict_driven_branching(state);
 
-        // look-ahead branching heuristic
-        // let brchs = self.look_ahead_branching(state);
-
         for brch in brchs {
             let mut new_state = state.clone();
             new_state.path = brch;
             self.push_state(new_state);
         }
+    }
+
+    // return value of unit_clause_branch:
+    // None: contains empty clause
+    // Some(None): no empty clause and no unit clause
+    // Some(Some(idx)): no empty clause, return the index of first unit clause
+    #[allow(dead_code)]
+    fn check_empty_and_unit_clause(&mut self, state: &mut State) -> Option<Option<usize>> {
+        for (idx, brchs) in state.queue.iter().enumerate() {
+            if brchs.len() == 0 {
+                return None;
+            } else if brchs.len() == 1 {
+                return Some(Some(idx));
+            }
+        }
+        Some(None)
     }
 
     #[allow(dead_code)]
@@ -200,51 +235,35 @@ impl<'blk, 'io> Walker<'blk, 'io> {
     }
 
     #[allow(dead_code)]
-    fn look_ahead_branching(&mut self, state: &mut State) -> Vec<Path> {
+    fn look_ahead_filter(&mut self, state: &mut State) {
         assert!(!state.queue.is_empty());
 
-        // look-ahead for the first point with branching factor 0 or 1
-        let mut vec = Vec::new();
-        while let Some(brchs) = state.queue.pop_front() {
-            let new_brchs = self.look_ahead_filter(state, brchs);
-            if new_brchs.len() <= 1 {
-                for brchs in vec.into_iter() {
-                    state.queue.push_back(brchs);
-                }
-                return new_brchs;
-            } else {
-                vec.push(new_brchs);
-            }
+        let old_queue: Vec<_> = state.queue.drain(..).collect();
+        let mut new_queue = VecDeque::new();
+        for brchs in old_queue.into_iter() {
+            let new_brchs: Vec<Path> = brchs
+                .into_iter()
+                .filter(|brch| {
+                    self.sol.savepoint();
+
+                    let mut new_state = state.clone();
+                    new_state.path = brch.clone();
+                    let res = self.run_block(&mut new_state);
+
+                    self.sol.backtrack();
+                    if res {
+                        self.stats.step_la();
+                    } else {
+                        self.stats.step();
+                    }
+
+                    res
+                })
+                .collect();
+            new_queue.push_back(new_brchs);
         }
 
-        for brchs in vec.into_iter() {
-            state.queue.push_back(brchs);
-        }
-
-        state.queue.pop_front().unwrap()
-    }
-
-    fn look_ahead_filter(&mut self, state: &State, brchs: Vec<Path>) -> Vec<Path> {
-        brchs
-            .into_iter()
-            .filter(|brch| {
-                self.sol.savepoint();
-
-                let mut new_state = state.clone();
-                new_state.path = brch.clone();
-                let res = self.run_block(&mut new_state);
-
-                self.sol.backtrack();
-
-                if res {
-                    self.stats.step_la();
-                } else {
-                    self.stats.step();
-                }
-
-                res
-            })
-            .collect()
+        state.queue = new_queue;
     }
 
     fn run_block(&mut self, state: &mut State) -> bool {
