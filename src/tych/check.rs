@@ -318,20 +318,17 @@ end
 function is_elem(xs: IntList, x: Int) -> Bool
 begin
     match xs with
-    | Cons(head, tail) => if @icmpeq(head, x) then true else is_elem(tail, x) 
+    | Cons(head, tail) => if head == x then true else is_elem(tail, x) 
     | Nil => false
     end
 end
 
-predicate is_elem_after_append(xs: IntList, x: Int)
+function is_elem_after_append(xs: IntList, x: Int)
 begin
-    fresh(ys) (
-        and(
-            ys = append(xs, x),
-            is_elem(ys, x) = false,
-        )
-    )
+    guard !is_elem(append(xs, x), x);
 end
+
+query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=1)
 "#;
     let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());

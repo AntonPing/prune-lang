@@ -932,8 +932,21 @@ impl<'src> Parser<'src> {
                     self.cursor += 1;
                 }
                 Token::EndOfFile => break,
-                _tok => {
-                    self.next_token().unwrap();
+                tok => {
+                    self.errors.push(ParseError::FailedToParse(
+                        "declaration",
+                        tok,
+                        self.peek_span().clone(),
+                    ));
+                    // skip all tokens before the next "header" token
+                    loop {
+                        if let Token::Datatype | Token::Function | Token::Query | Token::EndOfFile =
+                            self.peek_token()
+                        {
+                            break;
+                        }
+                        self.next_token().unwrap();
+                    }
                 }
             }
         }
