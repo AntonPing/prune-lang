@@ -137,6 +137,16 @@ fn test_reverse_backward() {
 }
 
 #[test]
+fn test_concat_forward() {
+    cli::pipeline::run_cli_test(PathBuf::from("./examples/basic/concat_forward.pr")).unwrap();
+}
+
+#[test]
+fn test_concat_backward() {
+    cli::pipeline::run_cli_test(PathBuf::from("./examples/basic/concat_backward.pr")).unwrap();
+}
+
+#[test]
 fn test_pythagorean() {
     cli::pipeline::run_cli_test(PathBuf::from("./examples/other/pythagorean.pr")).unwrap();
 }

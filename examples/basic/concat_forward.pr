@@ -1,0 +1,19 @@
+datatype IntList where
+| Cons(Int, IntList)
+| Nil
+end
+
+function concat(xs: IntList, ys: IntList) -> IntList
+begin
+    match xs with
+    | Cons(head, tail) => Cons(head, concat(tail, ys))
+    | Nil => ys
+    end
+end
+
+function example(zs: IntList)
+begin
+    guard concat(Cons(1, Cons(2, Nil)), Cons(3, Cons(4, Nil))) = zs;
+end
+
+query example(depth_step=50, depth_limit=1000, answer_limit=1)
