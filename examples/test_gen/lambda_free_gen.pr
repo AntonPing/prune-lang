@@ -50,4 +50,4 @@ begin
     guard free_vars(expr) = Nil;
 end
 
-query gen_lambda_free(depth_step=5, depth_limit=200, answer_limit=100)
+query gen_lambda_free(depth_step=5, depth_limit=30)

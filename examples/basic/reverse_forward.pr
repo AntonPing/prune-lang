@@ -11,8 +11,8 @@ end
 function reverse_help(xs: IntList, ys: IntList) -> IntList
 begin
     match xs with
-    | Cons(head, tail) => reverse_help(tail, Cons(head, ys))
     | Nil => ys
+    | Cons(head, tail) => reverse_help(tail, Cons(head, ys))
     end
 end
 
@@ -26,7 +26,9 @@ end
 
 function reverse_forward(ys: IntList)
 begin
-    guard ys = reverse(rev_nat_list(100));
+    fresh xs;
+    guard xs = rev_nat_list(100);
+    guard ys = reverse(xs);
 end
 
 query reverse_forward(depth_step=50, depth_limit=1000, answer_limit=1)

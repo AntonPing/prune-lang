@@ -73,4 +73,4 @@ begin
     guard is_balanced(tree);
 end
 
-query gen_sorted_balanced(depth_step=5, depth_limit=200, answer_limit=10)
+query gen_sorted_balanced(depth_step=5, depth_limit=70)

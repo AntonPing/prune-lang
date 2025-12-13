@@ -6,14 +6,25 @@ end
 function concat(xs: IntList, ys: IntList) -> IntList
 begin
     match xs with
-    | Cons(head, tail) => Cons(head, concat(tail, ys))
     | Nil => ys
+    | Cons(head, tail) => Cons(head, concat(tail, ys))
     end
+end
+
+function rev_nat_list(n: Int) -> IntList
+begin
+    if n == 0 then
+        Nil
+    else
+        Cons(n, rev_nat_list(n - 1))
 end
 
 function example(zs: IntList)
 begin
-    guard concat(Cons(1, Cons(2, Nil)), Cons(3, Cons(4, Nil))) = zs;
+    fresh xs, ys;
+    guard xs = rev_nat_list(100);
+    guard ys = rev_nat_list(100);
+    guard concat(xs, ys) = zs;
 end
 
 query example(depth_step=50, depth_limit=1000, answer_limit=1)

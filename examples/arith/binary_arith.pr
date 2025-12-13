@@ -8,14 +8,6 @@ datatype BitList where
 | Cons(Bit, BitList)
 end
 
-function not_zero_well_formed(xs: BitList)
-begin
-    match xs with
-    | Cons(I, Nil) => ()
-    | Cons(_, Cons(head, tail)) => not_zero_well_formed(Cons(head, tail))
-    end
-end
-
 function well_formed(xs: BitList)
 begin
     match xs with
@@ -47,18 +39,13 @@ begin
         | O => Nil
         | I => Cons(I, Nil)
         end
-    | (xs, Nil) => guard not_zero_well_formed(xs) = ();
-        match ci with
-        | O => xs
-        | I => full_adder_n(O, xs, Cons(I, Nil))
-        end
-    | (Nil, ys) => guard not_zero_well_formed(ys) = ();
-        match ci with
-        | O => ys
-        | I => full_adder_n(O, Cons(I, Nil), ys)
-        end
-    | (xs, ys) => let Cons(x_head, x_tail) = xs;
-        let Cons(y_head, y_tail) = ys;
+    | (Cons(x_head, x_tail), Nil) => 
+        let (z, co) = full_adder_1(ci, x_head, O);
+        Cons(z, full_adder_n(co, x_tail, Nil))
+    | (Nil, Cons(y_head, y_tail)) => 
+        let (z, co) = full_adder_1(ci, O, y_head);
+        Cons(z, full_adder_n(co, Nil, y_tail))
+    | (Cons(x_head, x_tail), Cons(y_head, y_tail)) =>
         let (z, co) = full_adder_1(ci, x_head, y_head);
         Cons(z, full_adder_n(co, x_tail, y_tail))
     end
@@ -86,4 +73,4 @@ begin
     guard add(mul(xs, xs), mul(ys, ys)) = mul(zs, zs);
 end
 
-query pythagorean_triple(depth_step=20, depth_limit=200, answer_limit=1)
+query pythagorean_triple(depth_step=20, depth_limit=400, answer_limit=10)

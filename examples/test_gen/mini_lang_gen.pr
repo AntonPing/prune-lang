@@ -128,4 +128,4 @@ begin
     guard well_type_stmts(NilCtx, stmt) = SomeCtx(ctx);
 end
 
-query well_type_stmts_gen(depth_step=5, depth_limit=200, answer_limit=100)
+query well_type_stmts_gen(depth_step=5, depth_limit=30)
