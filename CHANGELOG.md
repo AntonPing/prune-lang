@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Modify test benchmarks.
 
+### Fixed
+
+-  Fix a bug in left-biased scheduling.
+
 ## [0.1.1] - 2025-11-22
 
 ### Added

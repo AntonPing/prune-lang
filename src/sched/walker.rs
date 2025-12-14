@@ -161,11 +161,11 @@ impl<'blk, 'io> Walker<'blk, 'io> {
         //     return self.split_branch(state);
         // }
 
-        // DFS branching strategy
-        // let brchs = state.queue.pop_back().unwrap();
-
-        // BFS branching strategy
+        // left-biased branching strategy
         // let brchs = state.queue.pop_front().unwrap();
+
+        // queue-based branching strategy
+        // let brchs = state.queue.pop_back().unwrap();
 
         // random branching heuristic
         // let brchs = self.random_branching(state);
@@ -174,6 +174,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
         let brchs = self.conflict_driven_branching(state);
 
         for brch in brchs {
+            self.path_tree.branch_update(&brch);
             let mut new_state = state.clone();
             new_state.path = brch;
             self.push_state(new_state);
@@ -232,17 +233,12 @@ impl<'blk, 'io> Walker<'blk, 'io> {
 
         let (conj, _val) = conj_vals
             .iter()
-            .rev()
             .max_by_key(|(_conj, val)| if *val > 0 { 1 } else { 0 })
             .unwrap();
 
         // println!("{:?}", conj_vals);
 
         let paths = state.queue.remove(*conj).unwrap();
-        for path in paths.iter() {
-            self.path_tree.branch_update(path);
-        }
-
         paths
     }
 
@@ -314,15 +310,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
             return false;
         }
 
-        for brchs in curr_blk.brchss.iter() {
-            let mut paths = Vec::new();
-            for brch in brchs {
-                paths.push(state.path.jump(*brch));
-            }
-            state.queue.push_back(paths);
-        }
-
-        for (pred, args) in curr_blk.calls.iter() {
+        for (pred, args) in curr_blk.calls.iter().rev() {
             let callee = &self.dict[pred];
             assert_eq!(callee.name, *pred);
             let (pars, vars) = (callee.pars.clone(), callee.vars.clone());
@@ -348,6 +336,14 @@ impl<'blk, 'io> Walker<'blk, 'io> {
             if !res {
                 return false;
             }
+        }
+
+        for brchs in curr_blk.brchss.iter().rev() {
+            let mut paths = Vec::new();
+            for brch in brchs {
+                paths.push(state.path.jump(*brch));
+            }
+            state.queue.push_front(paths);
         }
 
         true
