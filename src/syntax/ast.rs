@@ -23,6 +23,7 @@ pub struct Var {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DataDecl {
     pub name: Var,
+    pub polys: Vec<Var>,
     pub cons: Vec<Constructor>,
     pub span: Span,
 }
@@ -40,6 +41,10 @@ pub enum Type {
         lit: LitType,
         span: Span,
     },
+    Var {
+        var: Var,
+        span: Span,
+    },
     Cons {
         cons: Var,
         flds: Vec<Type>,
@@ -54,6 +59,7 @@ pub enum Type {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FuncDecl {
     pub name: Var,
+    pub polys: Vec<Var>,
     pub pars: Vec<(Var, Type)>,
     pub res: Type,
     pub body: Expr,

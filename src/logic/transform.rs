@@ -71,6 +71,7 @@ fn translate_constructor(cons: &ast::Constructor) -> logic::ast::Constructor {
 fn translate_type(typ: &ast::Type) -> TypeId {
     match typ {
         ast::Type::Lit { lit, span: _ } => Term::Lit(*lit),
+        ast::Type::Var { var, span: _ } => Term::Var(var.ident),
         ast::Type::Cons {
             cons,
             flds,

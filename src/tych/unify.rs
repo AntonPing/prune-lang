@@ -14,6 +14,7 @@ impl From<&Type> for UnifyType {
     fn from(value: &Type) -> Self {
         match value {
             Type::Lit { lit, span: _ } => UnifyType::Lit(*lit),
+            Type::Var { var, span: _ } => UnifyType::Var(var.ident),
             Type::Cons {
                 cons,
                 flds,

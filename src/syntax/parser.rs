@@ -680,11 +680,23 @@ impl<'src> Parser<'src> {
                 let span = Span { start, end };
                 Ok(Type::Lit { lit, span })
             }
-            Token::UpperIdent => {
+            Token::LowerIdent => {
+                let var = self.parse_lower_var()?;
                 let end = self.end_pos();
                 let span = Span { start, end };
+                Ok(Type::Var { var, span })
+            }
+            Token::UpperIdent => {
                 let cons = self.parse_upper_var()?;
-                let flds = Vec::new();
+                let flds = self
+                    .option(|par| {
+                        par.delimited_list(Token::LBracket, Token::Comma, Token::RBracket, |par| {
+                            par.parse_type()
+                        })
+                    })?
+                    .unwrap_or(Vec::new());
+                let end = self.end_pos();
+                let span = Span { start, end };
                 Ok(Type::Cons { cons, flds, span })
             }
             Token::LParen => {
@@ -740,6 +752,13 @@ impl<'src> Parser<'src> {
         let start = self.start_pos();
         self.match_token(Token::Datatype)?;
         let name = self.parse_upper_var()?;
+        let polys = self
+            .option(|par| {
+                par.delimited_list(Token::LBracket, Token::Comma, Token::RBracket, |par| {
+                    par.parse_lower_var()
+                })
+            })?
+            .unwrap_or(Vec::new());
         let vars = self.delimited_list(Token::Where, Token::Bar, Token::End, |par| {
             par.parse_varient()
         })?;
@@ -747,6 +766,7 @@ impl<'src> Parser<'src> {
         let span = Span { start, end };
         Ok(DataDecl {
             name,
+            polys,
             cons: vars,
             span,
         })
@@ -756,6 +776,13 @@ impl<'src> Parser<'src> {
         let start = self.start_pos();
         self.match_token(Token::Function)?;
         let name = self.parse_lower_var()?;
+        let polys = self
+            .option(|par| {
+                par.delimited_list(Token::LBracket, Token::Comma, Token::RBracket, |par| {
+                    par.parse_lower_var()
+                })
+            })?
+            .unwrap_or(Vec::new());
         let pars = self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
             let ident = par.parse_lower_var()?;
             par.match_token(Token::Colon)?;
@@ -785,6 +812,7 @@ impl<'src> Parser<'src> {
         let span = Span { start, end };
         Ok(FuncDecl {
             name,
+            polys,
             pars,
             res,
             body,
