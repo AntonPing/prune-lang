@@ -31,6 +31,20 @@ impl From<&Type> for UnifyType {
     }
 }
 
+impl UnifyType {
+    fn substitute(&self, map: &HashMap<Ident, UnifyType>) -> UnifyType {
+        match self {
+            UnifyType::Lit(lit) => UnifyType::Lit(*lit),
+            UnifyType::Var(var) => map.get(var).cloned().unwrap_or(UnifyType::Var(*var)),
+            UnifyType::Cons(cons, flds) => {
+                let flds = flds.iter().map(|fld| fld.substitute(map)).collect();
+                UnifyType::Cons(*cons, flds)
+            }
+            UnifyType::Cell(cell) => UnifyType::Cell(*cell),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UnifyError {
     VecDiffLen(Vec<UnifyType>, Vec<UnifyType>),
@@ -74,6 +88,16 @@ impl UnifySolver {
     pub fn new_cell(&mut self) -> usize {
         self.arena.push(None);
         self.arena.len() - 1
+    }
+
+    pub fn instantiate(&mut self, polys: &Vec<Ident>, typs: &mut Vec<UnifyType>) {
+        let map: HashMap<Ident, UnifyType> = polys
+            .iter()
+            .map(|poly| (*poly, UnifyType::Cell(self.new_cell())))
+            .collect();
+        for typ in typs.iter_mut() {
+            *typ = typ.substitute(&map);
+        }
     }
 
     fn deref(&self, typ: &UnifyType) -> UnifyType {
