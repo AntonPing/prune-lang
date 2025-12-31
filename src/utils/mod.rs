@@ -4,3 +4,4 @@ pub mod intern;
 pub mod lit;
 pub mod prim;
 pub mod term;
+pub mod unify;
