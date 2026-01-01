@@ -78,11 +78,11 @@ fn translate_type(typ: &ast::Type) -> TypeId {
             span: _,
         } => {
             let flds = flds.iter().map(translate_type).collect();
-            Term::Cons(Some(cons.ident), flds)
+            Term::Cons(OptCons::Some(cons.ident), flds)
         }
         ast::Type::Tuple { flds, span: _ } => {
-            let flds = flds.iter().map(translate_type).collect();
-            Term::Cons(None, flds)
+            let flds: Vec<TypeId> = flds.iter().map(translate_type).collect();
+            Term::Cons(OptCons::None, flds)
         }
     }
 }
@@ -129,7 +129,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             vars.push(x);
             let (flds, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 flds.iter().map(|fld| translate_expr(vars, fld)).unzip();
-            goals.push(Goal::Cons(x, Some(cons.ident), flds));
+            goals.push(Goal::Cons(x, OptCons::Some(cons.ident), flds));
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Tuple { flds, span: _ } => {
@@ -137,7 +137,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             vars.push(x);
             let (flds, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 flds.iter().map(|fld| translate_expr(vars, fld)).unzip();
-            goals.push(Goal::Cons(x, None, flds));
+            goals.push(Goal::Cons(x, OptCons::None, flds));
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Match {
@@ -320,11 +320,11 @@ fn patn_to_term(vars: &mut Vec<Ident>, patn: &ast::Pattern) -> TermId {
             span: _,
         } => {
             let flds = flds.iter().map(|fld| patn_to_term(vars, fld)).collect();
-            TermId::Cons(Some(cons.ident), flds)
+            TermId::Cons(OptCons::Some(cons.ident), flds)
         }
         ast::Pattern::Tuple { flds, span: _ } => {
-            let flds = flds.iter().map(|fld| patn_to_term(vars, fld)).collect();
-            TermId::Cons(None, flds)
+            let flds: Vec<TermId> = flds.iter().map(|fld| patn_to_term(vars, fld)).collect();
+            TermId::Cons(OptCons::None, flds)
         }
     }
 }

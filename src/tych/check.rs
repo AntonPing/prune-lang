@@ -23,8 +23,8 @@ struct Checker {
     func_ctx: HashMap<Ident, FuncType>,
     cons_ctx: HashMap<Ident, ConsType>,
     data_ctx: HashMap<Ident, Vec<Ident>>,
-    unifier: Unifier<Ident, LitType, Option<Ident>>,
-    diag: Vec<UnifyError<Ident, LitType, Option<Ident>>>,
+    unifier: Unifier<Ident, LitType, OptCons<Ident>>,
+    diag: Vec<UnifyError<Ident, LitType, OptCons<Ident>>>,
 }
 
 impl Checker {
@@ -135,8 +135,8 @@ impl Checker {
                 res
             }
             Expr::Tuple { flds, span: _ } => {
-                let flds = flds.iter().map(|fld| self.check_expr(fld)).collect();
-                TypeId::Cons(None, flds)
+                let flds: Vec<TypeId> = flds.iter().map(|fld| self.check_expr(fld)).collect();
+                TypeId::Cons(OptCons::None, flds)
             }
             Expr::Match {
                 expr,
@@ -254,8 +254,8 @@ impl Checker {
                 res
             }
             Pattern::Tuple { flds, span: _ } => {
-                let typs = flds.iter().map(|fld| self.check_patn(fld)).collect();
-                TypeId::Cons(None, typs)
+                let typs: Vec<TypeId> = flds.iter().map(|fld| self.check_patn(fld)).collect();
+                TypeId::Cons(OptCons::None, typs)
             }
         }
     }
@@ -266,7 +266,7 @@ impl Checker {
 
         let polys: Vec<Ident> = data_decl.polys.iter().map(|poly| poly.ident).collect();
         let res = TypeId::Cons(
-            Some(data_decl.name.ident),
+            OptCons::Some(data_decl.name.ident),
             polys.iter().map(|poly| TypeId::Var(*poly)).collect(),
         );
 
@@ -327,11 +327,11 @@ fn into_term(value: &syntax::ast::Type) -> TypeId {
             span: _,
         } => {
             let flds = flds.iter().map(|fld| into_term(fld)).collect();
-            Term::Cons(Some(cons.ident), flds)
+            Term::Cons(OptCons::Some(cons.ident), flds)
         }
         Type::Tuple { flds, span: _ } => {
-            let flds = flds.iter().map(|fld| into_term(fld)).collect();
-            Term::Cons(None, flds)
+            let flds: Vec<TypeId> = flds.iter().map(|fld| into_term(fld)).collect();
+            Term::Cons(OptCons::None, flds)
         }
     }
 }
@@ -347,7 +347,7 @@ fn instantiate(polys: &Vec<Ident>, typs: &mut Vec<TypeId>) {
     }
 }
 
-pub fn check_pass(prog: &Program) -> Vec<UnifyError<Ident, LitType, Option<Ident>>> {
+pub fn check_pass(prog: &Program) -> Vec<UnifyError<Ident, LitType, OptCons<Ident>>> {
     let mut pass = Checker::new();
     pass.check_prog(prog);
     for err in pass.diag.iter_mut() {

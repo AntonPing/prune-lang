@@ -8,7 +8,7 @@ pub struct Block {
     pub blk_idx: usize,
     pub min_depth: usize,
     pub eqs: Vec<(Ident, AtomId)>,
-    pub cons: Vec<(Ident, Option<Ident>, Vec<AtomId>)>,
+    pub cons: Vec<(Ident, OptCons<Ident>, Vec<AtomId>)>,
     pub prims: Vec<(Prim, Vec<AtomId>)>,
     pub brchss: Vec<Vec<usize>>,
     pub calls: Vec<(Ident, Vec<AtomId>)>,
@@ -28,11 +28,7 @@ impl fmt::Display for Block {
 
         for (var, cons, flds) in self.cons.iter() {
             let flds = flds.iter().format(", ");
-            if let Some(cons) = cons {
-                writeln!(f, "    {} = {}({})", var, cons, flds)?;
-            } else {
-                writeln!(f, "    {} = ({})", var, flds)?;
-            }
+            writeln!(f, "    {} = {}({})", var, cons, flds)?;
         }
 
         for (prim, args) in self.prims.iter() {

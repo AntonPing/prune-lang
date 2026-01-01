@@ -199,13 +199,13 @@ fn test_solver() {
 
     sol.bind(
         z.tag_ctx(0),
-        Term::Cons(Some(cons), vec![Term::Var(x.tag_ctx(0))]),
+        Term::Cons(OptCons::Some(cons), vec![Term::Var(x.tag_ctx(0))]),
     )
     .unwrap();
 
     sol.bind(
         z.tag_ctx(0),
-        Term::Cons(Some(cons), vec![Term::Var(y.tag_ctx(0))]),
+        Term::Cons(OptCons::Some(cons), vec![Term::Var(y.tag_ctx(0))]),
     );
 
     assert!(!sol.check_complete());

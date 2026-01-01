@@ -12,10 +12,10 @@ pub enum UnifyError<V, L, C> {
 }
 
 use crate::cli::diagnostic::Diagnostic;
-impl<V: fmt::Display, L: fmt::Display, C: fmt::Display> From<UnifyError<V, L, Option<C>>>
+impl<V: fmt::Display, L: fmt::Display, C: fmt::Display> From<UnifyError<V, L, OptCons<C>>>
     for Diagnostic
 {
-    fn from(val: UnifyError<V, L, Option<C>>) -> Self {
+    fn from(val: UnifyError<V, L, OptCons<C>>) -> Self {
         match val {
             UnifyError::UnifyFailed(lhs, rhs) => {
                 Diagnostic::error(format!("Can not unify types: {} and {}!", lhs, rhs))

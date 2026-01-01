@@ -7,7 +7,7 @@ struct Elaborator {
     pred_ctx: HashMap<Ident, Vec<TypeId>>,
     cons_ctx: HashMap<Ident, (Vec<TypeId>, TypeId)>,
     data_ctx: HashMap<Ident, Vec<Ident>>,
-    solver: Unifier<Ident, LitType, Option<Ident>>,
+    solver: Unifier<Ident, LitType, OptCons<Ident>>,
 }
 
 impl Elaborator {
@@ -73,7 +73,7 @@ impl Elaborator {
                 self.unify(&typ1, &typ2);
             }
             ast::Goal::Cons(var, cons, flds) => {
-                if let Some(cons) = cons {
+                if let OptCons::Some(cons) = cons {
                     let (flds_ty, var_ty) = self.cons_ctx[cons].clone();
                     let var = self.elab_var(var);
                     let flds: Vec<_> = flds.iter().map(|fld| self.elab_atom(fld)).collect();
@@ -81,8 +81,8 @@ impl Elaborator {
                     self.unify_many(&flds, &flds_ty);
                 } else {
                     let var = self.elab_var(var);
-                    let flds = flds.iter().map(|fld| self.elab_atom(fld)).collect();
-                    self.unify(&var, &TypeId::Cons(None, flds));
+                    let flds: Vec<TypeId> = flds.iter().map(|fld| self.elab_atom(fld)).collect();
+                    self.unify(&var, &TypeId::Cons(OptCons::None, flds));
                 }
             }
             ast::Goal::Prim(prim, args) => {
@@ -116,7 +116,10 @@ impl Elaborator {
             let flds = cons.flds.iter().map(Self::elab_type).collect();
             self.cons_ctx.insert(
                 cons.name,
-                (flds, TypeId::Cons(Some(data_decl.name), Vec::new())),
+                (
+                    flds,
+                    TypeId::Cons(OptCons::Some(data_decl.name), Vec::new()),
+                ),
             );
         }
     }

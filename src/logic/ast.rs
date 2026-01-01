@@ -11,7 +11,7 @@ pub struct Program {
 pub enum Goal {
     Lit(bool),
     Eq(Ident, AtomId),
-    Cons(Ident, Option<Ident>, Vec<AtomId>),
+    Cons(Ident, OptCons<Ident>, Vec<AtomId>),
     Prim(Prim, Vec<AtomId>),
     And(Vec<Goal>),
     Or(Vec<Goal>),

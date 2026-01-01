@@ -14,46 +14,43 @@ pub enum Term<V, L, C> {
     Cons(C, Vec<Term<V, L, C>>),
 }
 
-impl<V: fmt::Display, L: fmt::Display, C: fmt::Display> fmt::Display for Term<V, L, Option<C>> {
+impl<V: fmt::Display, L: fmt::Display, C: fmt::Display> fmt::Display for Term<V, L, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Term::Var(var) => fmt::Display::fmt(&var, f),
             Term::Lit(lit) => fmt::Display::fmt(&lit, f),
-            Term::Cons(Some(cons), flds) => {
-                if flds.is_empty() {
+            Term::Cons(cons, flds) => {
+                if flds.is_empty() && !format!("{}", cons).is_empty() {
                     fmt::Display::fmt(&cons, f)
                 } else {
                     let flds = flds.iter().format(", ");
                     write!(f, "{cons}({flds})")
                 }
             }
-            Term::Cons(None, flds) => {
-                let flds = flds.iter().format(", ");
-                write!(f, "({flds})")
-            }
         }
     }
 }
 
-impl<V: fmt::Display, L: fmt::Display> fmt::Display for Term<V, L, Infallible> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptCons<T> {
+    Some(T), // constructors
+    None,    // placeholder for tuples (without constructor)
+}
+
+impl<T: fmt::Display> fmt::Display for OptCons<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Term::Var(var) => fmt::Display::fmt(&var, f),
-            Term::Lit(lit) => fmt::Display::fmt(&lit, f),
-            Term::Cons(_cons, _flds) => {
-                unreachable!()
-            }
+            OptCons::Some(cons) => fmt::Display::fmt(cons, f),
+            OptCons::None => Ok(()), // tuples' placeholder won't be printed.
         }
     }
 }
 
-// Term::Cons(Some(cons), flds) for constructors, and Term::Cons(None, flds) for tuples
-pub type TermId = Term<Ident, LitVal, Option<Ident>>;
-pub type TermCtx = Term<IdentCtx, LitVal, Option<Ident>>;
+pub type TermId = Term<Ident, LitVal, OptCons<Ident>>;
+pub type TermCtx = Term<IdentCtx, LitVal, OptCons<Ident>>;
 pub type AtomId = Term<Ident, LitVal, Infallible>;
 pub type AtomCtx = Term<IdentCtx, LitVal, Infallible>;
-
-pub type TypeId = Term<Ident, LitType, Option<Ident>>;
+pub type TypeId = Term<Ident, LitType, OptCons<Ident>>;
 
 impl<V, L, C> Term<V, L, C> {
     pub fn is_var(&self) -> bool {
