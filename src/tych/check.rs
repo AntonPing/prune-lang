@@ -350,6 +350,9 @@ fn instantiate(polys: &Vec<Ident>, typs: &mut Vec<TypeId>) {
 pub fn check_pass(prog: &Program) -> Vec<UnifyError<Ident, LitType, Option<Ident>>> {
     let mut pass = Checker::new();
     pass.check_prog(prog);
+    for err in pass.diag.iter_mut() {
+        *err = pass.unifier.merge_err(err);
+    }
     pass.diag
 }
 

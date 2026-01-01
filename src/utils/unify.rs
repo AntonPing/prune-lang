@@ -15,7 +15,6 @@ use crate::cli::diagnostic::Diagnostic;
 impl<V: fmt::Display, L: fmt::Display, C: fmt::Display> From<UnifyError<V, L, Option<C>>>
     for Diagnostic
 {
-    // todo: better error message
     fn from(val: UnifyError<V, L, Option<C>>) -> Self {
         match val {
             UnifyError::UnifyFailed(lhs, rhs) => {
@@ -87,6 +86,25 @@ impl<V: Eq + Hash + Clone, L: Eq + Clone, C: Eq + Clone> Unifier<V, L, C> {
             Term::Cons(cons, flds) => {
                 let flds = flds.iter().map(|fld| self.merge(fld)).collect();
                 Term::Cons(cons.clone(), flds)
+            }
+        }
+    }
+
+    pub fn merge_err(&self, err: &UnifyError<V, L, C>) -> UnifyError<V, L, C> {
+        match err {
+            UnifyError::UnifyFailed(lhs, rhs) => {
+                let lhs = self.merge(lhs);
+                let rhs = self.merge(rhs);
+                UnifyError::UnifyFailed(lhs, rhs)
+            }
+            UnifyError::OccurCheckFailed(x, typ) => {
+                let typ = self.merge(typ);
+                UnifyError::OccurCheckFailed(x.clone(), typ)
+            }
+            UnifyError::UnifyVecDiffLen(vec1, vec2) => {
+                let vec1 = vec1.iter().map(|typ| self.merge(typ)).collect();
+                let vec2 = vec2.iter().map(|typ| self.merge(typ)).collect();
+                UnifyError::UnifyVecDiffLen(vec1, vec2)
             }
         }
     }
