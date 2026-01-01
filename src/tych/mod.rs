@@ -7,4 +7,3 @@ use std::collections::HashMap;
 
 pub mod check;
 pub mod rename;
-pub mod unify;

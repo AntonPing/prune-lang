@@ -1,14 +1,13 @@
 use super::*;
-
 use crate::logic::ast;
-use crate::tych::unify::{UnifySolver, UnifyType};
+use crate::utils::unify::*;
 
 struct Elaborator {
-    val_ctx: HashMap<Ident, UnifyType>,
-    pred_ctx: HashMap<Ident, Vec<UnifyType>>,
-    cons_ctx: HashMap<Ident, (Vec<UnifyType>, UnifyType)>,
+    val_ctx: HashMap<Ident, TypeId>,
+    pred_ctx: HashMap<Ident, Vec<TypeId>>,
+    cons_ctx: HashMap<Ident, (Vec<TypeId>, TypeId)>,
     data_ctx: HashMap<Ident, Vec<Ident>>,
-    solver: UnifySolver,
+    solver: Unifier<Ident, LitType, Option<Ident>>,
 }
 
 impl Elaborator {
@@ -18,23 +17,23 @@ impl Elaborator {
             pred_ctx: HashMap::new(),
             cons_ctx: HashMap::new(),
             data_ctx: HashMap::new(),
-            solver: UnifySolver::new(),
+            solver: Unifier::new(),
         }
     }
 
-    fn fresh(&mut self) -> UnifyType {
-        UnifyType::Cell(self.solver.new_cell())
+    fn fresh(&mut self) -> TypeId {
+        TypeId::Var(Ident::fresh(&"t"))
     }
 
-    fn unify(&mut self, typ1: &UnifyType, typ2: &UnifyType) {
+    fn unify(&mut self, typ1: &TypeId, typ2: &TypeId) {
         self.solver.unify(typ1, typ2).unwrap()
     }
 
-    fn unify_many(&mut self, typs1: &[UnifyType], typs2: &[UnifyType]) {
+    fn unify_many(&mut self, typs1: &[TypeId], typs2: &[TypeId]) {
         self.solver.unify_many(typs1, typs2).unwrap()
     }
 
-    fn elab_var(&mut self, var: &Ident) -> UnifyType {
+    fn elab_var(&mut self, var: &Ident) -> TypeId {
         self.val_ctx.get(var).cloned().unwrap_or_else(|| {
             let typ = self.fresh();
             self.val_ctx.insert(*var, typ.clone());
@@ -42,25 +41,25 @@ impl Elaborator {
         })
     }
 
-    fn elab_atom(&mut self, atom: &AtomId) -> UnifyType {
+    fn elab_atom(&mut self, atom: &AtomId) -> TypeId {
         match atom {
             Term::Var(var) => self
                 .val_ctx
                 .get(var)
                 .cloned()
                 .unwrap_or_else(|| self.fresh()),
-            Term::Lit(lit) => UnifyType::Lit(lit.get_typ()),
+            Term::Lit(lit) => TypeId::Lit(lit.get_typ()),
             Term::Cons(_cons, _flds) => unreachable!(),
         }
     }
 
-    fn elab_type(typ: &TypeId) -> UnifyType {
+    fn elab_type(typ: &TypeId) -> TypeId {
         match typ {
             Term::Var(_var) => panic!("generics not supported yet!"),
-            Term::Lit(lit) => UnifyType::Lit(*lit),
+            Term::Lit(lit) => TypeId::Lit(*lit),
             Term::Cons(cons, flds) => {
                 let flds = flds.iter().map(Self::elab_type).collect();
-                UnifyType::Cons(*cons, flds)
+                TypeId::Cons(*cons, flds)
             }
         }
     }
@@ -83,15 +82,11 @@ impl Elaborator {
                 } else {
                     let var = self.elab_var(var);
                     let flds = flds.iter().map(|fld| self.elab_atom(fld)).collect();
-                    self.unify(&var, &UnifyType::Cons(None, flds));
+                    self.unify(&var, &TypeId::Cons(None, flds));
                 }
             }
             ast::Goal::Prim(prim, args) => {
-                let pars: Vec<_> = prim
-                    .get_typ()
-                    .iter()
-                    .map(|lit| UnifyType::Lit(*lit))
-                    .collect();
+                let pars: Vec<_> = prim.get_typ().iter().map(|lit| TypeId::Lit(*lit)).collect();
                 let args: Vec<_> = args.iter().map(|arg| self.elab_atom(arg)).collect();
                 self.unify_many(&pars, &args);
             }
@@ -121,7 +116,7 @@ impl Elaborator {
             let flds = cons.flds.iter().map(Self::elab_type).collect();
             self.cons_ctx.insert(
                 cons.name,
-                (flds, UnifyType::Cons(Some(data_decl.name), Vec::new())),
+                (flds, TypeId::Cons(Some(data_decl.name), Vec::new())),
             );
         }
     }
