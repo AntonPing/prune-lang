@@ -249,10 +249,8 @@ impl Checker {
                 span: _,
             } => {
                 let (pars, res) = self.inst_cons(cons.ident).clone();
-                for (par, fld) in pars.iter().zip(flds.iter()) {
-                    let ty = self.check_patn(fld);
-                    self.unify(par, &ty);
-                }
+                let flds: Vec<TypeId> = flds.iter().map(|fld| self.check_patn(fld)).collect();
+                self.unify_many(&pars, &flds);
                 res
             }
             Pattern::Tuple { flds, span: _ } => {

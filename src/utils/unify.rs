@@ -28,7 +28,7 @@ impl<V: fmt::Display, L: fmt::Display, C: fmt::Display> From<UnifyError<V, L, Op
                 let vec1 = vec1.iter().format(", ");
                 let vec2 = vec2.iter().format(", ");
                 Diagnostic::error(format!(
-                    "Unify vectors of different length: {} and {}!",
+                    "Unify vectors of different length: [{}] and [{}]!",
                     vec1, vec2
                 ))
             }
