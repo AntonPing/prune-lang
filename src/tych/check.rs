@@ -1,31 +1,30 @@
 use super::*;
 
-use super::unify::{UnifySolver, UnifyType};
-use crate::syntax::ast::*;
-use crate::tych::unify::UnifyError;
+use crate::syntax::{self, ast::*};
 use crate::utils::prim::Prim;
+use crate::utils::unify::*;
 
 #[derive(Clone, Debug)]
 struct FuncType {
     polys: Vec<Ident>,
-    pars: Vec<UnifyType>,
-    res: UnifyType,
+    pars: Vec<TypeId>,
+    res: TypeId,
 }
 
 #[derive(Clone, Debug)]
 struct ConsType {
     polys: Vec<Ident>,
-    flds: Vec<UnifyType>,
-    res: UnifyType,
+    flds: Vec<TypeId>,
+    res: TypeId,
 }
 
 struct Checker {
-    val_ctx: HashMap<Ident, UnifyType>,
+    val_ctx: HashMap<Ident, TypeId>,
     func_ctx: HashMap<Ident, FuncType>,
     cons_ctx: HashMap<Ident, ConsType>,
     data_ctx: HashMap<Ident, Vec<Ident>>,
-    solver: UnifySolver,
-    diag: Vec<UnifyError>,
+    unifier: Unifier<Ident, LitType, Option<Ident>>,
+    diag: Vec<UnifyError<Ident, LitType, Option<Ident>>>,
 }
 
 impl Checker {
@@ -35,35 +34,35 @@ impl Checker {
             func_ctx: HashMap::new(),
             cons_ctx: HashMap::new(),
             data_ctx: HashMap::new(),
-            solver: UnifySolver::new(),
+            unifier: Unifier::new(),
             diag: Vec::new(),
         }
     }
 
-    fn fresh(&mut self) -> UnifyType {
-        UnifyType::Cell(self.solver.new_cell())
+    fn fresh(&mut self) -> TypeId {
+        TypeId::Var(Ident::fresh(&"t"))
     }
 
-    fn inst_func(&mut self, name: Ident) -> (Vec<UnifyType>, UnifyType) {
+    fn inst_func(&mut self, name: Ident) -> (Vec<TypeId>, TypeId) {
         let func_typ = &self.func_ctx[&name];
         let mut typs = func_typ.pars.clone();
         typs.push(func_typ.res.clone());
-        self.solver.instantiate(&func_typ.polys, &mut typs);
+        instantiate(&func_typ.polys, &mut typs);
         let res = typs.pop().unwrap();
         (typs, res)
     }
 
-    fn inst_cons(&mut self, name: Ident) -> (Vec<UnifyType>, UnifyType) {
+    fn inst_cons(&mut self, name: Ident) -> (Vec<TypeId>, TypeId) {
         let cons_typ = &self.cons_ctx[&name];
         let mut typs = cons_typ.flds.clone();
         typs.push(cons_typ.res.clone());
-        self.solver.instantiate(&cons_typ.polys, &mut typs);
+        instantiate(&cons_typ.polys, &mut typs);
         let res = typs.pop().unwrap();
         (typs, res)
     }
 
-    fn unify(&mut self, typ1: &UnifyType, typ2: &UnifyType) {
-        match self.solver.unify(typ1, typ2) {
+    fn unify(&mut self, typ1: &TypeId, typ2: &TypeId) {
+        match self.unifier.unify(typ1, typ2) {
             Ok(()) => {}
             Err(err) => {
                 self.diag.push(err);
@@ -71,8 +70,8 @@ impl Checker {
         }
     }
 
-    fn unify_many(&mut self, typs1: &[UnifyType], typs2: &[UnifyType]) {
-        match self.solver.unify_many(typs1, typs2) {
+    fn unify_many(&mut self, typs1: &[TypeId], typs2: &[TypeId]) {
+        match self.unifier.unify_many(typs1, typs2) {
             Ok(()) => {}
             Err(err) => {
                 self.diag.push(err);
@@ -80,54 +79,45 @@ impl Checker {
         }
     }
 
-    fn check_prim(&mut self, prim: &Prim, args: &[Expr]) -> UnifyType {
+    fn check_prim(&mut self, prim: &Prim, args: &[Expr]) -> TypeId {
         let args: Vec<_> = args.iter().map(|arg| self.check_expr(arg)).collect();
 
         match prim {
             Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem => {
                 self.unify_many(
-                    &[
-                        UnifyType::Lit(LitType::TyInt),
-                        UnifyType::Lit(LitType::TyInt),
-                    ],
+                    &[TypeId::Lit(LitType::TyInt), TypeId::Lit(LitType::TyInt)],
                     &args,
                 );
-                UnifyType::Lit(LitType::TyInt)
+                TypeId::Lit(LitType::TyInt)
             }
             Prim::INeg => {
-                self.unify_many(&[UnifyType::Lit(LitType::TyInt)], &args);
-                UnifyType::Lit(LitType::TyInt)
+                self.unify_many(&[TypeId::Lit(LitType::TyInt)], &args);
+                TypeId::Lit(LitType::TyInt)
             }
             Prim::ICmp(_) => {
                 self.unify_many(
-                    &[
-                        UnifyType::Lit(LitType::TyInt),
-                        UnifyType::Lit(LitType::TyInt),
-                    ],
+                    &[TypeId::Lit(LitType::TyInt), TypeId::Lit(LitType::TyInt)],
                     &args,
                 );
-                UnifyType::Lit(LitType::TyBool)
+                TypeId::Lit(LitType::TyBool)
             }
             Prim::BAnd | Prim::BOr => {
                 self.unify_many(
-                    &[
-                        UnifyType::Lit(LitType::TyBool),
-                        UnifyType::Lit(LitType::TyBool),
-                    ],
+                    &[TypeId::Lit(LitType::TyBool), TypeId::Lit(LitType::TyBool)],
                     &args,
                 );
-                UnifyType::Lit(LitType::TyBool)
+                TypeId::Lit(LitType::TyBool)
             }
             Prim::BNot => {
-                self.unify_many(&[UnifyType::Lit(LitType::TyBool)], &args);
-                UnifyType::Lit(LitType::TyBool)
+                self.unify_many(&[TypeId::Lit(LitType::TyBool)], &args);
+                TypeId::Lit(LitType::TyBool)
             }
         }
     }
 
-    fn check_expr(&mut self, expr: &Expr) -> UnifyType {
+    fn check_expr(&mut self, expr: &Expr) -> TypeId {
         match expr {
-            Expr::Lit { lit, span: _ } => UnifyType::Lit(lit.get_typ()),
+            Expr::Lit { lit, span: _ } => TypeId::Lit(lit.get_typ()),
             Expr::Var { var, span: _ } => self.val_ctx[&var.ident].clone(),
             Expr::Prim {
                 prim,
@@ -146,7 +136,7 @@ impl Checker {
             }
             Expr::Tuple { flds, span: _ } => {
                 let flds = flds.iter().map(|fld| self.check_expr(fld)).collect();
-                UnifyType::Cons(None, flds)
+                TypeId::Cons(None, flds)
             }
             Expr::Match {
                 expr,
@@ -191,7 +181,7 @@ impl Checker {
                 span: _,
             } => {
                 let cond = self.check_expr(cond);
-                self.unify(&cond, &UnifyType::Lit(LitType::TyBool));
+                self.unify(&cond, &TypeId::Lit(LitType::TyBool));
                 let then = self.check_expr(then);
                 let els = self.check_expr(els);
                 self.unify(&then, &els);
@@ -202,7 +192,7 @@ impl Checker {
                 for (cond, body) in brchs {
                     let cond = self.check_expr(cond);
                     let body = self.check_expr(body);
-                    self.unify(&cond, &UnifyType::Lit(LitType::TyBool));
+                    self.unify(&cond, &TypeId::Lit(LitType::TyBool));
                     self.unify(&body, &res);
                 }
                 res
@@ -237,7 +227,7 @@ impl Checker {
                     let rhs = self.check_expr(rhs);
                     self.unify(&lhs, &rhs);
                 } else {
-                    self.unify(&lhs, &UnifyType::Lit(LitType::TyBool));
+                    self.unify(&lhs, &TypeId::Lit(LitType::TyBool));
                 }
                 self.check_expr(cont)
             }
@@ -245,9 +235,9 @@ impl Checker {
         }
     }
 
-    fn check_patn(&mut self, patn: &Pattern) -> UnifyType {
+    fn check_patn(&mut self, patn: &Pattern) -> TypeId {
         match patn {
-            Pattern::Lit { lit, span: _ } => UnifyType::Lit(lit.get_typ()),
+            Pattern::Lit { lit, span: _ } => TypeId::Lit(lit.get_typ()),
             Pattern::Var { var, span: _ } => {
                 let ty = self.fresh();
                 self.val_ctx.insert(var.ident, ty.clone());
@@ -267,7 +257,7 @@ impl Checker {
             }
             Pattern::Tuple { flds, span: _ } => {
                 let typs = flds.iter().map(|fld| self.check_patn(fld)).collect();
-                UnifyType::Cons(None, typs)
+                TypeId::Cons(None, typs)
             }
         }
     }
@@ -277,13 +267,13 @@ impl Checker {
         self.data_ctx.insert(data_decl.name.ident, cons_names);
 
         let polys: Vec<Ident> = data_decl.polys.iter().map(|poly| poly.ident).collect();
-        let res = UnifyType::Cons(
+        let res = TypeId::Cons(
             Some(data_decl.name.ident),
-            polys.iter().map(|poly| UnifyType::Var(*poly)).collect(),
+            polys.iter().map(|poly| TypeId::Var(*poly)).collect(),
         );
 
         for cons in data_decl.cons.iter() {
-            let flds = cons.flds.iter().map(|fld| fld.into()).collect();
+            let flds = cons.flds.iter().map(|fld| into_term(fld)).collect();
             let cons_typ = ConsType {
                 polys: polys.clone(),
                 flds,
@@ -298,9 +288,9 @@ impl Checker {
         let pars = func_decl
             .pars
             .iter()
-            .map(|(_par, typ)| typ.into())
+            .map(|(_par, typ)| into_term(typ))
             .collect();
-        let res = (&func_decl.res).into();
+        let res = into_term(&func_decl.res);
         let func_typ = FuncType { polys, pars, res };
         self.func_ctx.insert(func_decl.name.ident, func_typ);
     }
@@ -329,7 +319,37 @@ impl Checker {
     }
 }
 
-pub fn check_pass(prog: &Program) -> Vec<UnifyError> {
+fn into_term(value: &syntax::ast::Type) -> TypeId {
+    match value {
+        Type::Lit { lit, span: _ } => Term::Lit(*lit),
+        Type::Var { var, span: _ } => Term::Var(var.ident),
+        Type::Cons {
+            cons,
+            flds,
+            span: _,
+        } => {
+            let flds = flds.iter().map(|fld| into_term(fld)).collect();
+            Term::Cons(Some(cons.ident), flds)
+        }
+        Type::Tuple { flds, span: _ } => {
+            let flds = flds.iter().map(|fld| into_term(fld)).collect();
+            Term::Cons(None, flds)
+        }
+    }
+}
+
+fn instantiate(polys: &Vec<Ident>, typs: &mut Vec<TypeId>) {
+    let map: HashMap<Ident, TypeId> = polys
+        .iter()
+        .map(|poly| (*poly, Term::Var(poly.uniquify())))
+        .collect();
+
+    for typ in typs {
+        *typ = typ.substitute(&map);
+    }
+}
+
+pub fn check_pass(prog: &Program) -> Vec<UnifyError<Ident, LitType, Option<Ident>>> {
     let mut pass = Checker::new();
     pass.check_prog(prog);
     pass.diag
