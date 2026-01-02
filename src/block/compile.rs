@@ -26,11 +26,8 @@ fn emit_goal(goal: &ast::Goal, blks: &mut Vec<Block>, blk: &mut Block) {
         ast::Goal::Lit(_) => {
             panic!("no literal value after optimize!");
         }
-        ast::Goal::Eq(var, atom) => {
-            blk.eqs.push((*var, atom.clone()));
-        }
-        ast::Goal::Cons(var, cons, flds) => {
-            blk.cons.push((*var, *cons, flds.clone()));
+        ast::Goal::Eq(lhs, rhs) => {
+            blk.eqs.push((lhs.clone(), rhs.clone()));
         }
         ast::Goal::Prim(prim, args) => {
             blk.prims.push((*prim, args.clone()));

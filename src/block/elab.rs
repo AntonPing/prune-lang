@@ -33,23 +33,25 @@ impl Elaborator {
         self.solver.unify_many(typs1, typs2).unwrap()
     }
 
-    fn elab_var(&mut self, var: &Ident) -> TypeId {
-        self.val_ctx.get(var).cloned().unwrap_or_else(|| {
-            let typ = self.fresh();
-            self.val_ctx.insert(*var, typ.clone());
-            typ
-        })
-    }
-
-    fn elab_atom(&mut self, atom: &AtomId) -> TypeId {
-        match atom {
+    fn elab_term(&mut self, term: &TermId) -> TypeId {
+        match term {
             Term::Var(var) => self
                 .val_ctx
                 .get(var)
                 .cloned()
                 .unwrap_or_else(|| self.fresh()),
             Term::Lit(lit) => TypeId::Lit(lit.get_typ()),
-            Term::Cons(_cons, _flds) => unreachable!(),
+            Term::Cons(cons, flds) => {
+                if let OptCons::Some(cons) = cons {
+                    let (flds_ty, var_ty) = self.cons_ctx[cons].clone();
+                    let flds: Vec<_> = flds.iter().map(|fld| self.elab_term(fld)).collect();
+                    self.unify_many(&flds, &flds_ty);
+                    var_ty
+                } else {
+                    let flds: Vec<_> = flds.iter().map(|fld| self.elab_term(fld)).collect();
+                    Term::Cons(OptCons::None, flds)
+                }
+            }
         }
     }
 
@@ -67,27 +69,17 @@ impl Elaborator {
     fn elab_goal(&mut self, goal: &ast::Goal) {
         match goal {
             ast::Goal::Lit(_) => {}
-            ast::Goal::Eq(var, atom) => {
-                let typ1 = self.elab_var(var);
-                let typ2 = self.elab_atom(atom);
-                self.unify(&typ1, &typ2);
-            }
-            ast::Goal::Cons(var, cons, flds) => {
-                if let OptCons::Some(cons) = cons {
-                    let (flds_ty, var_ty) = self.cons_ctx[cons].clone();
-                    let var = self.elab_var(var);
-                    let flds: Vec<_> = flds.iter().map(|fld| self.elab_atom(fld)).collect();
-                    self.unify(&var, &var_ty);
-                    self.unify_many(&flds, &flds_ty);
-                } else {
-                    let var = self.elab_var(var);
-                    let flds: Vec<TypeId> = flds.iter().map(|fld| self.elab_atom(fld)).collect();
-                    self.unify(&var, &TypeId::Cons(OptCons::None, flds));
-                }
+            ast::Goal::Eq(lhs, rhs) => {
+                let lhs = self.elab_term(lhs);
+                let rhs = self.elab_term(rhs);
+                self.unify(&lhs, &rhs);
             }
             ast::Goal::Prim(prim, args) => {
                 let pars: Vec<_> = prim.get_typ().iter().map(|lit| TypeId::Lit(*lit)).collect();
-                let args: Vec<_> = args.iter().map(|arg| self.elab_atom(arg)).collect();
+                let args: Vec<_> = args
+                    .iter()
+                    .map(|arg| self.elab_term(&arg.to_term()))
+                    .collect();
                 self.unify_many(&pars, &args);
             }
             ast::Goal::And(goals) => {
@@ -102,7 +94,7 @@ impl Elaborator {
             }
             ast::Goal::Call(pred, args) => {
                 let pars = self.pred_ctx[pred].clone();
-                let args: Vec<_> = args.iter().map(|arg| self.elab_atom(arg)).collect();
+                let args: Vec<_> = args.iter().map(|arg| self.elab_term(arg)).collect();
                 self.unify_many(&pars, &args);
             }
         }
@@ -128,8 +120,13 @@ impl Elaborator {
         let pars = pred_decl
             .pars
             .iter()
-            .map(|par| self.elab_var(par))
+            .map(|par| {
+                let typ = self.fresh();
+                self.val_ctx.insert(*par, typ.clone());
+                typ
+            })
             .collect();
+
         self.pred_ctx.insert(pred_decl.name, pars);
     }
 
@@ -140,7 +137,7 @@ impl Elaborator {
         }
 
         for var in pred_decl.vars.iter() {
-            let var_ty = self.elab_var(var);
+            let var_ty = self.fresh();
             self.val_ctx.insert(*var, var_ty);
         }
         self.elab_goal(&pred_decl.goal);

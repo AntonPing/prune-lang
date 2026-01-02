@@ -87,12 +87,6 @@ impl Subst {
         }
     }
 
-    pub fn bind(&mut self, x: IdentCtx, term: TermCtx) -> Option<Vec<(IdentCtx, AtomCtx)>> {
-        let mut subst = Vec::new();
-        self.unify_help(&mut subst, Term::Var(x), term)?;
-        Some(subst)
-    }
-
     pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Option<Vec<(IdentCtx, AtomCtx)>> {
         let mut subst = Vec::new();
         self.unify_help(&mut subst, lhs, rhs)?;

@@ -7,7 +7,7 @@ pub struct Solver {
     ty_map: EnvMap<IdentCtx, TypeId>,
     subst: Subst,
     constr: Box<dyn SmtSolver>,
-    unify_vec: Vec<(IdentCtx, TermCtx)>,
+    unify_vec: Vec<(TermCtx, TermCtx)>,
     solve_vec: Vec<(Prim, Vec<AtomCtx>)>,
     saves: Vec<(usize, usize)>,
 }
@@ -17,7 +17,7 @@ impl fmt::Display for Solver {
         let unify_vec = self
             .unify_vec
             .iter()
-            .map(|(var, term)| format!("{} = {}", var, term))
+            .map(|(lhs, rhs)| format!("{} = {}", lhs, rhs))
             .format(", ");
         writeln!(f, "unify: [{}]", unify_vec)?;
 
@@ -108,9 +108,9 @@ impl Solver {
         }
     }
 
-    pub fn bind(&mut self, var: IdentCtx, term: TermCtx) -> Option<()> {
-        self.unify_vec.push((var, term.clone()));
-        let mut subst = self.subst.bind(var, term)?;
+    pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Option<()> {
+        self.unify_vec.push((lhs.clone(), rhs.clone()));
+        let mut subst = self.subst.unify(lhs, rhs)?;
         for (x, term) in subst.drain(..) {
             if self.ty_map[&x].is_lit() {
                 self.constr.push_eq(x, term);
@@ -190,21 +190,22 @@ fn test_solver() {
 
     sol.savepoint();
 
-    sol.bind(x.tag_ctx(0), Term::Var(y.tag_ctx(0))).unwrap();
+    sol.unify(Term::Var(x.tag_ctx(0)), Term::Var(y.tag_ctx(0)))
+        .unwrap();
 
     assert!(!sol.check_complete());
 
     sol.backtrack();
     sol.savepoint();
 
-    sol.bind(
-        z.tag_ctx(0),
+    sol.unify(
+        Term::Var(z.tag_ctx(0)),
         Term::Cons(OptCons::Some(cons), vec![Term::Var(x.tag_ctx(0))]),
     )
     .unwrap();
 
-    sol.bind(
-        z.tag_ctx(0),
+    sol.unify(
+        Term::Var(z.tag_ctx(0)),
         Term::Cons(OptCons::Some(cons), vec![Term::Var(y.tag_ctx(0))]),
     );
 

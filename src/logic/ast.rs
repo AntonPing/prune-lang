@@ -10,12 +10,11 @@ pub struct Program {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Goal {
     Lit(bool),
-    Eq(Ident, AtomId),
-    Cons(Ident, OptCons<Ident>, Vec<AtomId>),
+    Eq(TermId, TermId),
     Prim(Prim, Vec<AtomId>),
     And(Vec<Goal>),
     Or(Vec<Goal>),
-    Call(Ident, Vec<AtomId>),
+    Call(Ident, Vec<TermId>),
 }
 
 #[derive(Clone, Debug, PartialEq)]

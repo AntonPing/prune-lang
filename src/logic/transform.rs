@@ -4,58 +4,6 @@ use crate::syntax::ast;
 use super::optimize;
 use super::*;
 
-fn unify_decompose(vars: &mut Vec<Ident>, lhs: TermId, rhs: TermId) -> Goal {
-    let mut vec: Vec<Goal> = Vec::new();
-    unify_decompose_help(vars, &mut vec, lhs, rhs);
-    Goal::And(vec)
-}
-
-fn unify_decompose_help(vars: &mut Vec<Ident>, vec: &mut Vec<Goal>, lhs: TermId, rhs: TermId) {
-    match (lhs, rhs) {
-        (Term::Var(var1), Term::Var(var2)) if var1 == var2 => {}
-        (Term::Var(lhs), rhs) | (rhs, Term::Var(lhs)) => match rhs {
-            Term::Var(var) => vec.push(Goal::Eq(lhs, Term::Var(var))),
-            Term::Lit(lit) => vec.push(Goal::Eq(lhs, Term::Lit(lit))),
-            Term::Cons(cons, flds) => {
-                let mut atoms: Vec<AtomId> = Vec::new();
-                for fld in flds {
-                    match fld {
-                        Term::Var(_) | Term::Lit(_) => {
-                            let atom = fld.to_atom().unwrap();
-                            atoms.push(atom);
-                        }
-                        Term::Cons(_, _) => {
-                            let x = Ident::fresh(&"x_fld");
-                            vars.push(x);
-                            atoms.push(Term::Var(x));
-                            unify_decompose_help(vars, vec, Term::Var(x), fld);
-                        }
-                    }
-                }
-                vec.push(Goal::Cons(lhs, cons, atoms));
-            }
-        },
-        (Term::Lit(lit1), Term::Lit(lit2)) => {
-            if lit1 != lit2 {
-                vec.push(Goal::Lit(false));
-            }
-        }
-        (Term::Cons(cons1, flds1), Term::Cons(cons2, flds2)) => {
-            if cons1 == cons2 {
-                assert_eq!(flds1.len(), flds2.len());
-                for (fld1, fld2) in flds1.into_iter().zip(flds2.into_iter()) {
-                    unify_decompose_help(vars, vec, fld1, fld2);
-                }
-            } else {
-                vec.push(Goal::Lit(false));
-            }
-        }
-        (_, _) => {
-            panic!("unify simple and complex type!")
-        }
-    }
-}
-
 fn translate_data_decl(data: &ast::DataDecl) -> logic::ast::DataDecl {
     let name = data.name.ident;
     let cons = data.cons.iter().map(translate_constructor).collect();
@@ -89,12 +37,12 @@ fn translate_type(typ: &ast::Type) -> TypeId {
 
 fn translate_func(func: &ast::FuncDecl) -> PredDecl {
     let mut vars = Vec::new();
-    let (term, goal) = translate_expr(&mut vars, &func.body);
+    let (atom, goal) = translate_expr(&mut vars, &func.body);
     let name = func.name.ident;
     let mut pars: Vec<Ident> = func.pars.iter().map(|(var, _typ)| var.ident).collect();
     let x = Ident::fresh(&"res_func");
     pars.push(x);
-    let goal = Goal::And(vec![Goal::Eq(x, term), goal]);
+    let goal = Goal::And(vec![Goal::Eq(Term::Var(x), atom.to_term()), goal]);
     PredDecl {
         name,
         pars,
@@ -129,7 +77,13 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             vars.push(x);
             let (flds, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 flds.iter().map(|fld| translate_expr(vars, fld)).unzip();
-            goals.push(Goal::Cons(x, OptCons::Some(cons.ident), flds));
+            goals.push(Goal::Eq(
+                Term::Var(x),
+                Term::Cons(
+                    OptCons::Some(cons.ident),
+                    flds.into_iter().map(|fld| fld.to_term()).collect(),
+                ),
+            ));
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Tuple { flds, span: _ } => {
@@ -137,7 +91,13 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             vars.push(x);
             let (flds, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 flds.iter().map(|fld| translate_expr(vars, fld)).unzip();
-            goals.push(Goal::Cons(x, OptCons::None, flds));
+            goals.push(Goal::Eq(
+                Term::Var(x),
+                Term::Cons(
+                    OptCons::None,
+                    flds.into_iter().map(|fld| fld.to_term()).collect(),
+                ),
+            ));
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Match {
@@ -148,15 +108,16 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             let x = Ident::fresh(&"res_match");
             vars.push(x);
             let (atom0, goal0) = translate_expr(vars, expr);
-            let goals = brchs
-                .iter()
-                .map(|(patn, expr)| {
-                    let patn_term = patn_to_term(vars, patn);
-                    let goal1 = unify_decompose(vars, atom0.to_term(), patn_term);
-                    let (atom2, goal2) = translate_expr(vars, expr);
-                    Goal::And(vec![goal1, goal2, Goal::Eq(x, atom2)])
-                })
-                .collect();
+            let mut goals = Vec::new();
+            for (patn, expr) in brchs {
+                let patn_term = patn_to_term(vars, patn);
+                let (atom1, goal1) = translate_expr(vars, expr);
+                goals.push(Goal::And(vec![
+                    Goal::Eq(atom0.to_term(), patn_term),
+                    goal1,
+                    Goal::Eq(Term::Var(x), atom1.to_term()),
+                ]));
+            }
             (Term::Var(x), Goal::And(vec![goal0, Goal::Or(goals)]))
         }
         ast::Expr::Let {
@@ -167,9 +128,8 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
         } => {
             let (atom0, goal0) = translate_expr(vars, expr);
             let patn_term = patn_to_term(vars, patn);
-            let goal1 = unify_decompose(vars, atom0.to_term(), patn_term);
             let (atom2, goal2) = translate_expr(vars, cont);
-            let goal = Goal::And(vec![goal0, goal1, goal2]);
+            let goal = Goal::And(vec![goal0, Goal::Eq(atom0.to_term(), patn_term), goal2]);
             (atom2, goal)
         }
         ast::Expr::App {
@@ -182,7 +142,10 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             let (mut atoms, mut goals): (Vec<AtomId>, Vec<Goal>) =
                 args.iter().map(|arg| translate_expr(vars, arg)).unzip();
             atoms.push(Term::Var(x));
-            goals.push(Goal::Call(func.ident, atoms));
+            goals.push(Goal::Call(
+                func.ident,
+                atoms.into_iter().map(|atom| atom.to_term()).collect(),
+            ));
             (Term::Var(x), Goal::And(goals))
         }
         ast::Expr::Ifte {
@@ -202,26 +165,26 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
                         goal0,
                         Goal::Or(vec![
                             Goal::And(vec![
-                                Goal::Eq(var, Term::Lit(LitVal::Bool(true))),
+                                Goal::Eq(Term::Var(var), Term::Lit(LitVal::Bool(true))),
                                 goal1,
-                                Goal::Eq(x, atom1),
+                                Goal::Eq(Term::Var(x), atom1.to_term()),
                             ]),
                             Goal::And(vec![
-                                Goal::Eq(var, Term::Lit(LitVal::Bool(false))),
+                                Goal::Eq(Term::Var(var), Term::Lit(LitVal::Bool(false))),
                                 goal2,
-                                Goal::Eq(x, atom2),
+                                Goal::Eq(Term::Var(x), atom2.to_term()),
                             ]),
                         ]),
                     ]);
                     (Term::Var(x), goal)
                 }
                 Term::Lit(LitVal::Bool(true)) => {
-                    let goal = Goal::And(vec![goal0, goal1, Goal::Eq(x, atom1)]);
-                    (Term::Var(x), goal)
+                    let goal = Goal::And(vec![goal0, goal1]);
+                    (atom1, goal)
                 }
                 Term::Lit(LitVal::Bool(false)) => {
-                    let goal = Goal::And(vec![goal0, goal2, Goal::Eq(x, atom2)]);
-                    (Term::Var(x), goal)
+                    let goal = Goal::And(vec![goal0, goal2]);
+                    (atom2, goal)
                 }
                 _ => {
                     unreachable!();
@@ -240,14 +203,15 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
                     Term::Var(var) => {
                         let goal = Goal::And(vec![
                             goal0,
-                            Goal::Eq(var, Term::Lit(LitVal::Bool(true))),
+                            Goal::Eq(Term::Var(var), Term::Lit(LitVal::Bool(true))),
                             goal1,
-                            Goal::Eq(x, atom1),
+                            Goal::Eq(Term::Var(x), atom1.to_term()),
                         ]);
                         goals.push(goal);
                     }
                     Term::Lit(LitVal::Bool(true)) => {
-                        let goal = Goal::And(vec![goal0, goal1, Goal::Eq(x, atom1)]);
+                        let goal =
+                            Goal::And(vec![goal0, goal1, Goal::Eq(Term::Var(x), atom1.to_term())]);
                         goals.push(goal);
                     }
                     Term::Lit(LitVal::Bool(false)) => {}
@@ -264,7 +228,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             let mut goals = Vec::new();
             for body in brchs {
                 let (atom, goal) = translate_expr(vars, body);
-                let goal = Goal::And(vec![goal, Goal::Eq(x, atom)]);
+                let goal = Goal::And(vec![goal, Goal::Eq(Term::Var(x), atom.to_term())]);
                 goals.push(goal);
             }
             (Term::Var(x), Goal::Or(goals))
@@ -298,7 +262,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
                 Goal::And(vec![
                     goal1,
                     goal2,
-                    unify_decompose(vars, atom1.to_term(), atom2.to_term()),
+                    Goal::Eq(atom1.to_term(), atom2.to_term()),
                     goal3,
                 ]),
             )

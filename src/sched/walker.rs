@@ -280,22 +280,10 @@ impl<'blk, 'io> Walker<'blk, 'io> {
         let curr_blk = self.get_block(&state.path.pred, state.path.idx);
         let curr_ctx = state.path.ctx;
 
-        for (var, atom) in curr_blk.eqs.iter() {
-            let var = var.tag_ctx(curr_ctx);
-            let atom = atom.tag_ctx(curr_ctx);
-            let res = self.sol.bind(var, atom.to_term()).is_some();
-            if !res {
-                return false;
-            }
-        }
-
-        for (var, cons, flds) in curr_blk.cons.iter() {
-            let var = var.tag_ctx(curr_ctx);
-            let flds = flds
-                .iter()
-                .map(|fld| fld.tag_ctx(curr_ctx).to_term())
-                .collect();
-            let res = self.sol.bind(var, Term::Cons(*cons, flds)).is_some();
+        for (lhs, rhs) in curr_blk.eqs.iter() {
+            let lhs = lhs.tag_ctx(curr_ctx);
+            let rhs = rhs.tag_ctx(curr_ctx);
+            let res = self.sol.unify(lhs, rhs).is_some();
             if !res {
                 return false;
             }
@@ -320,7 +308,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
                 let par = par.tag_ctx(self.ctx_cnt);
                 self.sol.declare(&par, par_ty);
                 let arg = arg.tag_ctx(curr_ctx);
-                self.sol.bind(par, arg.to_term()).unwrap(); // unify with a fresh variable cannot fail
+                self.sol.unify(Term::Var(par), arg).unwrap(); // unify with a fresh variable cannot fail
             }
             for (var, var_ty) in vars.iter() {
                 self.sol.declare(&var.tag_ctx(self.ctx_cnt), var_ty);
