@@ -44,7 +44,7 @@ fn emit_goal(goal: &ast::Goal, blks: &mut Vec<Block>, blk: &mut Block) {
                 .collect();
             blk.brchss.push(blks);
         }
-        ast::Goal::Call(pred, args) => {
+        ast::Goal::Call(pred, _polys, args) => {
             blk.calls.push((*pred, args.clone()));
         }
     }
@@ -109,12 +109,12 @@ fn compile_pred(pred: &ast::PredDecl, map: &HashMap<Ident, TypeId>) -> PredDef {
     let pars = pred
         .pars
         .iter()
-        .map(|par| (*par, map[par].clone()))
+        .map(|(par, _ty)| (*par, map[par].clone()))
         .collect();
     let vars = pred
         .vars
         .iter()
-        .map(|var| (*var, map[var].clone()))
+        .map(|(var, _ty)| (*var, map[var].clone()))
         .collect();
 
     let blks = compile_goal(pred.name, &pred.goal);

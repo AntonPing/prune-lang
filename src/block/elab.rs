@@ -92,7 +92,7 @@ impl Elaborator {
                     self.elab_goal(goal);
                 }
             }
-            ast::Goal::Call(pred, args) => {
+            ast::Goal::Call(pred, _polys, args) => {
                 let pars = self.pred_ctx[pred].clone();
                 let args: Vec<_> = args.iter().map(|arg| self.elab_term(arg)).collect();
                 self.unify_many(&pars, &args);
@@ -120,7 +120,7 @@ impl Elaborator {
         let pars = pred_decl
             .pars
             .iter()
-            .map(|par| {
+            .map(|(par, _typ)| {
                 let typ = self.fresh();
                 self.val_ctx.insert(*par, typ.clone());
                 typ
@@ -132,11 +132,11 @@ impl Elaborator {
 
     fn elab_pred_decl(&mut self, pred_decl: &ast::PredDecl) {
         let pars_ty = self.pred_ctx[&pred_decl.name].clone();
-        for (par, par_ty) in pred_decl.pars.iter().zip(pars_ty) {
+        for ((par, _typ), par_ty) in pred_decl.pars.iter().zip(pars_ty) {
             self.val_ctx.insert(*par, par_ty);
         }
 
-        for var in pred_decl.vars.iter() {
+        for (var, _ty) in pred_decl.vars.iter() {
             let var_ty = self.fresh();
             self.val_ctx.insert(*var, var_ty);
         }

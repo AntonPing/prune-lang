@@ -14,12 +14,13 @@ pub enum Goal {
     Prim(Prim, Vec<AtomId>),
     And(Vec<Goal>),
     Or(Vec<Goal>),
-    Call(Ident, Vec<TermId>),
+    Call(Ident, Vec<TypeId>, Vec<TermId>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DataDecl {
     pub name: Ident,
+    pub polys: Vec<Ident>,
     pub cons: Vec<Constructor>,
 }
 
@@ -28,11 +29,13 @@ pub struct Constructor {
     pub name: Ident,
     pub flds: Vec<TypeId>,
 }
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct PredDecl {
     pub name: Ident,
-    pub pars: Vec<Ident>,
-    pub vars: Vec<Ident>,
+    pub polys: Vec<Ident>,
+    pub pars: Vec<(Ident, TypeId)>,
+    pub vars: Vec<(Ident, TypeId)>,
     pub goal: Goal,
 }
 

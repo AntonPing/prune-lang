@@ -67,7 +67,7 @@ fn goal_reorder_help(goal: Goal) -> (Goal, usize) {
 
             (Goal::Or(goals), priors.iter().max().unwrap_or(&0) + 1000)
         }
-        Goal::Call(_, _) => (goal, 10000),
+        Goal::Call(_, _, _) => (goal, 10000),
     }
 }
 

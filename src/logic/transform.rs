@@ -6,8 +6,9 @@ use super::*;
 
 fn translate_data_decl(data: &ast::DataDecl) -> logic::ast::DataDecl {
     let name = data.name.ident;
+    let polys = data.polys.iter().map(|poly| poly.ident).collect();
     let cons = data.cons.iter().map(translate_constructor).collect();
-    logic::ast::DataDecl { name, cons }
+    logic::ast::DataDecl { name, polys, cons }
 }
 
 fn translate_constructor(cons: &ast::Constructor) -> logic::ast::Constructor {
@@ -39,12 +40,22 @@ fn translate_func(func: &ast::FuncDecl) -> PredDecl {
     let mut vars = Vec::new();
     let (atom, goal) = translate_expr(&mut vars, &func.body);
     let name = func.name.ident;
-    let mut pars: Vec<Ident> = func.pars.iter().map(|(var, _typ)| var.ident).collect();
+    let polys = func.polys.iter().map(|poly| poly.ident).collect();
+    let mut pars: Vec<(Ident, TypeId)> = func
+        .pars
+        .iter()
+        .map(|(var, typ)| (var.ident, translate_type(typ)))
+        .collect();
     let x = Ident::fresh(&"res_func");
-    pars.push(x);
+    pars.push((x, translate_type(&func.res)));
+    let vars = vars
+        .iter()
+        .map(|var| (*var, TypeId::Var(Ident::fresh(&"res_func"))))
+        .collect();
     let goal = Goal::And(vec![Goal::Eq(Term::Var(x), atom.to_term()), goal]);
     PredDecl {
         name,
+        polys,
         pars,
         vars,
         goal: optimize::goal_optimize(goal),
@@ -144,6 +155,7 @@ fn translate_expr(vars: &mut Vec<Ident>, expr: &ast::Expr) -> (AtomId, Goal) {
             atoms.push(Term::Var(x));
             goals.push(Goal::Call(
                 func.ident,
+                Vec::new(),
                 atoms.into_iter().map(|atom| atom.to_term()).collect(),
             ));
             (Term::Var(x), Goal::And(goals))
