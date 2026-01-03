@@ -1,6 +1,6 @@
 use super::term::*;
 use itertools::Itertools;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::hash::Hash;
 
@@ -38,17 +38,19 @@ impl<V: fmt::Display, L: fmt::Display, C: fmt::Display> From<UnifyError<V, L, Op
 #[derive(Debug)]
 pub struct Unifier<V, L, C> {
     map: HashMap<V, Term<V, L, C>>,
+    freshs: HashSet<V>,
 }
 
 impl<V: Eq + Hash + Clone, L, C> Unifier<V, L, C> {
     pub fn new() -> Unifier<V, L, C> {
         Unifier {
             map: HashMap::new(),
+            freshs: HashSet::new(),
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.map.is_empty()
+        self.map.is_empty() && self.freshs.is_empty()
     }
 
     pub fn reset(&mut self) {
@@ -118,6 +120,10 @@ impl<V: Eq + Hash + Clone, L: Eq + Clone, C: Eq + Clone> Unifier<V, L, C> {
         }
     }
 
+    pub fn fresh(&mut self, var: V) {
+        self.freshs.insert(var);
+    }
+
     pub fn unify(
         &mut self,
         lhs: &Term<V, L, C>,
@@ -127,7 +133,7 @@ impl<V: Eq + Hash + Clone, L: Eq + Clone, C: Eq + Clone> Unifier<V, L, C> {
         let rhs = self.deref(rhs).clone();
         match (&lhs, &rhs) {
             (Term::Var(x1), Term::Var(x2)) if x1 == x2 => Ok(()),
-            (Term::Var(x), term) | (term, Term::Var(x)) => {
+            (Term::Var(x), term) | (term, Term::Var(x)) if !self.freshs.contains(x) => {
                 if self.occur_check(x, term) {
                     return Err(UnifyError::OccurCheckFailed(x.clone(), term.clone()));
                 }

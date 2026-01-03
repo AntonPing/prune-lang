@@ -1,0 +1,11 @@
+function id[a](x: a) -> a
+begin
+    x
+end
+
+function example(x: Int)
+begin
+    guard id(x) = x;
+end
+
+query example(depth_step=10, depth_limit=100, answer_limit=1)

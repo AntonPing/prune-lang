@@ -165,3 +165,14 @@ fn test_unary_arith() {
 fn test_binary_arith() {
     cli::pipeline::run_cli_test(PathBuf::from("./examples/arith/binary_arith.pr")).unwrap();
 }
+
+#[test]
+fn test_polymorphism() {
+    cli::pipeline::run_cli_test(PathBuf::from("./examples/features/polymorphism.pr")).unwrap();
+}
+
+#[test]
+fn test_polymorphism_fail() {
+    cli::pipeline::run_cli_test(PathBuf::from("./examples/features/polymorphism_fail.pr"))
+        .expect_err("this should fail at type checking!");
+}

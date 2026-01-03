@@ -264,7 +264,14 @@ impl Checker {
         let cons_names = data_decl.cons.iter().map(|cons| cons.name.ident).collect();
         self.data_ctx.insert(data_decl.name.ident, cons_names);
 
-        let polys: Vec<Ident> = data_decl.polys.iter().map(|poly| poly.ident).collect();
+        let polys: Vec<Ident> = data_decl
+            .polys
+            .iter()
+            .map(|poly| {
+                self.unifier.fresh(poly.ident);
+                poly.ident
+            })
+            .collect();
         let res = TypeId::Cons(
             OptCons::Some(data_decl.name.ident),
             polys.iter().map(|poly| TypeId::Var(*poly)).collect(),
@@ -282,12 +289,21 @@ impl Checker {
     }
 
     fn scan_func_decl_head(&mut self, func_decl: &FuncDecl) {
-        let polys = func_decl.polys.iter().map(|poly| poly.ident).collect();
+        let polys: Vec<Ident> = func_decl
+            .polys
+            .iter()
+            .map(|poly| {
+                self.unifier.fresh(poly.ident);
+                poly.ident
+            })
+            .collect();
+
         let pars = func_decl
             .pars
             .iter()
             .map(|(_par, typ)| into_term(typ))
             .collect();
+
         let res = into_term(&func_decl.res);
         let func_typ = FuncType { polys, pars, res };
         self.func_ctx.insert(func_decl.name.ident, func_typ);
