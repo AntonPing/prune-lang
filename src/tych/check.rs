@@ -5,24 +5,31 @@ use crate::utils::prim::Prim;
 use crate::utils::unify::*;
 
 #[derive(Clone, Debug)]
-struct FuncType {
+struct FuncTyScm {
     polys: Vec<Ident>,
     pars: Vec<TypeId>,
     res: TypeId,
 }
 
 #[derive(Clone, Debug)]
-struct ConsType {
+struct ConsTyScm {
     polys: Vec<Ident>,
     flds: Vec<TypeId>,
     res: TypeId,
 }
 
+#[allow(unused)]
+#[derive(Clone, Debug)]
+struct DataTyScm {
+    // todo: use this to check type intro. rules
+    polys: Vec<Ident>,
+}
+
 struct Checker {
     val_ctx: HashMap<Ident, TypeId>,
-    func_ctx: HashMap<Ident, FuncType>,
-    cons_ctx: HashMap<Ident, ConsType>,
-    data_ctx: HashMap<Ident, Vec<Ident>>,
+    func_ctx: HashMap<Ident, FuncTyScm>,
+    cons_ctx: HashMap<Ident, ConsTyScm>,
+    data_ctx: HashMap<Ident, DataTyScm>,
     unifier: Unifier<Ident, LitType, OptCons<Ident>>,
     diag: Vec<UnifyError<Ident, LitType, OptCons<Ident>>>,
 }
@@ -40,25 +47,7 @@ impl Checker {
     }
 
     fn fresh(&mut self) -> TypeId {
-        TypeId::Var(Ident::fresh(&"t"))
-    }
-
-    fn inst_func(&mut self, name: Ident) -> (Vec<TypeId>, TypeId) {
-        let func_typ = &self.func_ctx[&name];
-        let mut typs = func_typ.pars.clone();
-        typs.push(func_typ.res.clone());
-        instantiate(&func_typ.polys, &mut typs);
-        let res = typs.pop().unwrap();
-        (typs, res)
-    }
-
-    fn inst_cons(&mut self, name: Ident) -> (Vec<TypeId>, TypeId) {
-        let cons_typ = &self.cons_ctx[&name];
-        let mut typs = cons_typ.flds.clone();
-        typs.push(cons_typ.res.clone());
-        instantiate(&cons_typ.polys, &mut typs);
-        let res = typs.pop().unwrap();
-        (typs, res)
+        TypeId::Var(Ident::fresh(&"a"))
     }
 
     fn unify(&mut self, typ1: &TypeId, typ2: &TypeId) {
@@ -130,9 +119,26 @@ impl Checker {
                 span: _,
             } => {
                 let flds: Vec<_> = flds.iter().map(|fld| self.check_expr(fld)).collect();
-                let (pars, res) = self.inst_cons(cons.ident).clone();
-                self.unify_many(&pars, &flds);
-                res
+
+                // instantiate constructor type scheme
+                let cons_scm = &self.cons_ctx[&cons.ident];
+
+                let inst_map: HashMap<Ident, TypeId> = cons_scm
+                    .polys
+                    .iter()
+                    .map(|poly| (*poly, Term::Var(poly.uniquify())))
+                    .collect();
+
+                let inst_flds: Vec<_> = cons_scm
+                    .flds
+                    .iter()
+                    .map(|fld| fld.substitute(&inst_map))
+                    .collect();
+
+                let inst_res = cons_scm.res.substitute(&inst_map);
+
+                self.unify_many(&inst_flds, &flds);
+                inst_res
             }
             Expr::Tuple { flds, span: _ } => {
                 let flds: Vec<TypeId> = flds.iter().map(|fld| self.check_expr(fld)).collect();
@@ -169,10 +175,27 @@ impl Checker {
                 args,
                 span: _,
             } => {
-                let (pars, res) = self.inst_func(func.ident);
                 let args: Vec<_> = args.iter().map(|arg| self.check_expr(arg)).collect();
-                self.unify_many(&pars, &args);
-                res
+
+                // instantiate predicate type scheme
+                let func_scm = &self.func_ctx[&func.ident];
+
+                let inst_map: HashMap<Ident, TypeId> = func_scm
+                    .polys
+                    .iter()
+                    .map(|poly| (*poly, Term::Var(poly.uniquify())))
+                    .collect();
+
+                let inst_pars: Vec<_> = func_scm
+                    .pars
+                    .iter()
+                    .map(|par| par.substitute(&inst_map))
+                    .collect();
+
+                let inst_res = func_scm.res.substitute(&inst_map);
+
+                self.unify_many(&inst_pars, &args);
+                inst_res
             }
             Expr::Ifte {
                 cond,
@@ -248,10 +271,27 @@ impl Checker {
                 flds,
                 span: _,
             } => {
-                let (pars, res) = self.inst_cons(cons.ident).clone();
                 let flds: Vec<TypeId> = flds.iter().map(|fld| self.check_patn(fld)).collect();
-                self.unify_many(&pars, &flds);
-                res
+
+                // instantiate constructor type scheme
+                let cons_scm = &self.cons_ctx[&cons.ident];
+
+                let inst_map: HashMap<Ident, TypeId> = cons_scm
+                    .polys
+                    .iter()
+                    .map(|poly| (*poly, Term::Var(poly.uniquify())))
+                    .collect();
+
+                let inst_flds: Vec<_> = cons_scm
+                    .flds
+                    .iter()
+                    .map(|fld| fld.substitute(&inst_map))
+                    .collect();
+
+                let inst_res = cons_scm.res.substitute(&inst_map);
+
+                self.unify_many(&inst_flds, &flds);
+                inst_res
             }
             Pattern::Tuple { flds, span: _ } => {
                 let typs: Vec<TypeId> = flds.iter().map(|fld| self.check_patn(fld)).collect();
@@ -260,27 +300,30 @@ impl Checker {
         }
     }
 
-    fn scan_data_decl_head(&mut self, data_decl: &DataDecl) {
-        let cons_names = data_decl.cons.iter().map(|cons| cons.name.ident).collect();
-        self.data_ctx.insert(data_decl.name.ident, cons_names);
+    fn scan_data_ty_scm(&mut self, data_decl: &DataDecl) {
+        for poly in data_decl.polys.iter() {
+            self.unifier.fresh(poly.ident);
+        }
+        let data_scm = DataTyScm {
+            polys: data_decl.polys.iter().map(|poly| poly.ident).collect(),
+        };
+        self.data_ctx.insert(data_decl.name.ident, data_scm);
+    }
 
-        let polys: Vec<Ident> = data_decl
-            .polys
-            .iter()
-            .map(|poly| {
-                self.unifier.fresh(poly.ident);
-                poly.ident
-            })
-            .collect();
+    fn scan_cons_ty_scm(&mut self, data_decl: &DataDecl) {
         let res = TypeId::Cons(
             OptCons::Some(data_decl.name.ident),
-            polys.iter().map(|poly| TypeId::Var(*poly)).collect(),
+            data_decl
+                .polys
+                .iter()
+                .map(|poly| TypeId::Var(poly.ident))
+                .collect(),
         );
 
-        for cons in data_decl.cons.iter() {
+        for cons in &data_decl.cons {
             let flds = cons.flds.iter().map(|fld| into_term(fld)).collect();
-            let cons_typ = ConsType {
-                polys: polys.clone(),
+            let cons_typ = ConsTyScm {
+                polys: data_decl.polys.iter().map(|poly| poly.ident).collect(),
                 flds,
                 res: res.clone(),
             };
@@ -288,16 +331,12 @@ impl Checker {
         }
     }
 
-    fn scan_func_decl_head(&mut self, func_decl: &FuncDecl) {
-        let polys: Vec<Ident> = func_decl
-            .polys
-            .iter()
-            .map(|poly| {
-                self.unifier.fresh(poly.ident);
-                poly.ident
-            })
-            .collect();
+    fn scan_func_ty_scm(&mut self, func_decl: &FuncDecl) {
+        for poly in func_decl.polys.iter() {
+            self.unifier.fresh(poly.ident);
+        }
 
+        let polys = func_decl.polys.iter().map(|poly| poly.ident).collect();
         let pars = func_decl
             .pars
             .iter()
@@ -305,26 +344,30 @@ impl Checker {
             .collect();
 
         let res = into_term(&func_decl.res);
-        let func_typ = FuncType { polys, pars, res };
-        self.func_ctx.insert(func_decl.name.ident, func_typ);
+        let func_scm = FuncTyScm { polys, pars, res };
+        self.func_ctx.insert(func_decl.name.ident, func_scm);
     }
 
     fn check_func_decl(&mut self, func_decl: &FuncDecl) {
-        let func_typ = self.func_ctx[&func_decl.name.ident].clone();
-        for ((par, _), par_ty) in func_decl.pars.iter().zip(func_typ.pars.iter()) {
+        let func_scm = self.func_ctx[&func_decl.name.ident].clone();
+        for ((par, _), par_ty) in func_decl.pars.iter().zip(func_scm.pars.iter()) {
             self.val_ctx.insert(par.ident, par_ty.clone());
         }
         let body_ty = self.check_expr(&func_decl.body);
-        self.unify(&func_typ.res, &body_ty);
+        self.unify(&func_scm.res, &body_ty);
     }
 
     fn check_prog(&mut self, prog: &Program) {
         for data_decl in prog.datas.iter() {
-            self.scan_data_decl_head(data_decl);
+            self.scan_data_ty_scm(data_decl);
+        }
+
+        for data_decl in prog.datas.iter() {
+            self.scan_cons_ty_scm(data_decl);
         }
 
         for func_decl in prog.funcs.iter() {
-            self.scan_func_decl_head(func_decl);
+            self.scan_func_ty_scm(func_decl);
         }
 
         for func_decl in prog.funcs.iter() {
@@ -349,17 +392,6 @@ fn into_term(value: &syntax::ast::Type) -> TypeId {
             let flds: Vec<TypeId> = flds.iter().map(|fld| into_term(fld)).collect();
             Term::Cons(OptCons::None, flds)
         }
-    }
-}
-
-fn instantiate(polys: &Vec<Ident>, typs: &mut Vec<TypeId>) {
-    let map: HashMap<Ident, TypeId> = polys
-        .iter()
-        .map(|poly| (*poly, Term::Var(poly.uniquify())))
-        .collect();
-
-    for typ in typs {
-        *typ = typ.substitute(&map);
     }
 }
 

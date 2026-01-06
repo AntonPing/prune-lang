@@ -16,8 +16,10 @@ struct ConsTyScm {
     res: TypeId,
 }
 
+#[allow(unused)]
 #[derive(Clone, Debug)]
 struct DataTyScm {
+    // todo: use this to check type intro. rules
     polys: Vec<Ident>,
 }
 
@@ -189,30 +191,29 @@ impl Elaborator {
     }
 
     fn scan_data_ty_scm(&mut self, data_decl: &DataDecl) {
-        let polys: Vec<Ident> = data_decl
-            .polys
-            .iter()
-            .map(|poly| {
-                self.unifier.fresh(*poly);
-                *poly
-            })
-            .collect();
-        let data_scm = DataTyScm { polys };
+        for poly in data_decl.polys.iter() {
+            self.unifier.fresh(*poly);
+        }
+        let data_scm = DataTyScm {
+            polys: data_decl.polys.clone(),
+        };
         self.data_ctx.insert(data_decl.name, data_scm);
     }
 
     fn scan_cons_ty_scm(&mut self, data_decl: &DataDecl) {
-        let DataTyScm { polys } = &self.data_ctx[&data_decl.name];
-
         let res = TypeId::Cons(
             OptCons::Some(data_decl.name),
-            polys.iter().map(|poly| TypeId::Var(*poly)).collect(),
+            data_decl
+                .polys
+                .iter()
+                .map(|poly| TypeId::Var(*poly))
+                .collect(),
         );
 
         for cons in &data_decl.cons {
             let flds = cons.flds.iter().map(|fld| fld.clone()).collect();
             let cons_typ = ConsTyScm {
-                polys: polys.clone(),
+                polys: data_decl.polys.clone(),
                 flds,
                 res: res.clone(),
             };
@@ -221,14 +222,11 @@ impl Elaborator {
     }
 
     fn scan_pred_ty_scm(&mut self, pred_decl: &PredDecl) {
-        let polys: Vec<Ident> = pred_decl
-            .polys
-            .iter()
-            .map(|poly| {
-                self.unifier.fresh(*poly);
-                *poly
-            })
-            .collect();
+        for poly in pred_decl.polys.iter() {
+            self.unifier.fresh(*poly);
+        }
+
+        let polys = pred_decl.polys.clone();
 
         let pars = pred_decl
             .pars
