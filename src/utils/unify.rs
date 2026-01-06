@@ -41,6 +41,12 @@ pub struct Unifier<V, L, C> {
     freshs: HashSet<V>,
 }
 
+impl<V: Eq + Hash + Clone, L, C> Default for Unifier<V, L, C> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<V: Eq + Hash + Clone, L, C> Unifier<V, L, C> {
     pub fn new() -> Unifier<V, L, C> {
         Unifier {
@@ -169,10 +175,7 @@ impl<V: Eq + Hash + Clone, L: Eq + Clone, C: Eq + Clone> Unifier<V, L, C> {
             }
             Ok(())
         } else {
-            Err(UnifyError::UnifyVecDiffLen(
-                lhss.iter().cloned().collect(),
-                rhss.iter().cloned().collect(),
-            ))
+            Err(UnifyError::UnifyVecDiffLen(lhss.to_vec(), rhss.to_vec()))
         }
     }
 }

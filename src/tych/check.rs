@@ -321,7 +321,7 @@ impl Checker {
         );
 
         for cons in &data_decl.cons {
-            let flds = cons.flds.iter().map(|fld| into_term(fld)).collect();
+            let flds = cons.flds.iter().map(into_term).collect();
             let cons_typ = ConsTyScm {
                 polys: data_decl.polys.iter().map(|poly| poly.ident).collect(),
                 flds,
@@ -385,11 +385,11 @@ fn into_term(value: &syntax::ast::Type) -> TypeId {
             flds,
             span: _,
         } => {
-            let flds = flds.iter().map(|fld| into_term(fld)).collect();
+            let flds = flds.iter().map(into_term).collect();
             Term::Cons(OptCons::Some(cons.ident), flds)
         }
         Type::Tuple { flds, span: _ } => {
-            let flds: Vec<TypeId> = flds.iter().map(|fld| into_term(fld)).collect();
+            let flds: Vec<TypeId> = flds.iter().map(into_term).collect();
             Term::Cons(OptCons::None, flds)
         }
     }

@@ -72,7 +72,9 @@ fn goal_reorder_help(goal: Goal) -> (Goal, usize) {
 }
 
 pub fn goal_optimize(goal: Goal) -> Goal {
-    let goal = goal_flatten(goal);
+    // let goal = goal_flatten(goal);
     // goal_reorder(goal)
-    goal
+    // goal
+
+    goal_flatten(goal)
 }

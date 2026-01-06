@@ -238,8 +238,7 @@ impl<'blk, 'io> Walker<'blk, 'io> {
 
         // println!("{:?}", conj_vals);
 
-        let paths = state.queue.remove(*conj).unwrap();
-        paths
+        state.queue.remove(*conj).unwrap()
     }
 
     #[allow(dead_code)]

@@ -1,4 +1,3 @@
-use crate::logic;
 use crate::syntax::ast;
 
 use super::optimize;
@@ -11,46 +10,6 @@ pub struct Translater {
 impl Translater {
     fn new() -> Translater {
         Translater { vars: Vec::new() }
-    }
-
-    fn translate_data_decl(&self, data: &ast::DataDecl) -> logic::ast::DataDecl {
-        let name = data.name.ident;
-        let polys = data.polys.iter().map(|poly| poly.ident).collect();
-        let cons = data
-            .cons
-            .iter()
-            .map(|cons| self.translate_constructor(cons))
-            .collect();
-        logic::ast::DataDecl { name, polys, cons }
-    }
-
-    fn translate_constructor(&self, cons: &ast::Constructor) -> logic::ast::Constructor {
-        let name = cons.name.ident;
-        let flds = cons
-            .flds
-            .iter()
-            .map(|fld| self.translate_type(fld))
-            .collect();
-        Constructor { name, flds }
-    }
-
-    fn translate_type(&self, typ: &ast::Type) -> TypeId {
-        match typ {
-            ast::Type::Lit { lit, span: _ } => Term::Lit(*lit),
-            ast::Type::Var { var, span: _ } => Term::Var(var.ident),
-            ast::Type::Cons {
-                cons,
-                flds,
-                span: _,
-            } => {
-                let flds = flds.iter().map(|fld| self.translate_type(fld)).collect();
-                Term::Cons(OptCons::Some(cons.ident), flds)
-            }
-            ast::Type::Tuple { flds, span: _ } => {
-                let flds: Vec<TypeId> = flds.iter().map(|fld| self.translate_type(fld)).collect();
-                Term::Cons(OptCons::None, flds)
-            }
-        }
     }
 
     fn fresh_var(&mut self) -> Ident {
@@ -68,10 +27,10 @@ impl Translater {
         let mut pars: Vec<(Ident, TypeId)> = func
             .pars
             .iter()
-            .map(|(var, typ)| (var.ident, self.translate_type(typ)))
+            .map(|(var, typ)| (var.ident, translate_type(typ)))
             .collect();
         let res = Ident::fresh(&"res");
-        pars.push((res, self.translate_type(&func.res)));
+        pars.push((res, translate_type(&func.res)));
         let goal = Goal::And(vec![Goal::Eq(Term::Var(res), term), goal]);
         PredDecl {
             name,
@@ -128,7 +87,7 @@ impl Translater {
                 let (term0, goal0) = self.translate_expr(expr);
                 let mut goals = Vec::new();
                 for (patn, expr) in brchs {
-                    let patn_term = self.patn_to_term(patn);
+                    let patn_term = self.translate_patn(patn);
                     let (term1, goal1) = self.translate_expr(expr);
                     goals.push(Goal::And(vec![
                         Goal::Eq(term0.clone(), patn_term),
@@ -145,7 +104,7 @@ impl Translater {
                 span: _,
             } => {
                 let (term0, goal0) = self.translate_expr(expr);
-                let patn_term = self.patn_to_term(patn);
+                let patn_term = self.translate_patn(patn);
                 let (term1, goal1) = self.translate_expr(cont);
                 (
                     term1,
@@ -275,7 +234,7 @@ impl Translater {
         }
     }
 
-    fn patn_to_term(&mut self, patn: &ast::Pattern) -> TermId {
+    fn translate_patn(&mut self, patn: &ast::Pattern) -> TermId {
         match patn {
             ast::Pattern::Lit { lit, span: _ } => TermId::Lit(*lit),
             ast::Pattern::Var { var, span: _ } => {
@@ -287,46 +246,77 @@ impl Translater {
                 flds,
                 span: _,
             } => {
-                let flds = flds.iter().map(|fld| self.patn_to_term(fld)).collect();
+                let flds = flds.iter().map(|fld| self.translate_patn(fld)).collect();
                 TermId::Cons(OptCons::Some(cons.ident), flds)
             }
             ast::Pattern::Tuple { flds, span: _ } => {
-                let flds: Vec<TermId> = flds.iter().map(|fld| self.patn_to_term(fld)).collect();
+                let flds: Vec<TermId> = flds.iter().map(|fld| self.translate_patn(fld)).collect();
                 TermId::Cons(OptCons::None, flds)
             }
         }
     }
+}
 
-    fn translate_query(&mut self, query: &ast::QueryDecl) -> logic::ast::QueryDecl {
-        logic::ast::QueryDecl {
-            entry: query.entry.ident,
-            params: query
-                .params
-                .iter()
-                .map(|(param, _span)| self.translate_query_param(param))
-                .collect(),
-        }
+fn translate_data_decl(data: &ast::DataDecl) -> DataDecl {
+    let name = data.name.ident;
+    let polys = data.polys.iter().map(|poly| poly.ident).collect();
+    let cons = data.cons.iter().map(translate_constructor).collect();
+    DataDecl { name, polys, cons }
+}
+
+fn translate_constructor(cons: &ast::Constructor) -> Constructor {
+    let name = cons.name.ident;
+    let flds = cons.flds.iter().map(translate_type).collect();
+    Constructor { name, flds }
+}
+
+fn translate_query(query: &ast::QueryDecl) -> QueryDecl {
+    QueryDecl {
+        entry: query.entry.ident,
+        params: query
+            .params
+            .iter()
+            .map(|(param, _span)| translate_query_param(param))
+            .collect(),
     }
+}
 
-    fn translate_query_param(&mut self, param: &ast::QueryParam) -> logic::ast::QueryParam {
-        match param {
-            ast::QueryParam::DepthStep(x) => logic::ast::QueryParam::DepthStep(*x),
-            ast::QueryParam::DepthLimit(x) => logic::ast::QueryParam::DepthLimit(*x),
-            ast::QueryParam::AnswerLimit(x) => logic::ast::QueryParam::AnswerLimit(*x),
-            ast::QueryParam::AnswerPause(x) => logic::ast::QueryParam::AnswerPause(*x),
+fn translate_query_param(param: &ast::QueryParam) -> QueryParam {
+    match param {
+        ast::QueryParam::DepthStep(x) => QueryParam::DepthStep(*x),
+        ast::QueryParam::DepthLimit(x) => QueryParam::DepthLimit(*x),
+        ast::QueryParam::AnswerLimit(x) => QueryParam::AnswerLimit(*x),
+        ast::QueryParam::AnswerPause(x) => QueryParam::AnswerPause(*x),
+    }
+}
+
+fn translate_type(typ: &ast::Type) -> TypeId {
+    match typ {
+        ast::Type::Lit { lit, span: _ } => Term::Lit(*lit),
+        ast::Type::Var { var, span: _ } => Term::Var(var.ident),
+        ast::Type::Cons {
+            cons,
+            flds,
+            span: _,
+        } => {
+            let flds = flds.iter().map(translate_type).collect();
+            Term::Cons(OptCons::Some(cons.ident), flds)
+        }
+        ast::Type::Tuple { flds, span: _ } => {
+            let flds: Vec<TypeId> = flds.iter().map(translate_type).collect();
+            Term::Cons(OptCons::None, flds)
         }
     }
 }
 
-pub fn logic_translation(prog: &ast::Program) -> logic::ast::Program {
-    let mut pass = Translater::new();
-
+pub fn logic_translation(prog: &ast::Program) -> Program {
     let mut datas: HashMap<Ident, DataDecl> = HashMap::new();
     for data in prog.datas.iter() {
-        let res = pass.translate_data_decl(data);
+        let res = translate_data_decl(data);
         datas.insert(data.name.ident, res);
     }
 
+    let mut pass = Translater::new();
     let mut preds = HashMap::new();
     for func in prog.funcs.iter() {
         let res = pass.translate_func(func);
@@ -335,10 +325,10 @@ pub fn logic_translation(prog: &ast::Program) -> logic::ast::Program {
 
     let mut querys = Vec::new();
     for query in prog.querys.iter() {
-        let res = pass.translate_query(query);
+        let res = translate_query(query);
         querys.push(res);
     }
-    logic::ast::Program {
+    Program {
         datas,
         preds,
         querys,

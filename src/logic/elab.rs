@@ -44,13 +44,13 @@ impl Elaborator {
 
     fn elab_term(&mut self, term: &TermId) -> TypeId {
         match term {
-            Term::Var(var) => self.val_ctx[&var].clone(),
+            Term::Var(var) => self.val_ctx[var].clone(),
             Term::Lit(lit) => TypeId::Lit(lit.get_typ()),
             Term::Cons(cons, flds) => {
                 let flds: Vec<_> = flds.iter().map(|fld| self.elab_term(fld)).collect();
                 if let OptCons::Some(cons) = cons {
                     // instantiate constructor type scheme
-                    let cons_scm = &self.cons_ctx[&cons];
+                    let cons_scm = &self.cons_ctx[cons];
 
                     let inst_map: HashMap<Ident, TypeId> = cons_scm
                         .polys
@@ -76,7 +76,7 @@ impl Elaborator {
         }
     }
 
-    fn elab_prim(&mut self, prim: Prim, args: &Vec<AtomId>) {
+    fn elab_prim(&mut self, prim: Prim, args: &[AtomId]) {
         let args: Vec<_> = args
             .iter()
             .map(|arg| self.elab_term(&arg.to_term()))
@@ -163,7 +163,7 @@ impl Elaborator {
                 let args: Vec<_> = args.iter().map(|arg| self.elab_term(arg)).collect();
 
                 // instantiate predicate type scheme
-                let pred_scm = &self.pred_ctx[&pred];
+                let pred_scm = &self.pred_ctx[pred];
 
                 let inst_map: HashMap<Ident, TypeId> = pred_scm
                     .polys
@@ -211,10 +211,9 @@ impl Elaborator {
         );
 
         for cons in &data_decl.cons {
-            let flds = cons.flds.iter().map(|fld| fld.clone()).collect();
             let cons_typ = ConsTyScm {
                 polys: data_decl.polys.clone(),
-                flds,
+                flds: cons.flds.clone(),
                 res: res.clone(),
             };
             self.cons_ctx.insert(cons.name, cons_typ);
