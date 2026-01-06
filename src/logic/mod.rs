@@ -9,5 +9,6 @@ use std::collections::HashMap;
 use ast::*;
 
 pub mod ast;
+pub mod elab;
 pub mod optimize;
 pub mod transform;

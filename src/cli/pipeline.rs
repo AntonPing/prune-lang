@@ -93,7 +93,10 @@ impl<'arg> Pipeline<'arg> {
     }
 
     pub fn compile_pass(&mut self, prog: &syntax::ast::Program) -> block::ast::Program {
-        let prog = logic::transform::logic_translation(prog);
+        let mut prog = logic::transform::logic_translation(prog);
+
+        logic::elab::elab_pass(&mut prog);
+
         block::compile::compile_dict(&prog)
     }
 
