@@ -97,6 +97,8 @@ impl<'arg> Pipeline<'arg> {
 
         logic::elab::elab_pass(&mut prog);
 
+        logic::normalize::normalize_pass(&mut prog);
+
         block::compile::compile_dict(&prog)
     }
 

@@ -18,6 +18,13 @@ pub enum Goal {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct Rule {
+    pub head: Vec<TermId>,
+    pub prims: Vec<(Prim, Vec<AtomId>)>,
+    pub calls: Vec<(Ident, Vec<TypeId>, Vec<TermId>)>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct DataDecl {
     pub name: Ident,
     pub polys: Vec<Ident>,
@@ -37,6 +44,7 @@ pub struct PredDecl {
     pub pars: Vec<(Ident, TypeId)>,
     pub vars: Vec<(Ident, TypeId)>,
     pub goal: Goal,
+    pub rules: Vec<Rule>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

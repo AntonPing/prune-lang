@@ -64,7 +64,7 @@ impl<V: Eq + Hash + Clone, L, C> Unifier<V, L, C> {
     }
 }
 
-impl<V: Eq + Hash + Clone, L: Eq + Clone, C: Eq + Clone> Unifier<V, L, C> {
+impl<V: Eq + Hash + Clone, L: PartialEq + Clone, C: Eq + Clone> Unifier<V, L, C> {
     pub fn deref<'a>(&'a self, term: &'a Term<V, L, C>) -> &'a Term<V, L, C> {
         let mut term = term;
         loop {

@@ -38,6 +38,7 @@ impl Translater {
             pars,
             vars: self.vars.clone(),
             goal: optimize::goal_optimize(goal),
+            rules: Vec::new(),
         }
     }
 
