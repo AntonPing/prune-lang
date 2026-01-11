@@ -1,6 +1,7 @@
 use super::*;
 use crate::cli::pipeline::PipeIO;
 use crate::interp::config::{RunnerConfig, RunnerStats};
+use crate::interp::smt_solver::SmtSolver;
 use crate::logic::ast::*;
 use crate::utils::unify::Unifier;
 
@@ -35,10 +36,6 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         }
     }
 
-    pub fn config_reset_default(&mut self) {
-        self.config.reset_default();
-    }
-
     pub fn config_set_param(&mut self, param: &QueryParam) {
         self.config.set_param(param);
     }
@@ -60,7 +57,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         }
     }
 
-    pub fn run_dfs_with_depth(&mut self, entry: Ident, depth_limit: usize) {
+    pub fn run_dfs_with_depth(&mut self, entry: Ident, depth_start: usize, depth_end: usize) {
         self.ctx_cnt = 0;
 
         let answers: Vec<(Ident, TermCtx)> = self.prog.preds[&entry]
@@ -88,33 +85,25 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         self.stack.push(brch);
 
         while let Some(brch) = self.stack.pop() {
-            assert!(brch.depth <= depth_limit);
+            assert!(brch.depth <= depth_end);
 
-            for (par, val) in brch.answers.iter() {
-                writeln!(self.pipe_io.output, "{} = {}", par, val).unwrap();
-            }
+            // for (par, val) in brch.answers.iter() {
+            //     writeln!(self.pipe_io.output, "{} = {}", par, val).unwrap();
+            // }
 
-            for (prim, args) in brch.prims.iter() {
-                writeln!(self.pipe_io.output, "{:?}({:?})", prim, args).unwrap();
-            }
+            // for (prim, args) in brch.prims.iter() {
+            //     writeln!(self.pipe_io.output, "{:?}({:?})", prim, args).unwrap();
+            // }
 
-            for (pred, _polys, args) in brch.calls.iter() {
-                writeln!(self.pipe_io.output, "{:?}({:?})", pred, args).unwrap();
-            }
+            // for (pred, _polys, args) in brch.calls.iter() {
+            //     writeln!(self.pipe_io.output, "{:?}({:?})", pred, args).unwrap();
+            // }
 
             if brch.calls.is_empty() {
-                writeln!(self.pipe_io.output, "[ANSWER]: depth = {}", brch.depth).unwrap();
-
-                for (par, val) in brch.answers.iter() {
-                    writeln!(self.pipe_io.output, "{} = {}", par, val).unwrap();
+                if brch.depth >= depth_start {
+                    self.solve_answer(&brch);
                 }
-
-                for (prim, args) in brch.prims.iter() {
-                    writeln!(self.pipe_io.output, "{:?}({:?})", prim, args).unwrap();
-                }
-
-                self.ansr_cnt += 1;
-            } else if brch.depth == depth_limit {
+            } else if brch.depth == depth_end {
                 writeln!(
                     self.pipe_io.output,
                     "[PRUNE]: depth reach limit {}!",
@@ -123,12 +112,30 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
                 .unwrap();
             } else {
                 self.run_branch_step(brch);
-                self.ctx_cnt += 1;
             }
         }
     }
 
-    pub fn run_branch_step(&mut self, brch: Branch) {
+    fn solve_answer(&mut self, brch: &Branch) {
+        writeln!(self.pipe_io.output, "[ANSWER]: depth = {}", brch.depth).unwrap();
+
+        let mut solver = SmtSolver::new(smt_solver::SmtBackend::Z3);
+
+        if let Some(map) = solver.check_sat(&brch.prims) {
+            let map = map
+                .into_iter()
+                .map(|(var, lit)| (var, Term::Lit(lit)))
+                .collect();
+
+            for (par, val) in brch.answers.iter() {
+                writeln!(self.pipe_io.output, "{} = {}", par, val.substitute(&map)).unwrap();
+            }
+        }
+
+        self.ansr_cnt += 1;
+    }
+
+    fn run_branch_step(&mut self, brch: Branch) {
         let mut brch = brch;
         let (pred, _polys, args) = brch.calls.pop().unwrap();
 
@@ -141,10 +148,11 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         }
     }
 
-    pub fn emit_branch(&mut self, brch: &Branch, rule: &Rule, args: &Vec<TermCtx>) {
+    fn emit_branch(&mut self, brch: &Branch, rule: &Rule, args: &Vec<TermCtx>) {
         assert_eq!(rule.head.len(), args.len());
 
         self.stats.step();
+        self.ctx_cnt += 1;
 
         let pars: Vec<TermCtx> = rule.head.iter().map(|par| self.term_add_ctx(par)).collect();
 
@@ -221,7 +229,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
 
             self.reset();
 
-            self.run_dfs_with_depth(entry, depth_limit);
+            self.run_dfs_with_depth(entry, depth_limit - self.config.depth_step + 1, depth_limit);
 
             let stat_res = self.stats.print_stat();
             writeln!(self.pipe_io.stat_log, "{}", stat_res).unwrap();
@@ -264,7 +272,7 @@ begin
     true
 end
 
-query is_elem_after_append(depth_step=1, depth_limit=5, answer_limit=5)
+query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=100)
     "#;
 
     let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
@@ -281,7 +289,7 @@ query is_elem_after_append(depth_step=1, depth_limit=5, answer_limit=5)
     crate::logic::normalize::normalize_pass(&mut prog);
     println!("{:#?}", prog);
 
-    let mut pipe_io = PipeIO::stdout();
+    let mut pipe_io = PipeIO::empty();
     let mut runner = RunnerState::new(&prog, &mut pipe_io);
     let query = &prog.querys[0];
 

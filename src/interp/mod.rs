@@ -5,3 +5,4 @@ use crate::utils::term::*;
 
 pub mod config;
 pub mod runner;
+pub mod smt_solver;
