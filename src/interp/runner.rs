@@ -13,7 +13,7 @@ struct Branch {
     calls: Vec<(Ident, Vec<TypeId>, Vec<TermCtx>)>,
 }
 
-struct RunnerState<'prog, 'io> {
+pub struct RunnerState<'prog, 'io> {
     prog: &'prog Program,
     pipe_io: &'io mut PipeIO,
     config: RunnerConfig,
@@ -130,9 +130,9 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             for (par, val) in brch.answers.iter() {
                 writeln!(self.pipe_io.output, "{} = {}", par, val.substitute(&map)).unwrap();
             }
-        }
 
-        self.ansr_cnt += 1;
+            self.ansr_cnt += 1;
+        }
     }
 
     fn run_branch_step(&mut self, brch: Branch) {

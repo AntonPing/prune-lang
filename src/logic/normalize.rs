@@ -8,38 +8,38 @@ struct RuleWithEqs {
     eqs: Vec<(TermId, TermId)>,
 }
 
-fn normalize_goal(goal: &Goal, stack: &mut Vec<RuleWithEqs>) {
+fn normalize_goal(goal: &Goal, mut brch: RuleWithEqs) -> Vec<RuleWithEqs> {
     match goal {
         Goal::Lit(_) => panic!("no literal goal after optimization!"),
         Goal::Eq(lhs, rhs) => {
-            if let Some(brch) = stack.last_mut() {
-                brch.eqs.push((lhs.clone(), rhs.clone()));
-            }
+            brch.eqs.push((lhs.clone(), rhs.clone()));
+            vec![brch]
         }
         Goal::Prim(prim, args) => {
-            if let Some(brch) = stack.last_mut() {
-                brch.rule.prims.push((*prim, args.clone()));
-            }
+            brch.rule.prims.push((*prim, args.clone()));
+            vec![brch]
         }
         Goal::And(goals) => {
-            if !stack.is_empty() {
-                for goal in goals {
-                    normalize_goal(goal, stack);
+            let mut brchs = vec![brch];
+            for goal in goals {
+                let mut new_brchs = Vec::new();
+                for brch in brchs.into_iter() {
+                    new_brchs.push(normalize_goal(goal, brch));
                 }
+                brchs = new_brchs.into_iter().flatten().collect();
             }
+            brchs
         }
         Goal::Or(goals) => {
-            if let Some(brch) = stack.pop() {
-                for goal in goals {
-                    stack.push(brch.clone());
-                    normalize_goal(goal, stack);
-                }
+            let mut brchs = Vec::new();
+            for goal in goals {
+                brchs.push(normalize_goal(goal, brch.clone()));
             }
+            brchs.into_iter().flatten().collect()
         }
         Goal::Call(pred, polys, args) => {
-            if let Some(brch) = stack.last_mut() {
-                brch.rule.calls.push((*pred, polys.clone(), args.clone()));
-            }
+            brch.rule.calls.push((*pred, polys.clone(), args.clone()));
+            vec![brch]
         }
     }
 }
@@ -81,17 +81,17 @@ fn normalize_pred(pred: &mut PredDecl) {
         .map(|(par, _typ)| Term::Var(*par))
         .collect();
 
-    let mut stack = vec![RuleWithEqs {
+    let init_brch = RuleWithEqs {
         rule: Rule {
             head,
             prims: Vec::new(),
             calls: Vec::new(),
         },
         eqs: Vec::new(),
-    }];
-    normalize_goal(&pred.goal, &mut stack);
+    };
+    let brchs = normalize_goal(&pred.goal, init_brch);
 
-    let rules = stack
+    let rules = brchs
         .into_iter()
         .flat_map(|brch| solve_branch(brch))
         .collect();
