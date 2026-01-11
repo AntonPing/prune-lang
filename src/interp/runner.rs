@@ -1,0 +1,292 @@
+use super::*;
+use crate::cli::pipeline::PipeIO;
+use crate::interp::config::{RunnerConfig, RunnerStats};
+use crate::logic::ast::*;
+use crate::utils::unify::Unifier;
+
+#[derive(Clone, Debug)]
+struct Branch {
+    depth: usize,
+    answers: Vec<(Ident, TermCtx)>,
+    prims: Vec<(Prim, Vec<AtomCtx>)>,
+    calls: Vec<(Ident, Vec<TypeId>, Vec<TermCtx>)>,
+}
+
+struct RunnerState<'prog, 'io> {
+    prog: &'prog Program,
+    pipe_io: &'io mut PipeIO,
+    config: RunnerConfig,
+    stats: RunnerStats,
+    ctx_cnt: usize,
+    ansr_cnt: usize,
+    stack: Vec<Branch>,
+}
+
+impl<'prog, 'io> RunnerState<'prog, 'io> {
+    pub fn new(prog: &'prog Program, pipe: &'io mut PipeIO) -> RunnerState<'prog, 'io> {
+        RunnerState {
+            prog,
+            pipe_io: pipe,
+            config: RunnerConfig::new(),
+            stats: RunnerStats::new(),
+            ctx_cnt: 0,
+            ansr_cnt: 0,
+            stack: Vec::new(),
+        }
+    }
+
+    pub fn config_reset_default(&mut self) {
+        self.config.reset_default();
+    }
+
+    pub fn config_set_param(&mut self, param: &QueryParam) {
+        self.config.set_param(param);
+    }
+
+    fn reset(&mut self) {
+        self.stats.reset();
+        assert!(self.stack.is_empty());
+        self.ctx_cnt = 0;
+    }
+
+    fn term_add_ctx<L: Copy, C: Copy>(&mut self, term: &Term<Ident, L, C>) -> Term<IdentCtx, L, C> {
+        match term {
+            Term::Var(var) => Term::Var(var.tag_ctx(self.ctx_cnt)),
+            Term::Lit(lit) => Term::Lit(*lit),
+            Term::Cons(cons, args) => {
+                let args = args.iter().map(|arg| self.term_add_ctx(arg)).collect();
+                Term::Cons(*cons, args)
+            }
+        }
+    }
+
+    pub fn run_dfs_with_depth(&mut self, entry: Ident, depth_limit: usize) {
+        self.ctx_cnt = 0;
+
+        let answers: Vec<(Ident, TermCtx)> = self.prog.preds[&entry]
+            .pars
+            .iter()
+            .map(|(par, _typ)| (*par, Term::Var(par.tag_ctx(self.ctx_cnt))))
+            .collect();
+
+        let args: Vec<TermCtx> = self.prog.preds[&entry]
+            .pars
+            .iter()
+            .map(|(par, _typ)| Term::Var(par.tag_ctx(self.ctx_cnt)))
+            .collect();
+
+        // predicate for query can not be polymorphic!
+        assert!(self.prog.preds[&entry].polys.is_empty());
+
+        let brch = Branch {
+            depth: 0,
+            answers,
+            prims: Vec::new(),
+            calls: vec![(entry, Vec::new(), args)],
+        };
+
+        self.stack.push(brch);
+
+        while let Some(brch) = self.stack.pop() {
+            assert!(brch.depth <= depth_limit);
+
+            for (par, val) in brch.answers.iter() {
+                writeln!(self.pipe_io.output, "{} = {}", par, val).unwrap();
+            }
+
+            for (prim, args) in brch.prims.iter() {
+                writeln!(self.pipe_io.output, "{:?}({:?})", prim, args).unwrap();
+            }
+
+            for (pred, _polys, args) in brch.calls.iter() {
+                writeln!(self.pipe_io.output, "{:?}({:?})", pred, args).unwrap();
+            }
+
+            if brch.calls.is_empty() {
+                writeln!(self.pipe_io.output, "[ANSWER]: depth = {}", brch.depth).unwrap();
+
+                for (par, val) in brch.answers.iter() {
+                    writeln!(self.pipe_io.output, "{} = {}", par, val).unwrap();
+                }
+
+                for (prim, args) in brch.prims.iter() {
+                    writeln!(self.pipe_io.output, "{:?}({:?})", prim, args).unwrap();
+                }
+
+                self.ansr_cnt += 1;
+            } else if brch.depth == depth_limit {
+                writeln!(
+                    self.pipe_io.output,
+                    "[PRUNE]: depth reach limit {}!",
+                    brch.depth
+                )
+                .unwrap();
+            } else {
+                self.run_branch_step(brch);
+                self.ctx_cnt += 1;
+            }
+        }
+    }
+
+    pub fn run_branch_step(&mut self, brch: Branch) {
+        let mut brch = brch;
+        let (pred, _polys, args) = brch.calls.pop().unwrap();
+
+        let rules = &self.prog.preds[&pred].rules.clone();
+
+        for rule in rules {
+            assert_eq!(rule.head.len(), args.len());
+
+            self.emit_branch(&brch, rule, &args);
+        }
+    }
+
+    pub fn emit_branch(&mut self, brch: &Branch, rule: &Rule, args: &Vec<TermCtx>) {
+        assert_eq!(rule.head.len(), args.len());
+
+        self.stats.step();
+
+        let pars: Vec<TermCtx> = rule.head.iter().map(|par| self.term_add_ctx(par)).collect();
+
+        let prims: Vec<(Prim, Vec<AtomCtx>)> = rule
+            .prims
+            .iter()
+            .map(|(prim, args)| {
+                (
+                    *prim,
+                    args.iter().map(|arg| self.term_add_ctx(arg)).collect(),
+                )
+            })
+            .collect();
+
+        let calls: Vec<(Ident, Vec<TypeId>, Vec<TermCtx>)> = rule
+            .calls
+            .iter()
+            .map(|(pred, poly, args)| {
+                (
+                    *pred,
+                    poly.clone(),
+                    args.iter().map(|arg| self.term_add_ctx(arg)).collect(),
+                )
+            })
+            .collect();
+
+        let mut unifier: Unifier<IdentCtx, LitVal, OptCons<Ident>> = Unifier::new();
+        for (par, arg) in pars.iter().zip(args.iter()) {
+            if unifier.unify(par, arg).is_err() {
+                return;
+            }
+        }
+
+        let mut new_brch = brch.clone();
+        new_brch.depth += 1;
+
+        for (prim, args) in prims.iter() {
+            new_brch.prims.push((*prim, args.clone()));
+        }
+
+        for (pred, _polys, args) in calls.iter() {
+            new_brch.calls.push((*pred, Vec::new(), args.clone()));
+        }
+
+        for (_par, val) in new_brch.answers.iter_mut() {
+            *val = unifier.merge(val);
+        }
+
+        for (_prim, args) in new_brch.prims.iter_mut() {
+            for arg in args.iter_mut() {
+                *arg = unifier.merge(&arg.to_term()).to_atom().unwrap();
+            }
+        }
+
+        for (_pred, _polys, args) in new_brch.calls.iter_mut() {
+            for arg in args.iter_mut() {
+                *arg = unifier.merge(&arg);
+            }
+        }
+
+        self.stack.push(new_brch);
+    }
+
+    pub fn run_iddfs_loop(&mut self, entry: Ident) -> usize {
+        for depth_limit in
+            (self.config.depth_step..=self.config.depth_limit).step_by(self.config.depth_step)
+        {
+            writeln!(
+                self.pipe_io.stat_log,
+                "[RUN]: try depth = {}... (found answer: {})",
+                depth_limit, self.ansr_cnt
+            )
+            .unwrap();
+
+            self.reset();
+
+            self.run_dfs_with_depth(entry, depth_limit);
+
+            let stat_res = self.stats.print_stat();
+            writeln!(self.pipe_io.stat_log, "{}", stat_res).unwrap();
+
+            if self.ansr_cnt >= self.config.answer_limit {
+                return self.ansr_cnt;
+            }
+        }
+        self.ansr_cnt
+    }
+}
+
+#[test]
+fn test_runner() {
+    let src: &'static str = r#"
+datatype IntList where
+| Cons(Int, IntList)
+| Nil
+end
+
+function append(xs: IntList, x: Int) -> IntList
+begin
+    match xs with
+    | Cons(head, tail) => Cons(head, append(tail, x))
+    | Nil => Cons(x, Nil)
+    end
+end
+
+function is_elem(xs: IntList, x: Int) -> Bool
+begin
+    match xs with
+    | Cons(head, tail) => if head == x then true else is_elem(tail, x) 
+    | Nil => false
+    end
+end
+
+function is_elem_after_append(xs: IntList, x: Int) -> Bool
+begin
+    guard !is_elem(append(xs, x), x);
+    true
+end
+
+query is_elem_after_append(depth_step=1, depth_limit=5, answer_limit=5)
+    "#;
+
+    let (mut prog, errs) = crate::syntax::parser::parse_program(&src);
+    assert!(errs.is_empty());
+
+    let errs = crate::tych::rename::rename_pass(&mut prog);
+    assert!(errs.is_empty());
+
+    let errs = crate::tych::check::check_pass(&prog);
+    assert!(errs.is_empty());
+
+    let mut prog = crate::logic::transform::logic_translation(&prog);
+    crate::logic::elab::elab_pass(&mut prog);
+    crate::logic::normalize::normalize_pass(&mut prog);
+    println!("{:#?}", prog);
+
+    let mut pipe_io = PipeIO::stdout();
+    let mut runner = RunnerState::new(&prog, &mut pipe_io);
+    let query = &prog.querys[0];
+
+    for param in query.params.iter() {
+        runner.config_set_param(param);
+    }
+    runner.run_iddfs_loop(query.entry);
+}
