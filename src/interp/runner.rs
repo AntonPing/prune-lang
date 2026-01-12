@@ -148,6 +148,49 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         }
     }
 
+    pub fn propagate_prims(
+        &mut self,
+        unifier: &mut Unifier<IdentCtx, LitVal, OptCons<Ident>>,
+        prims: &mut Vec<(Prim, Vec<AtomCtx>)>,
+    ) -> Result<(), ()> {
+        let mut skip_flags: Vec<bool> = prims.iter().map(|_| false).collect();
+        let mut dirty_flag: bool = true;
+
+        while dirty_flag {
+            dirty_flag = false;
+
+            for ((prim, args), skip_flag) in prims.iter_mut().zip(skip_flags.iter_mut()) {
+                if *skip_flag {
+                    continue;
+                }
+
+                for arg in args.iter_mut() {
+                    *arg = unifier.merge(&arg.to_term()).to_atom().unwrap();
+                }
+
+                match super::progagate::propagate_prims(*prim, args) {
+                    progagate::PropagateResult::Skip => {
+                        // skip, do nothing
+                    }
+                    progagate::PropagateResult::Propagate(subst) => {
+                        for (lhs, rhs) in subst.iter() {
+                            unifier
+                                .unify(&lhs.to_term(), &rhs.to_term())
+                                .map_err(|_| ())?;
+                        }
+                        *skip_flag = true;
+                        if !subst.is_empty() {
+                            dirty_flag = true;
+                        }
+                    }
+                    progagate::PropagateResult::Conflit => return Err(()),
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn emit_branch(&mut self, brch: &Branch, rule: &Rule, args: &Vec<TermCtx>) {
         assert_eq!(rule.head.len(), args.len());
 
@@ -197,15 +240,22 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             new_brch.calls.push((*pred, Vec::new(), args.clone()));
         }
 
+        if self
+            .propagate_prims(&mut unifier, &mut new_brch.prims)
+            .is_err()
+        {
+            return;
+        }
+
         for (_par, val) in new_brch.answers.iter_mut() {
             *val = unifier.merge(val);
         }
 
-        for (_prim, args) in new_brch.prims.iter_mut() {
-            for arg in args.iter_mut() {
-                *arg = unifier.merge(&arg.to_term()).to_atom().unwrap();
-            }
-        }
+        // for (_prim, args) in new_brch.prims.iter_mut() {
+        //     for arg in args.iter_mut() {
+        //         *arg = unifier.merge(&arg.to_term()).to_atom().unwrap();
+        //     }
+        // }
 
         for (_pred, _polys, args) in new_brch.calls.iter_mut() {
             for arg in args.iter_mut() {
@@ -287,7 +337,7 @@ query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=100)
     let mut prog = crate::logic::transform::logic_translation(&prog);
     crate::logic::elab::elab_pass(&mut prog);
     crate::logic::normalize::normalize_pass(&mut prog);
-    println!("{:#?}", prog);
+    // println!("{:#?}", prog);
 
     let mut pipe_io = PipeIO::empty();
     let mut runner = RunnerState::new(&prog, &mut pipe_io);
