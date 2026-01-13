@@ -46,11 +46,9 @@ impl<T: fmt::Display> fmt::Display for OptCons<T> {
     }
 }
 
-pub type TermId = Term<Ident, LitVal, OptCons<Ident>>;
-pub type TermCtx = Term<IdentCtx, LitVal, OptCons<Ident>>;
-pub type AtomId = Term<Ident, LitVal, Infallible>;
-pub type AtomCtx = Term<IdentCtx, LitVal, Infallible>;
-pub type TypeId = Term<Ident, LitType, OptCons<Ident>>;
+pub type TermVal<V = Ident> = Term<V, LitVal, OptCons<Ident>>;
+pub type AtomVal<V = Ident> = Term<V, LitVal, Infallible>;
+pub type TermType<V = Ident> = Term<V, LitType, OptCons<Ident>>;
 
 impl<V, L, C> Term<V, L, C> {
     pub fn is_var(&self) -> bool {

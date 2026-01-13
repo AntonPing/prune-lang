@@ -5,11 +5,11 @@ use crate::utils::term::Term::*;
 
 pub enum PropagateResult {
     Skip,
-    Propagate(Vec<(AtomCtx, AtomCtx)>),
+    Propagate(Vec<(AtomVal<IdentCtx>, AtomVal<IdentCtx>)>),
     Conflit,
 }
 
-pub fn propagate_prims(prim: Prim, args: &Vec<AtomCtx>) -> PropagateResult {
+pub fn propagate_prims(prim: Prim, args: &Vec<AtomVal<IdentCtx>>) -> PropagateResult {
     match (prim, &args[..]) {
         (Prim::IAdd, [arg1, arg2, arg3]) => propagate_iadd(arg1, arg2, arg3),
         (Prim::ISub, [arg1, arg2, arg3]) => propagate_isub(arg1, arg2, arg3),
@@ -25,7 +25,11 @@ pub fn propagate_prims(prim: Prim, args: &Vec<AtomCtx>) -> PropagateResult {
     }
 }
 
-fn propagate_iadd(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateResult {
+fn propagate_iadd(
+    arg1: &AtomVal<IdentCtx>,
+    arg2: &AtomVal<IdentCtx>,
+    arg3: &AtomVal<IdentCtx>,
+) -> PropagateResult {
     match (arg1, arg2, arg3) {
         (arg1, Lit(Int(lit2)), Lit(Int(lit3))) => {
             let res = vec![(arg1.clone(), Lit(Int(*lit3 - *lit2)))];
@@ -43,7 +47,11 @@ fn propagate_iadd(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateRe
     }
 }
 
-fn propagate_isub(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateResult {
+fn propagate_isub(
+    arg1: &AtomVal<IdentCtx>,
+    arg2: &AtomVal<IdentCtx>,
+    arg3: &AtomVal<IdentCtx>,
+) -> PropagateResult {
     match (arg1, arg2, arg3) {
         (arg1, Lit(Int(lit2)), Lit(Int(lit3))) => {
             let res = vec![(arg1.clone(), Lit(Int(*lit3 + *lit2)))];
@@ -61,7 +69,11 @@ fn propagate_isub(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateRe
     }
 }
 
-fn propagate_imul(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateResult {
+fn propagate_imul(
+    arg1: &AtomVal<IdentCtx>,
+    arg2: &AtomVal<IdentCtx>,
+    arg3: &AtomVal<IdentCtx>,
+) -> PropagateResult {
     match (arg1, arg2, arg3) {
         (arg1, Lit(Int(lit2)), Lit(Int(lit3))) => {
             if *lit3 % *lit2 == 0 {
@@ -87,7 +99,11 @@ fn propagate_imul(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateRe
     }
 }
 
-fn propagate_idiv(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateResult {
+fn propagate_idiv(
+    arg1: &AtomVal<IdentCtx>,
+    arg2: &AtomVal<IdentCtx>,
+    arg3: &AtomVal<IdentCtx>,
+) -> PropagateResult {
     match (arg1, arg2, arg3) {
         (Lit(Int(lit1)), Lit(Int(lit2)), arg3) => {
             let res = vec![(arg3.clone(), Lit(Int(*lit1 / *lit2)))];
@@ -97,7 +113,11 @@ fn propagate_idiv(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateRe
     }
 }
 
-fn propagate_irem(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateResult {
+fn propagate_irem(
+    arg1: &AtomVal<IdentCtx>,
+    arg2: &AtomVal<IdentCtx>,
+    arg3: &AtomVal<IdentCtx>,
+) -> PropagateResult {
     match (arg1, arg2, arg3) {
         (Lit(Int(lit1)), Lit(Int(lit2)), arg3) => {
             let res = vec![(arg3.clone(), Lit(Int(*lit1 % *lit2)))];
@@ -107,7 +127,7 @@ fn propagate_irem(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateRe
     }
 }
 
-fn propagate_ineg(arg1: &AtomCtx, arg2: &AtomCtx) -> PropagateResult {
+fn propagate_ineg(arg1: &AtomVal<IdentCtx>, arg2: &AtomVal<IdentCtx>) -> PropagateResult {
     match (arg1, arg2) {
         (Lit(Int(lit1)), arg2) => {
             let res = vec![(arg2.clone(), Lit(Int(-*lit1)))];
@@ -121,7 +141,12 @@ fn propagate_ineg(arg1: &AtomCtx, arg2: &AtomCtx) -> PropagateResult {
     }
 }
 
-fn propagate_icmp(cmp: Compare, arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateResult {
+fn propagate_icmp(
+    cmp: Compare,
+    arg1: &AtomVal<IdentCtx>,
+    arg2: &AtomVal<IdentCtx>,
+    arg3: &AtomVal<IdentCtx>,
+) -> PropagateResult {
     match (arg1, arg2, arg3) {
         (arg1, arg2, Lit(Bool(true))) if cmp == Compare::Eq => {
             let res = vec![(arg1.clone(), arg2.clone())];
@@ -147,7 +172,11 @@ fn propagate_icmp(cmp: Compare, arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) 
     }
 }
 
-fn propagate_bool_and(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateResult {
+fn propagate_bool_and(
+    arg1: &AtomVal<IdentCtx>,
+    arg2: &AtomVal<IdentCtx>,
+    arg3: &AtomVal<IdentCtx>,
+) -> PropagateResult {
     match (arg1, arg2, arg3) {
         (Lit(Bool(true)), arg2, arg3) => {
             let res = vec![(arg2.clone(), arg3.clone())];
@@ -169,7 +198,11 @@ fn propagate_bool_and(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> Propaga
     }
 }
 
-fn propagate_bool_or(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> PropagateResult {
+fn propagate_bool_or(
+    arg1: &AtomVal<IdentCtx>,
+    arg2: &AtomVal<IdentCtx>,
+    arg3: &AtomVal<IdentCtx>,
+) -> PropagateResult {
     match (arg1, arg2, arg3) {
         (Lit(Bool(false)), arg2, arg3) => {
             let res = vec![(arg2.clone(), arg3.clone())];
@@ -191,7 +224,7 @@ fn propagate_bool_or(arg1: &AtomCtx, arg2: &AtomCtx, arg3: &AtomCtx) -> Propagat
     }
 }
 
-fn propagate_bool_not(arg1: &AtomCtx, arg2: &AtomCtx) -> PropagateResult {
+fn propagate_bool_not(arg1: &AtomVal<IdentCtx>, arg2: &AtomVal<IdentCtx>) -> PropagateResult {
     match (arg1, arg2) {
         (Lit(Bool(lit1)), arg2) => {
             let res = vec![(arg2.clone(), Lit(Bool(!*lit1)))];

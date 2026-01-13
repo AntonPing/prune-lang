@@ -33,9 +33,9 @@ impl SmtSolver for NoSmtSolver {
 
     fn declare_var(&mut self, _var: &IdentCtx, _typ: &LitType) {}
 
-    fn push_cons(&mut self, _prim: Prim, _args: Vec<AtomCtx>) {}
+    fn push_cons(&mut self, _prim: Prim, _args: Vec<AtomVal<IdentCtx>>) {}
 
-    fn push_eq(&mut self, _x: IdentCtx, _atom: AtomCtx) {}
+    fn push_eq(&mut self, _x: IdentCtx, _atom: AtomVal<IdentCtx>) {}
 
     fn check_complete(&mut self) -> bool {
         true

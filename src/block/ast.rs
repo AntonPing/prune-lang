@@ -7,10 +7,10 @@ pub struct Block {
     pub blk_pred: Ident,
     pub blk_idx: usize,
     pub min_depth: usize,
-    pub eqs: Vec<(TermId, TermId)>,
-    pub prims: Vec<(Prim, Vec<AtomId>)>,
+    pub eqs: Vec<(TermVal, TermVal)>,
+    pub prims: Vec<(Prim, Vec<AtomVal>)>,
     pub brchss: Vec<Vec<usize>>,
-    pub calls: Vec<(Ident, Vec<TermId>)>,
+    pub calls: Vec<(Ident, Vec<TermVal>)>,
 }
 
 impl fmt::Display for Block {
@@ -65,8 +65,8 @@ impl Block {
 #[derive(Clone, Debug)]
 pub struct PredDef {
     pub name: Ident,
-    pub pars: Vec<(Ident, TypeId)>,
-    pub vars: Vec<(Ident, TypeId)>,
+    pub pars: Vec<(Ident, TermType)>,
+    pub vars: Vec<(Ident, TermType)>,
     pub blks: Vec<Block>,
 }
 impl std::fmt::Display for PredDef {
@@ -90,7 +90,7 @@ impl std::fmt::Display for PredDef {
 
 #[derive(Clone, Debug)]
 pub struct Program {
-    pub ty_map: HashMap<Ident, TypeId>,
+    pub ty_map: HashMap<Ident, TermType>,
     pub preds: HashMap<Ident, PredDef>,
     pub querys: Vec<crate::logic::ast::QueryDecl>,
 }

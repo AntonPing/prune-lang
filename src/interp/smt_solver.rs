@@ -44,7 +44,7 @@ impl SmtSolver {
 
     pub fn check_sat(
         &mut self,
-        prims: &Vec<(Prim, Vec<AtomCtx>)>,
+        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
     ) -> Option<HashMap<IdentCtx, LitVal>> {
         let ty_map: HashMap<IdentCtx, LitType> = self.infer_type(prims);
         let sexp_map = self.solve_constraints(prims, &ty_map);
@@ -89,7 +89,10 @@ impl SmtSolver {
         map
     }
 
-    fn infer_type(&mut self, prims: &Vec<(Prim, Vec<AtomCtx>)>) -> HashMap<IdentCtx, LitType> {
+    fn infer_type(
+        &mut self,
+        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
+    ) -> HashMap<IdentCtx, LitType> {
         let mut map = HashMap::new();
 
         for (prim, args) in prims.iter() {
@@ -115,7 +118,7 @@ impl SmtSolver {
 
     fn solve_constraints(
         &mut self,
-        prims: &Vec<(Prim, Vec<AtomCtx>)>,
+        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
         ty_map: &HashMap<IdentCtx, LitType>,
     ) -> HashMap<IdentCtx, SExpr> {
         let sexp_map: HashMap<IdentCtx, SExpr> = ty_map
@@ -189,7 +192,7 @@ impl SmtSolver {
         sexp_map
     }
 
-    fn atom_to_sexp(&self, atom: &AtomCtx, map: &HashMap<IdentCtx, SExpr>) -> SExpr {
+    fn atom_to_sexp(&self, atom: &AtomVal<IdentCtx>, map: &HashMap<IdentCtx, SExpr>) -> SExpr {
         match atom {
             Term::Var(var) => map[var],
             Term::Lit(LitVal::Int(x)) => self.ctx.numeral(*x),

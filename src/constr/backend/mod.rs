@@ -11,8 +11,8 @@ pub trait SmtSolver {
     fn savepoint(&mut self);
     fn backtrack(&mut self);
     fn declare_var(&mut self, var: &IdentCtx, typ: &LitType);
-    fn push_cons(&mut self, prim: Prim, args: Vec<AtomCtx>);
-    fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx);
+    fn push_cons(&mut self, prim: Prim, args: Vec<AtomVal<IdentCtx>>);
+    fn push_eq(&mut self, x: IdentCtx, atom: AtomVal<IdentCtx>);
     fn check_complete(&mut self) -> bool;
     fn check_sound(&mut self) -> bool;
     fn get_value(&mut self, vars: &[IdentCtx]) -> HashMap<IdentCtx, LitVal>;

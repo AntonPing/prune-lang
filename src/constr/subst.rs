@@ -4,7 +4,7 @@ use super::*;
 
 #[derive(Debug)]
 pub struct Subst {
-    map: EnvMap<IdentCtx, TermCtx>,
+    map: EnvMap<IdentCtx, TermVal<IdentCtx>>,
 }
 
 impl std::fmt::Display for Subst {
@@ -45,7 +45,7 @@ impl Subst {
 }
 
 impl Subst {
-    pub fn deref<'a>(&'a self, term: &'a TermCtx) -> &'a TermCtx {
+    pub fn deref<'a>(&'a self, term: &'a TermVal<IdentCtx>) -> &'a TermVal<IdentCtx> {
         let mut term = term;
         loop {
             if let Term::Var(var) = term {
@@ -61,7 +61,7 @@ impl Subst {
         }
     }
 
-    pub fn merge(&self, term: &TermCtx) -> TermCtx {
+    pub fn merge(&self, term: &TermVal<IdentCtx>) -> TermVal<IdentCtx> {
         match term {
             Term::Var(var) => {
                 if let Some(term) = self.map.get(var) {
@@ -78,7 +78,7 @@ impl Subst {
         }
     }
 
-    fn occur_check(&self, x: &IdentCtx, term: &TermCtx) -> bool {
+    fn occur_check(&self, x: &IdentCtx, term: &TermVal<IdentCtx>) -> bool {
         let term = self.deref(term);
         match term {
             Term::Var(y) => x == y,
@@ -87,7 +87,11 @@ impl Subst {
         }
     }
 
-    pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Option<Vec<(IdentCtx, AtomCtx)>> {
+    pub fn unify(
+        &mut self,
+        lhs: TermVal<IdentCtx>,
+        rhs: TermVal<IdentCtx>,
+    ) -> Option<Vec<(IdentCtx, AtomVal<IdentCtx>)>> {
         let mut subst = Vec::new();
         self.unify_help(&mut subst, lhs, rhs)?;
         Some(subst)
@@ -95,9 +99,9 @@ impl Subst {
 
     fn unify_help(
         &mut self,
-        subst: &mut Vec<(IdentCtx, AtomCtx)>,
-        lhs: TermCtx,
-        rhs: TermCtx,
+        subst: &mut Vec<(IdentCtx, AtomVal<IdentCtx>)>,
+        lhs: TermVal<IdentCtx>,
+        rhs: TermVal<IdentCtx>,
     ) -> Option<()> {
         let lhs = self.deref(&lhs).clone();
         let rhs = self.deref(&rhs).clone();

@@ -86,7 +86,7 @@ impl SmtSolver for IncrSmtSolver {
         self.map.insert(*var, sexp);
     }
 
-    fn push_cons(&mut self, prim: Prim, args: Vec<AtomCtx>) {
+    fn push_cons(&mut self, prim: Prim, args: Vec<AtomVal<IdentCtx>>) {
         let args: Vec<SExpr> = args.iter().map(|arg| self.atom_to_sexp(arg)).collect();
         match (prim, &args[..]) {
             (
@@ -136,7 +136,7 @@ impl SmtSolver for IncrSmtSolver {
         }
     }
 
-    fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx) {
+    fn push_eq(&mut self, x: IdentCtx, atom: AtomVal<IdentCtx>) {
         let lhs = self.map[&x];
         let rhs = self.atom_to_sexp(&atom);
         self.ctx.assert(self.ctx.eq(lhs, rhs)).unwrap();
@@ -177,7 +177,7 @@ impl SmtSolver for IncrSmtSolver {
 }
 
 impl IncrSmtSolver {
-    fn atom_to_sexp(&self, atom: &AtomCtx) -> SExpr {
+    fn atom_to_sexp(&self, atom: &AtomVal<IdentCtx>) -> SExpr {
         match atom {
             Term::Var(var) => self.map[var],
             Term::Lit(LitVal::Int(x)) => self.ctx.numeral(*x),

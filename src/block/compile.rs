@@ -105,7 +105,7 @@ fn update_min_depth(preds: &mut HashMap<Ident, PredDef>) {
     panic!("potential infinite recursive without branching point!");
 }
 
-fn compile_pred(pred: &ast::PredDecl, map: &HashMap<Ident, TypeId>) -> PredDef {
+fn compile_pred(pred: &ast::PredDecl, map: &HashMap<Ident, TermType>) -> PredDef {
     let pars = pred
         .pars
         .iter()

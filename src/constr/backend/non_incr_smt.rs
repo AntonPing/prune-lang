@@ -5,8 +5,8 @@ use easy_smt::{Context, ContextBuilder, SExpr};
 pub struct NonIncrSmtSolver {
     ctx: Context,
     vars_vec: Vec<(IdentCtx, LitType)>,
-    cons_vec: Vec<(Prim, Vec<AtomCtx>)>,
-    eq_vec: Vec<(IdentCtx, AtomCtx)>,
+    cons_vec: Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
+    eq_vec: Vec<(IdentCtx, AtomVal<IdentCtx>)>,
     saves: Vec<(usize, usize, usize)>,
 }
 
@@ -91,11 +91,11 @@ impl SmtSolver for NonIncrSmtSolver {
         self.vars_vec.push((*var, *typ));
     }
 
-    fn push_cons(&mut self, prim: Prim, args: Vec<AtomCtx>) {
+    fn push_cons(&mut self, prim: Prim, args: Vec<AtomVal<IdentCtx>>) {
         self.cons_vec.push((prim, args));
     }
 
-    fn push_eq(&mut self, x: IdentCtx, atom: AtomCtx) {
+    fn push_eq(&mut self, x: IdentCtx, atom: AtomVal<IdentCtx>) {
         self.eq_vec.push((x, atom));
     }
 
@@ -219,9 +219,14 @@ impl NonIncrSmtSolver {
     }
 
     #[allow(clippy::type_complexity)]
-    fn propagate_eqs(&self) -> (Vec<(IdentCtx, LitType)>, Vec<(Prim, Vec<AtomCtx>)>) {
-        let eq_map: HashMap<IdentCtx, AtomCtx> = self.eq_vec.iter().cloned().collect();
-        let mut subst: HashMap<IdentCtx, AtomCtx> = HashMap::new();
+    fn propagate_eqs(
+        &self,
+    ) -> (
+        Vec<(IdentCtx, LitType)>,
+        Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
+    ) {
+        let eq_map: HashMap<IdentCtx, AtomVal<IdentCtx>> = self.eq_vec.iter().cloned().collect();
+        let mut subst: HashMap<IdentCtx, AtomVal<IdentCtx>> = HashMap::new();
 
         for (key, value) in self.eq_vec.iter() {
             let mut value = value;
@@ -241,7 +246,7 @@ impl NonIncrSmtSolver {
             }
         }
 
-        let cons_vec: Vec<(Prim, Vec<AtomCtx>)> = self
+        let cons_vec: Vec<(Prim, Vec<AtomVal<IdentCtx>>)> = self
             .cons_vec
             .iter()
             .map(|(prim, args)| {
@@ -283,7 +288,7 @@ impl NonIncrSmtSolver {
         (vars_vec, cons_vec)
     }
 
-    fn atom_to_sexp(&self, atom: &AtomCtx, map: &HashMap<IdentCtx, SExpr>) -> SExpr {
+    fn atom_to_sexp(&self, atom: &AtomVal<IdentCtx>, map: &HashMap<IdentCtx, SExpr>) -> SExpr {
         match atom {
             Term::Var(var) => map[var],
             Term::Lit(LitVal::Int(x)) => self.ctx.numeral(*x),

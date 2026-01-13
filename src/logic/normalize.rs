@@ -5,7 +5,7 @@ use super::*;
 #[derive(Clone, Debug)]
 struct RuleWithEqs {
     rule: Rule,
-    eqs: Vec<(TermId, TermId)>,
+    eqs: Vec<(TermVal, TermVal)>,
 }
 
 fn normalize_goal(goal: &Goal, mut brch: RuleWithEqs) -> Vec<RuleWithEqs> {

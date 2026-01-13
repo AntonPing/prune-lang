@@ -4,7 +4,7 @@ use super::optimize;
 use super::*;
 
 pub struct Translater {
-    vars: Vec<(Ident, TypeId)>,
+    vars: Vec<(Ident, TermType)>,
 }
 
 impl Translater {
@@ -14,7 +14,7 @@ impl Translater {
 
     fn fresh_var(&mut self) -> Ident {
         let var = Ident::fresh(&"x");
-        let typ = TypeId::Var(Ident::fresh(&"a"));
+        let typ = TermType::Var(Ident::fresh(&"a"));
         self.vars.push((var, typ));
         var
     }
@@ -24,7 +24,7 @@ impl Translater {
         let (term, goal) = self.translate_expr(&func.body);
         let name = func.name.ident;
         let polys = func.polys.iter().map(|poly| poly.ident).collect();
-        let mut pars: Vec<(Ident, TypeId)> = func
+        let mut pars: Vec<(Ident, TermType)> = func
             .pars
             .iter()
             .map(|(var, typ)| (var.ident, translate_type(typ)))
@@ -42,7 +42,7 @@ impl Translater {
         }
     }
 
-    fn translate_expr(&mut self, expr: &ast::Expr) -> (TermId, Goal) {
+    fn translate_expr(&mut self, expr: &ast::Expr) -> (TermVal, Goal) {
         match expr {
             ast::Expr::Lit { lit, span: _ } => (Term::Lit(*lit), Goal::Lit(true)),
             ast::Expr::Var { var, span: _ } => (Term::Var(var.ident), Goal::Lit(true)),
@@ -52,7 +52,7 @@ impl Translater {
                 span: _,
             } => {
                 let x = self.fresh_var();
-                let (mut terms, mut goals): (Vec<TermId>, Vec<Goal>) =
+                let (mut terms, mut goals): (Vec<TermVal>, Vec<Goal>) =
                     args.iter().map(|arg| self.translate_expr(arg)).unzip();
                 terms.push(Term::Var(x));
                 let terms = terms
@@ -67,7 +67,7 @@ impl Translater {
                 flds,
                 span: _,
             } => {
-                let (flds, goals): (Vec<TermId>, Vec<Goal>) =
+                let (flds, goals): (Vec<TermVal>, Vec<Goal>) =
                     flds.iter().map(|fld| self.translate_expr(fld)).unzip();
                 (
                     Term::Cons(OptCons::Some(cons.ident), flds),
@@ -75,7 +75,7 @@ impl Translater {
                 )
             }
             ast::Expr::Tuple { flds, span: _ } => {
-                let (flds, goals): (Vec<TermId>, Vec<Goal>) =
+                let (flds, goals): (Vec<TermVal>, Vec<Goal>) =
                     flds.iter().map(|fld| self.translate_expr(fld)).unzip();
                 (Term::Cons(OptCons::None, flds), Goal::And(goals))
             }
@@ -118,7 +118,7 @@ impl Translater {
                 span: _,
             } => {
                 let x = self.fresh_var();
-                let (mut terms, mut goals): (Vec<TermId>, Vec<Goal>) =
+                let (mut terms, mut goals): (Vec<TermVal>, Vec<Goal>) =
                     args.iter().map(|arg| self.translate_expr(arg)).unzip();
                 terms.push(Term::Var(x));
                 goals.push(Goal::Call(func.ident, Vec::new(), terms));
@@ -204,9 +204,9 @@ impl Translater {
                 span: _,
             } => {
                 let new_vars: Vec<Ident> = new_vars.iter().map(|var| var.ident).collect();
-                let vec: Vec<(Ident, TypeId)> = new_vars
+                let vec: Vec<(Ident, TermType)> = new_vars
                     .iter()
-                    .map(|var| (*var, TypeId::Var(Ident::fresh(&"a"))))
+                    .map(|var| (*var, TermType::Var(Ident::fresh(&"a"))))
                     .collect();
                 self.vars.extend_from_slice(&vec[..]);
                 self.translate_expr(cont)
@@ -235,12 +235,13 @@ impl Translater {
         }
     }
 
-    fn translate_patn(&mut self, patn: &ast::Pattern) -> TermId {
+    fn translate_patn(&mut self, patn: &ast::Pattern) -> TermVal {
         match patn {
-            ast::Pattern::Lit { lit, span: _ } => TermId::Lit(*lit),
+            ast::Pattern::Lit { lit, span: _ } => TermVal::Lit(*lit),
             ast::Pattern::Var { var, span: _ } => {
-                self.vars.push((var.ident, TypeId::Var(Ident::fresh(&"a"))));
-                TermId::Var(var.ident)
+                self.vars
+                    .push((var.ident, TermType::Var(Ident::fresh(&"a"))));
+                TermVal::Var(var.ident)
             }
             ast::Pattern::Cons {
                 cons,
@@ -248,11 +249,11 @@ impl Translater {
                 span: _,
             } => {
                 let flds = flds.iter().map(|fld| self.translate_patn(fld)).collect();
-                TermId::Cons(OptCons::Some(cons.ident), flds)
+                TermVal::Cons(OptCons::Some(cons.ident), flds)
             }
             ast::Pattern::Tuple { flds, span: _ } => {
-                let flds: Vec<TermId> = flds.iter().map(|fld| self.translate_patn(fld)).collect();
-                TermId::Cons(OptCons::None, flds)
+                let flds: Vec<TermVal> = flds.iter().map(|fld| self.translate_patn(fld)).collect();
+                TermVal::Cons(OptCons::None, flds)
             }
         }
     }
@@ -291,7 +292,7 @@ fn translate_query_param(param: &ast::QueryParam) -> QueryParam {
     }
 }
 
-fn translate_type(typ: &ast::Type) -> TypeId {
+fn translate_type(typ: &ast::Type) -> TermType {
     match typ {
         ast::Type::Lit { lit, span: _ } => Term::Lit(*lit),
         ast::Type::Var { var, span: _ } => Term::Var(var.ident),
@@ -304,7 +305,7 @@ fn translate_type(typ: &ast::Type) -> TypeId {
             Term::Cons(OptCons::Some(cons.ident), flds)
         }
         ast::Type::Tuple { flds, span: _ } => {
-            let flds: Vec<TypeId> = flds.iter().map(translate_type).collect();
+            let flds: Vec<TermType> = flds.iter().map(translate_type).collect();
             Term::Cons(OptCons::None, flds)
         }
     }

@@ -4,11 +4,11 @@ use crate::cli::args;
 use backend::SmtSolver;
 
 pub struct Solver {
-    ty_map: EnvMap<IdentCtx, TypeId>,
+    ty_map: EnvMap<IdentCtx, TermType>,
     subst: Subst,
     constr: Box<dyn SmtSolver>,
-    unify_vec: Vec<(TermCtx, TermCtx)>,
-    solve_vec: Vec<(Prim, Vec<AtomCtx>)>,
+    unify_vec: Vec<(TermVal<IdentCtx>, TermVal<IdentCtx>)>,
+    solve_vec: Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
     saves: Vec<(usize, usize)>,
 }
 
@@ -100,7 +100,7 @@ impl Solver {
 }
 
 impl Solver {
-    pub fn declare(&mut self, var: &IdentCtx, typ: &TypeId) {
+    pub fn declare(&mut self, var: &IdentCtx, typ: &TermType) {
         assert!(!self.ty_map.contains_key(var));
         self.ty_map.insert(*var, typ.clone());
         if let Term::Lit(lit) = typ {
@@ -108,7 +108,7 @@ impl Solver {
         }
     }
 
-    pub fn unify(&mut self, lhs: TermCtx, rhs: TermCtx) -> Option<()> {
+    pub fn unify(&mut self, lhs: TermVal<IdentCtx>, rhs: TermVal<IdentCtx>) -> Option<()> {
         self.unify_vec.push((lhs.clone(), rhs.clone()));
         let mut subst = self.subst.unify(lhs, rhs)?;
         for (x, term) in subst.drain(..) {
@@ -119,7 +119,7 @@ impl Solver {
         Some(())
     }
 
-    pub fn push_cons(&mut self, prim: Prim, args: Vec<AtomCtx>) {
+    pub fn push_cons(&mut self, prim: Prim, args: Vec<AtomVal<IdentCtx>>) {
         self.solve_vec.push((prim, args.clone()));
         self.constr.push_cons(prim, args);
     }
@@ -132,8 +132,8 @@ impl Solver {
         self.constr.check_sound()
     }
 
-    pub fn get_value(&mut self, vars: &[IdentCtx]) -> Vec<TermCtx> {
-        let terms: Vec<TermCtx> = vars
+    pub fn get_value(&mut self, vars: &[IdentCtx]) -> Vec<TermVal<IdentCtx>> {
+        let terms: Vec<TermVal<IdentCtx>> = vars
             .iter()
             .map(|var| self.subst.merge(&Term::Var(*var)))
             .collect();
@@ -176,8 +176,8 @@ fn test_solver() {
 
     let mut sol: Solver = Solver::new(args::SmtBackend::Z3Inc);
 
-    sol.declare(&x.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
-    sol.declare(&y.tag_ctx(0), &TypeId::Lit(LitType::TyInt));
+    sol.declare(&x.tag_ctx(0), &TermType::Lit(LitType::TyInt));
+    sol.declare(&y.tag_ctx(0), &TermType::Lit(LitType::TyInt));
 
     sol.push_cons(
         Prim::ICmp(Compare::Lt),

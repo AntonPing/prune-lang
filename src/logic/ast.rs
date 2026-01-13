@@ -10,18 +10,18 @@ pub struct Program {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Goal {
     Lit(bool),
-    Eq(TermId, TermId),
-    Prim(Prim, Vec<AtomId>),
+    Eq(TermVal, TermVal),
+    Prim(Prim, Vec<AtomVal>),
     And(Vec<Goal>),
     Or(Vec<Goal>),
-    Call(Ident, Vec<TypeId>, Vec<TermId>),
+    Call(Ident, Vec<TermType>, Vec<TermVal>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Rule {
-    pub head: Vec<TermId>,
-    pub prims: Vec<(Prim, Vec<AtomId>)>,
-    pub calls: Vec<(Ident, Vec<TypeId>, Vec<TermId>)>,
+    pub head: Vec<TermVal>,
+    pub prims: Vec<(Prim, Vec<AtomVal>)>,
+    pub calls: Vec<(Ident, Vec<TermType>, Vec<TermVal>)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -34,15 +34,15 @@ pub struct DataDecl {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Constructor {
     pub name: Ident,
-    pub flds: Vec<TypeId>,
+    pub flds: Vec<TermType>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PredDecl {
     pub name: Ident,
     pub polys: Vec<Ident>,
-    pub pars: Vec<(Ident, TypeId)>,
-    pub vars: Vec<(Ident, TypeId)>,
+    pub pars: Vec<(Ident, TermType)>,
+    pub vars: Vec<(Ident, TermType)>,
     pub goal: Goal,
     pub rules: Vec<Rule>,
 }

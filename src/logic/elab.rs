@@ -6,14 +6,14 @@ use crate::utils::unify::*;
 #[derive(Clone, Debug)]
 struct PredTyScm {
     polys: Vec<Ident>,
-    pars: Vec<TypeId>,
+    pars: Vec<TermType>,
 }
 
 #[derive(Clone, Debug)]
 struct ConsTyScm {
     polys: Vec<Ident>,
-    flds: Vec<TypeId>,
-    res: TypeId,
+    flds: Vec<TermType>,
+    res: TermType,
 }
 
 #[allow(unused)]
@@ -24,7 +24,7 @@ struct DataTyScm {
 }
 
 struct Elaborator {
-    val_ctx: HashMap<Ident, TypeId>,
+    val_ctx: HashMap<Ident, TermType>,
     pred_ctx: HashMap<Ident, PredTyScm>,
     cons_ctx: HashMap<Ident, ConsTyScm>,
     data_ctx: HashMap<Ident, DataTyScm>,
@@ -42,17 +42,17 @@ impl Elaborator {
         }
     }
 
-    fn elab_term(&mut self, term: &TermId) -> TypeId {
+    fn elab_term(&mut self, term: &TermVal) -> TermType {
         match term {
             Term::Var(var) => self.val_ctx[var].clone(),
-            Term::Lit(lit) => TypeId::Lit(lit.get_typ()),
+            Term::Lit(lit) => TermType::Lit(lit.get_typ()),
             Term::Cons(cons, flds) => {
                 let flds: Vec<_> = flds.iter().map(|fld| self.elab_term(fld)).collect();
                 if let OptCons::Some(cons) = cons {
                     // instantiate constructor type scheme
                     let cons_scm = &self.cons_ctx[cons];
 
-                    let inst_map: HashMap<Ident, TypeId> = cons_scm
+                    let inst_map: HashMap<Ident, TermType> = cons_scm
                         .polys
                         .iter()
                         .map(|poly| (*poly, Term::Var(poly.uniquify())))
@@ -70,13 +70,13 @@ impl Elaborator {
 
                     inst_res
                 } else {
-                    TypeId::Cons(OptCons::None, flds)
+                    TermType::Cons(OptCons::None, flds)
                 }
             }
         }
     }
 
-    fn elab_prim(&mut self, prim: Prim, args: &[AtomId]) {
+    fn elab_prim(&mut self, prim: Prim, args: &[AtomVal]) {
         let args: Vec<_> = args
             .iter()
             .map(|arg| self.elab_term(&arg.to_term()))
@@ -87,9 +87,9 @@ impl Elaborator {
                 self.unifier
                     .unify_many(
                         &[
-                            TypeId::Lit(LitType::TyInt),
-                            TypeId::Lit(LitType::TyInt),
-                            TypeId::Lit(LitType::TyInt),
+                            TermType::Lit(LitType::TyInt),
+                            TermType::Lit(LitType::TyInt),
+                            TermType::Lit(LitType::TyInt),
                         ],
                         &args,
                     )
@@ -98,7 +98,10 @@ impl Elaborator {
             Prim::INeg => {
                 self.unifier
                     .unify_many(
-                        &[TypeId::Lit(LitType::TyInt), TypeId::Lit(LitType::TyInt)],
+                        &[
+                            TermType::Lit(LitType::TyInt),
+                            TermType::Lit(LitType::TyInt),
+                        ],
                         &args,
                     )
                     .unwrap();
@@ -107,9 +110,9 @@ impl Elaborator {
                 self.unifier
                     .unify_many(
                         &[
-                            TypeId::Lit(LitType::TyInt),
-                            TypeId::Lit(LitType::TyInt),
-                            TypeId::Lit(LitType::TyBool),
+                            TermType::Lit(LitType::TyInt),
+                            TermType::Lit(LitType::TyInt),
+                            TermType::Lit(LitType::TyBool),
                         ],
                         &args,
                     )
@@ -119,9 +122,9 @@ impl Elaborator {
                 self.unifier
                     .unify_many(
                         &[
-                            TypeId::Lit(LitType::TyBool),
-                            TypeId::Lit(LitType::TyBool),
-                            TypeId::Lit(LitType::TyBool),
+                            TermType::Lit(LitType::TyBool),
+                            TermType::Lit(LitType::TyBool),
+                            TermType::Lit(LitType::TyBool),
                         ],
                         &args,
                     )
@@ -130,7 +133,10 @@ impl Elaborator {
             Prim::BNot => {
                 self.unifier
                     .unify_many(
-                        &[TypeId::Lit(LitType::TyBool), TypeId::Lit(LitType::TyBool)],
+                        &[
+                            TermType::Lit(LitType::TyBool),
+                            TermType::Lit(LitType::TyBool),
+                        ],
                         &args,
                     )
                     .unwrap();
@@ -165,7 +171,7 @@ impl Elaborator {
                 // instantiate predicate type scheme
                 let pred_scm = &self.pred_ctx[pred];
 
-                let inst_map: HashMap<Ident, TypeId> = pred_scm
+                let inst_map: HashMap<Ident, TermType> = pred_scm
                     .polys
                     .iter()
                     .map(|poly| (*poly, Term::Var(poly.uniquify())))
@@ -201,12 +207,12 @@ impl Elaborator {
     }
 
     fn scan_cons_ty_scm(&mut self, data_decl: &DataDecl) {
-        let res = TypeId::Cons(
+        let res = TermType::Cons(
             OptCons::Some(data_decl.name),
             data_decl
                 .polys
                 .iter()
-                .map(|poly| TypeId::Var(*poly))
+                .map(|poly| TermType::Var(*poly))
                 .collect(),
         );
 

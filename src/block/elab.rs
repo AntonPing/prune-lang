@@ -3,9 +3,9 @@ use crate::logic::ast;
 use crate::utils::unify::*;
 
 struct Elaborator {
-    val_ctx: HashMap<Ident, TypeId>,
-    pred_ctx: HashMap<Ident, Vec<TypeId>>,
-    cons_ctx: HashMap<Ident, (Vec<TypeId>, TypeId)>,
+    val_ctx: HashMap<Ident, TermType>,
+    pred_ctx: HashMap<Ident, Vec<TermType>>,
+    cons_ctx: HashMap<Ident, (Vec<TermType>, TermType)>,
     data_ctx: HashMap<Ident, Vec<Ident>>,
     solver: Unifier<Ident, LitType, OptCons<Ident>>,
 }
@@ -21,26 +21,26 @@ impl Elaborator {
         }
     }
 
-    fn fresh(&mut self) -> TypeId {
-        TypeId::Var(Ident::fresh(&"t"))
+    fn fresh(&mut self) -> TermType {
+        TermType::Var(Ident::fresh(&"t"))
     }
 
-    fn unify(&mut self, typ1: &TypeId, typ2: &TypeId) {
+    fn unify(&mut self, typ1: &TermType, typ2: &TermType) {
         self.solver.unify(typ1, typ2).unwrap()
     }
 
-    fn unify_many(&mut self, typs1: &[TypeId], typs2: &[TypeId]) {
+    fn unify_many(&mut self, typs1: &[TermType], typs2: &[TermType]) {
         self.solver.unify_many(typs1, typs2).unwrap()
     }
 
-    fn elab_term(&mut self, term: &TermId) -> TypeId {
+    fn elab_term(&mut self, term: &TermVal) -> TermType {
         match term {
             Term::Var(var) => self
                 .val_ctx
                 .get(var)
                 .cloned()
                 .unwrap_or_else(|| self.fresh()),
-            Term::Lit(lit) => TypeId::Lit(lit.get_typ()),
+            Term::Lit(lit) => TermType::Lit(lit.get_typ()),
             Term::Cons(cons, flds) => {
                 if let OptCons::Some(cons) = cons {
                     let (flds_ty, var_ty) = self.cons_ctx[cons].clone();
@@ -55,13 +55,13 @@ impl Elaborator {
         }
     }
 
-    fn elab_type(typ: &TypeId) -> TypeId {
+    fn elab_type(typ: &TermType) -> TermType {
         match typ {
             Term::Var(_var) => panic!("generics not supported yet!"),
-            Term::Lit(lit) => TypeId::Lit(*lit),
+            Term::Lit(lit) => TermType::Lit(*lit),
             Term::Cons(cons, flds) => {
                 let flds = flds.iter().map(Self::elab_type).collect();
-                TypeId::Cons(*cons, flds)
+                TermType::Cons(*cons, flds)
             }
         }
     }
@@ -75,7 +75,11 @@ impl Elaborator {
                 self.unify(&lhs, &rhs);
             }
             ast::Goal::Prim(prim, args) => {
-                let pars: Vec<_> = prim.get_typ().iter().map(|lit| TypeId::Lit(*lit)).collect();
+                let pars: Vec<_> = prim
+                    .get_typ()
+                    .iter()
+                    .map(|lit| TermType::Lit(*lit))
+                    .collect();
                 let args: Vec<_> = args
                     .iter()
                     .map(|arg| self.elab_term(&arg.to_term()))
@@ -110,7 +114,7 @@ impl Elaborator {
                 cons.name,
                 (
                     flds,
-                    TypeId::Cons(OptCons::Some(data_decl.name), Vec::new()),
+                    TermType::Cons(OptCons::Some(data_decl.name), Vec::new()),
                 ),
             );
         }
@@ -158,7 +162,7 @@ impl Elaborator {
     }
 }
 
-pub fn elab_pass(prog: &ast::Program) -> HashMap<Ident, TypeId> {
+pub fn elab_pass(prog: &ast::Program) -> HashMap<Ident, TermType> {
     let mut pass = Elaborator::new();
     pass.elab_prog(prog);
     let sol = pass.solver;

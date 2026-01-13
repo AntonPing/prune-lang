@@ -7,15 +7,15 @@ use crate::utils::unify::*;
 #[derive(Clone, Debug)]
 struct FuncTyScm {
     polys: Vec<Ident>,
-    pars: Vec<TypeId>,
-    res: TypeId,
+    pars: Vec<TermType>,
+    res: TermType,
 }
 
 #[derive(Clone, Debug)]
 struct ConsTyScm {
     polys: Vec<Ident>,
-    flds: Vec<TypeId>,
-    res: TypeId,
+    flds: Vec<TermType>,
+    res: TermType,
 }
 
 #[allow(unused)]
@@ -26,7 +26,7 @@ struct DataTyScm {
 }
 
 struct Checker {
-    val_ctx: HashMap<Ident, TypeId>,
+    val_ctx: HashMap<Ident, TermType>,
     func_ctx: HashMap<Ident, FuncTyScm>,
     cons_ctx: HashMap<Ident, ConsTyScm>,
     data_ctx: HashMap<Ident, DataTyScm>,
@@ -46,11 +46,11 @@ impl Checker {
         }
     }
 
-    fn fresh(&mut self) -> TypeId {
-        TypeId::Var(Ident::fresh(&"a"))
+    fn fresh(&mut self) -> TermType {
+        TermType::Var(Ident::fresh(&"a"))
     }
 
-    fn unify(&mut self, typ1: &TypeId, typ2: &TypeId) {
+    fn unify(&mut self, typ1: &TermType, typ2: &TermType) {
         match self.unifier.unify(typ1, typ2) {
             Ok(()) => {}
             Err(err) => {
@@ -59,7 +59,7 @@ impl Checker {
         }
     }
 
-    fn unify_many(&mut self, typs1: &[TypeId], typs2: &[TypeId]) {
+    fn unify_many(&mut self, typs1: &[TermType], typs2: &[TermType]) {
         match self.unifier.unify_many(typs1, typs2) {
             Ok(()) => {}
             Err(err) => {
@@ -68,45 +68,48 @@ impl Checker {
         }
     }
 
-    fn check_prim(&mut self, prim: &Prim, args: &[Expr]) -> TypeId {
+    fn check_prim(&mut self, prim: &Prim, args: &[Expr]) -> TermType {
         let args: Vec<_> = args.iter().map(|arg| self.check_expr(arg)).collect();
 
         match prim {
             Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem => {
                 self.unify_many(
-                    &[TypeId::Lit(LitType::TyInt), TypeId::Lit(LitType::TyInt)],
+                    &[TermType::Lit(LitType::TyInt), TermType::Lit(LitType::TyInt)],
                     &args,
                 );
-                TypeId::Lit(LitType::TyInt)
+                TermType::Lit(LitType::TyInt)
             }
             Prim::INeg => {
-                self.unify_many(&[TypeId::Lit(LitType::TyInt)], &args);
-                TypeId::Lit(LitType::TyInt)
+                self.unify_many(&[TermType::Lit(LitType::TyInt)], &args);
+                TermType::Lit(LitType::TyInt)
             }
             Prim::ICmp(_) => {
                 self.unify_many(
-                    &[TypeId::Lit(LitType::TyInt), TypeId::Lit(LitType::TyInt)],
+                    &[TermType::Lit(LitType::TyInt), TermType::Lit(LitType::TyInt)],
                     &args,
                 );
-                TypeId::Lit(LitType::TyBool)
+                TermType::Lit(LitType::TyBool)
             }
             Prim::BAnd | Prim::BOr => {
                 self.unify_many(
-                    &[TypeId::Lit(LitType::TyBool), TypeId::Lit(LitType::TyBool)],
+                    &[
+                        TermType::Lit(LitType::TyBool),
+                        TermType::Lit(LitType::TyBool),
+                    ],
                     &args,
                 );
-                TypeId::Lit(LitType::TyBool)
+                TermType::Lit(LitType::TyBool)
             }
             Prim::BNot => {
-                self.unify_many(&[TypeId::Lit(LitType::TyBool)], &args);
-                TypeId::Lit(LitType::TyBool)
+                self.unify_many(&[TermType::Lit(LitType::TyBool)], &args);
+                TermType::Lit(LitType::TyBool)
             }
         }
     }
 
-    fn check_expr(&mut self, expr: &Expr) -> TypeId {
+    fn check_expr(&mut self, expr: &Expr) -> TermType {
         match expr {
-            Expr::Lit { lit, span: _ } => TypeId::Lit(lit.get_typ()),
+            Expr::Lit { lit, span: _ } => TermType::Lit(lit.get_typ()),
             Expr::Var { var, span: _ } => self.val_ctx[&var.ident].clone(),
             Expr::Prim {
                 prim,
@@ -123,7 +126,7 @@ impl Checker {
                 // instantiate constructor type scheme
                 let cons_scm = &self.cons_ctx[&cons.ident];
 
-                let inst_map: HashMap<Ident, TypeId> = cons_scm
+                let inst_map: HashMap<Ident, TermType> = cons_scm
                     .polys
                     .iter()
                     .map(|poly| (*poly, Term::Var(poly.uniquify())))
@@ -141,8 +144,8 @@ impl Checker {
                 inst_res
             }
             Expr::Tuple { flds, span: _ } => {
-                let flds: Vec<TypeId> = flds.iter().map(|fld| self.check_expr(fld)).collect();
-                TypeId::Cons(OptCons::None, flds)
+                let flds: Vec<TermType> = flds.iter().map(|fld| self.check_expr(fld)).collect();
+                TermType::Cons(OptCons::None, flds)
             }
             Expr::Match {
                 expr,
@@ -180,7 +183,7 @@ impl Checker {
                 // instantiate predicate type scheme
                 let func_scm = &self.func_ctx[&func.ident];
 
-                let inst_map: HashMap<Ident, TypeId> = func_scm
+                let inst_map: HashMap<Ident, TermType> = func_scm
                     .polys
                     .iter()
                     .map(|poly| (*poly, Term::Var(poly.uniquify())))
@@ -204,7 +207,7 @@ impl Checker {
                 span: _,
             } => {
                 let cond = self.check_expr(cond);
-                self.unify(&cond, &TypeId::Lit(LitType::TyBool));
+                self.unify(&cond, &TermType::Lit(LitType::TyBool));
                 let then = self.check_expr(then);
                 let els = self.check_expr(els);
                 self.unify(&then, &els);
@@ -215,7 +218,7 @@ impl Checker {
                 for (cond, body) in brchs {
                     let cond = self.check_expr(cond);
                     let body = self.check_expr(body);
-                    self.unify(&cond, &TypeId::Lit(LitType::TyBool));
+                    self.unify(&cond, &TermType::Lit(LitType::TyBool));
                     self.unify(&body, &res);
                 }
                 res
@@ -250,7 +253,7 @@ impl Checker {
                     let rhs = self.check_expr(rhs);
                     self.unify(&lhs, &rhs);
                 } else {
-                    self.unify(&lhs, &TypeId::Lit(LitType::TyBool));
+                    self.unify(&lhs, &TermType::Lit(LitType::TyBool));
                 }
                 self.check_expr(cont)
             }
@@ -258,9 +261,9 @@ impl Checker {
         }
     }
 
-    fn check_patn(&mut self, patn: &Pattern) -> TypeId {
+    fn check_patn(&mut self, patn: &Pattern) -> TermType {
         match patn {
-            Pattern::Lit { lit, span: _ } => TypeId::Lit(lit.get_typ()),
+            Pattern::Lit { lit, span: _ } => TermType::Lit(lit.get_typ()),
             Pattern::Var { var, span: _ } => {
                 let ty = self.fresh();
                 self.val_ctx.insert(var.ident, ty.clone());
@@ -271,12 +274,12 @@ impl Checker {
                 flds,
                 span: _,
             } => {
-                let flds: Vec<TypeId> = flds.iter().map(|fld| self.check_patn(fld)).collect();
+                let flds: Vec<TermType> = flds.iter().map(|fld| self.check_patn(fld)).collect();
 
                 // instantiate constructor type scheme
                 let cons_scm = &self.cons_ctx[&cons.ident];
 
-                let inst_map: HashMap<Ident, TypeId> = cons_scm
+                let inst_map: HashMap<Ident, TermType> = cons_scm
                     .polys
                     .iter()
                     .map(|poly| (*poly, Term::Var(poly.uniquify())))
@@ -294,8 +297,8 @@ impl Checker {
                 inst_res
             }
             Pattern::Tuple { flds, span: _ } => {
-                let typs: Vec<TypeId> = flds.iter().map(|fld| self.check_patn(fld)).collect();
-                TypeId::Cons(OptCons::None, typs)
+                let typs: Vec<TermType> = flds.iter().map(|fld| self.check_patn(fld)).collect();
+                TermType::Cons(OptCons::None, typs)
             }
         }
     }
@@ -311,12 +314,12 @@ impl Checker {
     }
 
     fn scan_cons_ty_scm(&mut self, data_decl: &DataDecl) {
-        let res = TypeId::Cons(
+        let res = TermType::Cons(
             OptCons::Some(data_decl.name.ident),
             data_decl
                 .polys
                 .iter()
-                .map(|poly| TypeId::Var(poly.ident))
+                .map(|poly| TermType::Var(poly.ident))
                 .collect(),
         );
 
@@ -376,7 +379,7 @@ impl Checker {
     }
 }
 
-fn into_term(value: &syntax::ast::Type) -> TypeId {
+fn into_term(value: &syntax::ast::Type) -> TermType {
     match value {
         Type::Lit { lit, span: _ } => Term::Lit(*lit),
         Type::Var { var, span: _ } => Term::Var(var.ident),
@@ -389,7 +392,7 @@ fn into_term(value: &syntax::ast::Type) -> TypeId {
             Term::Cons(OptCons::Some(cons.ident), flds)
         }
         Type::Tuple { flds, span: _ } => {
-            let flds: Vec<TypeId> = flds.iter().map(into_term).collect();
+            let flds: Vec<TermType> = flds.iter().map(into_term).collect();
             Term::Cons(OptCons::None, flds)
         }
     }

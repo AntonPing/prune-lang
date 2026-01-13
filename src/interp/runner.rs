@@ -8,9 +8,9 @@ use crate::utils::unify::Unifier;
 #[derive(Clone, Debug)]
 struct Branch {
     depth: usize,
-    answers: Vec<(Ident, TermCtx)>,
-    prims: Vec<(Prim, Vec<AtomCtx>)>,
-    calls: Vec<(Ident, Vec<TypeId>, Vec<TermCtx>)>,
+    answers: Vec<(Ident, TermVal<IdentCtx>)>,
+    prims: Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
+    calls: Vec<(Ident, Vec<TermType>, Vec<TermVal<IdentCtx>>)>,
 }
 
 pub struct RunnerState<'prog, 'io> {
@@ -60,13 +60,13 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
     pub fn run_dfs_with_depth(&mut self, entry: Ident, depth_start: usize, depth_end: usize) {
         self.ctx_cnt = 0;
 
-        let answers: Vec<(Ident, TermCtx)> = self.prog.preds[&entry]
+        let answers: Vec<(Ident, TermVal<IdentCtx>)> = self.prog.preds[&entry]
             .pars
             .iter()
             .map(|(par, _typ)| (*par, Term::Var(par.tag_ctx(self.ctx_cnt))))
             .collect();
 
-        let args: Vec<TermCtx> = self.prog.preds[&entry]
+        let args: Vec<TermVal<IdentCtx>> = self.prog.preds[&entry]
             .pars
             .iter()
             .map(|(par, _typ)| Term::Var(par.tag_ctx(self.ctx_cnt)))
@@ -144,7 +144,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
     fn propagate_prims(
         &mut self,
         unifier: &mut Unifier<IdentCtx, LitVal, OptCons<Ident>>,
-        prims: &mut Vec<(Prim, Vec<AtomCtx>)>,
+        prims: &mut Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
     ) -> Result<(), ()> {
         let mut skip_flags: Vec<bool> = prims.iter().map(|_| false).collect();
         let mut dirty_flag: bool = true;
@@ -184,15 +184,16 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         Ok(())
     }
 
-    fn emit_branch(&mut self, brch: &Branch, rule: &Rule, args: &Vec<TermCtx>) {
+    fn emit_branch(&mut self, brch: &Branch, rule: &Rule, args: &Vec<TermVal<IdentCtx>>) {
         assert_eq!(rule.head.len(), args.len());
 
         self.stats.step();
         self.ctx_cnt += 1;
 
-        let pars: Vec<TermCtx> = rule.head.iter().map(|par| self.term_add_ctx(par)).collect();
+        let pars: Vec<TermVal<IdentCtx>> =
+            rule.head.iter().map(|par| self.term_add_ctx(par)).collect();
 
-        let new_prims: Vec<(Prim, Vec<AtomCtx>)> = rule
+        let new_prims: Vec<(Prim, Vec<AtomVal<IdentCtx>>)> = rule
             .prims
             .iter()
             .map(|(prim, args)| {
@@ -203,7 +204,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             })
             .collect();
 
-        let new_calls: Vec<(Ident, Vec<TypeId>, Vec<TermCtx>)> = rule
+        let new_calls: Vec<(Ident, Vec<TermType>, Vec<TermVal<IdentCtx>>)> = rule
             .calls
             .iter()
             .map(|(pred, poly, args)| {
