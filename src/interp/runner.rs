@@ -103,14 +103,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
                 if brch.depth >= depth_start {
                     self.solve_answer(&brch);
                 }
-            } else if brch.depth == depth_end {
-                writeln!(
-                    self.pipe_io.output,
-                    "[PRUNE]: depth reach limit {}!",
-                    brch.depth
-                )
-                .unwrap();
-            } else {
+            } else if brch.depth + brch.calls.len() <= depth_end {
                 self.run_branch_step(brch);
             }
         }
@@ -137,18 +130,18 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
 
     fn run_branch_step(&mut self, brch: Branch) {
         let mut brch = brch;
-        let (pred, _polys, args) = brch.calls.pop().unwrap();
+        let (pred, _polys, args) = brch.calls.remove(0);
 
         let rules = &self.prog.preds[&pred].rules.clone();
 
-        for rule in rules {
+        for rule in rules.iter().rev() {
             assert_eq!(rule.head.len(), args.len());
 
             self.emit_branch(&brch, rule, &args);
         }
     }
 
-    pub fn propagate_prims(
+    fn propagate_prims(
         &mut self,
         unifier: &mut Unifier<IdentCtx, LitVal, OptCons<Ident>>,
         prims: &mut Vec<(Prim, Vec<AtomCtx>)>,
@@ -199,7 +192,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
 
         let pars: Vec<TermCtx> = rule.head.iter().map(|par| self.term_add_ctx(par)).collect();
 
-        let prims: Vec<(Prim, Vec<AtomCtx>)> = rule
+        let new_prims: Vec<(Prim, Vec<AtomCtx>)> = rule
             .prims
             .iter()
             .map(|(prim, args)| {
@@ -210,7 +203,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             })
             .collect();
 
-        let calls: Vec<(Ident, Vec<TypeId>, Vec<TermCtx>)> = rule
+        let new_calls: Vec<(Ident, Vec<TypeId>, Vec<TermCtx>)> = rule
             .calls
             .iter()
             .map(|(pred, poly, args)| {
@@ -232,11 +225,11 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         let mut new_brch = brch.clone();
         new_brch.depth += 1;
 
-        for (prim, args) in prims.iter() {
+        for (prim, args) in new_prims.iter() {
             new_brch.prims.push((*prim, args.clone()));
         }
 
-        for (pred, _polys, args) in calls.iter() {
+        for (pred, _polys, args) in new_calls.iter() {
             new_brch.calls.push((*pred, Vec::new(), args.clone()));
         }
 
