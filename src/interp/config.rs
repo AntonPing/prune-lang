@@ -1,4 +1,4 @@
-use crate::logic::ast::*;
+use super::*;
 
 #[derive(Debug)]
 pub struct RunnerConfig {

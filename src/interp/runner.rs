@@ -1,8 +1,7 @@
 use super::*;
 use crate::cli::pipeline::PipeIO;
 use crate::interp::config::{RunnerConfig, RunnerStats};
-use crate::interp::smt_solver::SmtSolver;
-use crate::logic::ast::*;
+use crate::interp::smt_solver::{SmtBackend, SmtSolver};
 use crate::utils::unify::Unifier;
 
 #[derive(Clone, Debug)]
@@ -21,10 +20,15 @@ pub struct RunnerState<'prog, 'io> {
     ctx_cnt: usize,
     ansr_cnt: usize,
     stack: Vec<Branch>,
+    smt_solver: SmtSolver,
 }
 
 impl<'prog, 'io> RunnerState<'prog, 'io> {
-    pub fn new(prog: &'prog Program, pipe: &'io mut PipeIO) -> RunnerState<'prog, 'io> {
+    pub fn new(
+        prog: &'prog Program,
+        pipe: &'io mut PipeIO,
+        backend: SmtBackend,
+    ) -> RunnerState<'prog, 'io> {
         RunnerState {
             prog,
             pipe_io: pipe,
@@ -33,6 +37,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             ctx_cnt: 0,
             ansr_cnt: 0,
             stack: Vec::new(),
+            smt_solver: SmtSolver::new(backend),
         }
     }
 
@@ -99,11 +104,18 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
     }
 
     fn solve_answer(&mut self, brch: &Branch) {
-        writeln!(self.pipe_io.output, "[ANSWER]: depth = {}", brch.depth).unwrap();
+        let start = std::time::Instant::now();
 
-        let mut solver = SmtSolver::new(smt_solver::SmtBackend::Z3);
+        if let Some(map) = self.smt_solver.check_sat(&brch.prims) {
+            let duration = start.elapsed();
 
-        if let Some(map) = solver.check_sat(&brch.prims) {
+            writeln!(
+                self.pipe_io.output,
+                "[ANSWER]: depth = {}, solving time = {:?}",
+                brch.depth, duration
+            )
+            .unwrap();
+
             let map = map
                 .into_iter()
                 .map(|(var, lit)| (var, Term::Lit(lit)))
@@ -112,7 +124,6 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             for (par, val) in brch.answers.iter() {
                 writeln!(self.pipe_io.output, "{} = {}", par, val.substitute(&map)).unwrap();
             }
-
             self.ansr_cnt += 1;
         }
     }
@@ -298,7 +309,7 @@ query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=100)
     // println!("{:#?}", prog);
 
     let mut pipe_io = PipeIO::empty();
-    let mut runner = RunnerState::new(&prog, &mut pipe_io);
+    let mut runner = RunnerState::new(&prog, &mut pipe_io, SmtBackend::Z3);
     let query = &prog.querys[0];
 
     for param in query.params.iter() {

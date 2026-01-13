@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-
 use super::*;
 use easy_smt::{Context, ContextBuilder, SExpr};
+
+use std::collections::HashMap;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SmtBackend {
@@ -32,12 +32,15 @@ impl SmtSolver {
         ctx.set_logic("QF_NIA").unwrap();
         match backend {
             SmtBackend::Z3 => {
-                ctx.set_option(":timeout", ctx.numeral(5000)).unwrap();
+                ctx.set_option(":timeout", ctx.numeral(1000)).unwrap();
             }
             SmtBackend::CVC5 => {
-                ctx.set_option(":tlimit-per", ctx.numeral(5000)).unwrap();
+                ctx.set_option(":tlimit-per", ctx.numeral(1000)).unwrap();
             }
         }
+
+        // push an empty context for reset
+        ctx.push().unwrap();
 
         SmtSolver { ctx }
     }
@@ -46,6 +49,10 @@ impl SmtSolver {
         &mut self,
         prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
     ) -> Option<HashMap<IdentCtx, LitVal>> {
+        // reset solver state
+        self.ctx.pop().unwrap();
+        self.ctx.push().unwrap();
+
         let ty_map: HashMap<IdentCtx, LitType> = self.infer_type(prims);
         let sexp_map = self.solve_constraints(prims, &ty_map);
 
