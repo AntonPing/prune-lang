@@ -46,17 +46,6 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         self.ctx_cnt = 0;
     }
 
-    fn term_add_ctx<L: Copy, C: Copy>(&mut self, term: &Term<Ident, L, C>) -> Term<IdentCtx, L, C> {
-        match term {
-            Term::Var(var) => Term::Var(var.tag_ctx(self.ctx_cnt)),
-            Term::Lit(lit) => Term::Lit(*lit),
-            Term::Cons(cons, args) => {
-                let args = args.iter().map(|arg| self.term_add_ctx(arg)).collect();
-                Term::Cons(*cons, args)
-            }
-        }
-    }
-
     pub fn run_dfs_with_depth(&mut self, entry: Ident, depth_start: usize, depth_end: usize) {
         self.ctx_cnt = 0;
 
@@ -189,35 +178,10 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
 
         self.stats.step();
         self.ctx_cnt += 1;
-
-        let pars: Vec<TermVal<IdentCtx>> =
-            rule.head.iter().map(|par| self.term_add_ctx(par)).collect();
-
-        let new_prims: Vec<(Prim, Vec<AtomVal<IdentCtx>>)> = rule
-            .prims
-            .iter()
-            .map(|(prim, args)| {
-                (
-                    *prim,
-                    args.iter().map(|arg| self.term_add_ctx(arg)).collect(),
-                )
-            })
-            .collect();
-
-        let new_calls: Vec<(Ident, Vec<TermType>, Vec<TermVal<IdentCtx>>)> = rule
-            .calls
-            .iter()
-            .map(|(pred, poly, args)| {
-                (
-                    *pred,
-                    poly.clone(),
-                    args.iter().map(|arg| self.term_add_ctx(arg)).collect(),
-                )
-            })
-            .collect();
+        let rule_ctx = rule.tag_ctx(self.ctx_cnt);
 
         let mut unifier: Unifier<IdentCtx, LitVal, OptCons<Ident>> = Unifier::new();
-        for (par, arg) in pars.iter().zip(args.iter()) {
+        for (par, arg) in rule_ctx.head.iter().zip(args.iter()) {
             if unifier.unify(par, arg).is_err() {
                 return;
             }
@@ -226,11 +190,11 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         let mut new_brch = brch.clone();
         new_brch.depth += 1;
 
-        for (prim, args) in new_prims.iter() {
+        for (prim, args) in rule_ctx.prims.iter() {
             new_brch.prims.push((*prim, args.clone()));
         }
 
-        for (pred, _polys, args) in new_calls.iter() {
+        for (pred, _polys, args) in rule_ctx.calls.iter() {
             new_brch.calls.push((*pred, Vec::new(), args.clone()));
         }
 
