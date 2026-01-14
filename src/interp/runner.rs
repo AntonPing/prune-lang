@@ -150,19 +150,19 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         while let Some(brch) = self.stack.pop() {
             assert!(brch.depth <= depth_end);
 
-            for (par, val) in brch.answers.iter() {
-                writeln!(self.pipe_io.output, "{} = {}", par, val).unwrap();
-            }
+            // for (par, val) in brch.answers.iter() {
+            //     writeln!(self.pipe_io.output, "{} = {}", par, val).unwrap();
+            // }
 
-            writeln!(self.pipe_io.output, "cursor = {}", brch.cursor).unwrap();
+            // writeln!(self.pipe_io.output, "cursor = {}", brch.cursor).unwrap();
 
-            for (prim, args) in brch.prims.iter() {
-                writeln!(self.pipe_io.output, "{:?}({:?})", prim, args).unwrap();
-            }
+            // for (prim, args) in brch.prims.iter() {
+            //     writeln!(self.pipe_io.output, "{:?}({:?})", prim, args).unwrap();
+            // }
 
-            for call in brch.calls.iter() {
-                writeln!(self.pipe_io.output, "{:?}({:?})", call.pred, call.args,).unwrap();
-            }
+            // for call in brch.calls.iter() {
+            //     writeln!(self.pipe_io.output, "{:?}({:?})", call.pred, call.args,).unwrap();
+            // }
 
             if brch.calls.is_empty() {
                 if brch.depth >= depth_start {
@@ -251,6 +251,14 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
                 }
             }
         }
+
+        let filtered_prims: Vec<(Prim, Vec<AtomVal<IdentCtx>>)> = prims
+            .iter()
+            .zip(skip_flags.into_iter())
+            .filter_map(|(prim, flag)| if !flag { Some(prim.clone()) } else { None })
+            .collect();
+
+        *prims = filtered_prims;
 
         Ok(())
     }
