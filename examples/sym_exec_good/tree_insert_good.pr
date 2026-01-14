@@ -61,4 +61,4 @@ begin
     guard !is_sorted(insert(tree, x));
 end
 
-query keep_sorted(depth_step=5, depth_limit=50, answer_limit=1)
+query keep_sorted(depth_step=5, depth_limit=25, answer_limit=1)

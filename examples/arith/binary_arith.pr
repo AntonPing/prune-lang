@@ -73,4 +73,4 @@ begin
     guard add(mul(xs, xs), mul(ys, ys)) = mul(zs, zs);
 end
 
-query pythagorean_triple(depth_step=20, depth_limit=400, answer_limit=10)
+query pythagorean_triple(depth_step=10, depth_limit=200, answer_limit=1)

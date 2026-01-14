@@ -158,4 +158,4 @@ begin
     end
 end
 
-query keep_sorted_and_balanced(depth_step=5, depth_limit=50, answer_limit=1)
+query keep_sorted_and_balanced(depth_step=5, depth_limit=25, answer_limit=1)
