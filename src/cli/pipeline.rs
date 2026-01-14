@@ -1,7 +1,7 @@
 use super::args::CliArgs;
 use super::diagnostic::{DiagLevel, Diagnostic};
 use super::*;
-use crate::{block, logic, sched, syntax, tych};
+use crate::{interp, logic, syntax, tych};
 
 pub struct PipeIO {
     pub output: Box<dyn Write>,
@@ -92,25 +92,33 @@ impl<'arg> Pipeline<'arg> {
         Ok(())
     }
 
-    pub fn compile_pass(&mut self, prog: &syntax::ast::Program) -> block::ast::Program {
+    pub fn compile_pass(&mut self, prog: &syntax::ast::Program) -> logic::ast::Program {
         let mut prog = logic::transform::logic_translation(prog);
 
         logic::elab::elab_pass(&mut prog);
 
         logic::normalize::normalize_pass(&mut prog);
 
-        block::compile::compile_dict(&prog)
+        prog
     }
 
-    pub fn run_backend(&self, prog: &block::ast::Program, pipe_io: &mut PipeIO) -> Vec<usize> {
+    pub fn run_backend(&self, prog: &logic::ast::Program, pipe_io: &mut PipeIO) -> Vec<usize> {
         let mut res_vec = Vec::new();
-        let mut wlk = sched::walker::Walker::new(&prog.preds, pipe_io, self.args.backend);
+
+        let backend = match self.args.backend {
+            args::SmtBackend::Z3Inc => interp::smt_solver::SmtBackend::Z3,
+            args::SmtBackend::Z3Sq => interp::smt_solver::SmtBackend::Z3,
+            args::SmtBackend::CVC5Inc => interp::smt_solver::SmtBackend::CVC5,
+            args::SmtBackend::CVC5Sq => interp::smt_solver::SmtBackend::CVC5,
+            args::SmtBackend::NoSmt => todo!(),
+        };
+
+        let mut runner = interp::runner::RunnerState::new(prog, pipe_io, backend);
         for query_decl in &prog.querys {
-            wlk.config_reset_default();
             for param in query_decl.params.iter() {
-                wlk.config_set_param(param);
+                runner.config_set_param(param);
             }
-            let res = wlk.run_loop(query_decl.entry);
+            let res = runner.run_iddfs_loop(query_decl.entry);
             res_vec.push(res);
         }
         res_vec
