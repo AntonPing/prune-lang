@@ -49,6 +49,11 @@ impl SmtSolver {
         &mut self,
         prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
     ) -> Option<HashMap<IdentCtx, LitVal>> {
+        // fast path for empty solver query
+        if prims.is_empty() {
+            return Some(HashMap::new());
+        }
+
         // reset solver state
         self.ctx.pop().unwrap();
         self.ctx.push().unwrap();

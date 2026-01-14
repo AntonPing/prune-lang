@@ -63,7 +63,7 @@ impl PredCall {
 
         for (pred2, args2) in self.history.iter() {
             if self.pred == *pred2 {
-                if !args.iter().zip(args2.iter()).all(|(arg, arg2)| arg <= arg2) {
+                if !args2.iter().zip(args.iter()).all(|(arg2, arg)| arg2 <= arg) {
                     return false;
                 }
             }
@@ -148,6 +148,10 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         self.stack.push(brch);
 
         while let Some(brch) = self.stack.pop() {
+            if self.ansr_cnt >= self.config.answer_limit {
+                return;
+            }
+
             assert!(brch.depth <= depth_end);
 
             // for (par, val) in brch.answers.iter() {
