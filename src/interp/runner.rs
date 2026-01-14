@@ -9,7 +9,68 @@ struct Branch {
     depth: usize,
     answers: Vec<(Ident, TermVal<IdentCtx>)>,
     prims: Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
-    calls: Vec<(Ident, Vec<TermType>, Vec<TermVal<IdentCtx>>)>,
+    calls: Vec<PredCall>,
+    cursor: usize,
+}
+
+impl Branch {
+    fn next_cursor(&mut self) {
+        assert!(!self.calls.is_empty());
+
+        if self.cursor >= self.calls.len() {
+            self.cursor = 0;
+            for call in self.calls.iter_mut() {
+                call.history.clear();
+            }
+        }
+
+        if !self.calls[self.cursor].naive_strategy_pred(1) {
+            self.cursor += 1;
+        }
+
+        if self.cursor >= self.calls.len() {
+            self.cursor = 0;
+            for call in self.calls.iter_mut() {
+                call.history.clear();
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+struct PredCall {
+    pred: Ident,
+    polys: Vec<TermType>,
+    args: Vec<TermVal<IdentCtx>>,
+    history: Vec<(Ident, Vec<usize>)>,
+}
+
+impl PredCall {
+    #[allow(dead_code)]
+    fn left_biased_strategy_pred(&self) -> bool {
+        true
+    }
+
+    #[allow(dead_code)]
+    fn naive_strategy_pred(&self, n: usize) -> bool {
+        self.history.len() < n
+    }
+
+    #[allow(dead_code)]
+    fn struct_recur_strategy_pred(&self) -> bool {
+        let args: Vec<usize> = self.args.iter().map(|arg| arg.height()).collect();
+
+        for (pred2, args2) in self.history.iter() {
+            if self.pred == *pred2 {
+                if !args.iter().zip(args2.iter()).all(|(arg, arg2)| arg <= arg2) {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
 }
 
 pub struct RunnerState<'prog, 'io> {
@@ -69,11 +130,19 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         // predicate for query can not be polymorphic!
         assert!(self.prog.preds[&entry].polys.is_empty());
 
+        let call = PredCall {
+            pred: entry,
+            polys: Vec::new(),
+            args,
+            history: Vec::new(),
+        };
+
         let brch = Branch {
             depth: 0,
             answers,
             prims: Vec::new(),
-            calls: vec![(entry, Vec::new(), args)],
+            calls: vec![call],
+            cursor: 0,
         };
 
         self.stack.push(brch);
@@ -81,17 +150,19 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         while let Some(brch) = self.stack.pop() {
             assert!(brch.depth <= depth_end);
 
-            // for (par, val) in brch.answers.iter() {
-            //     writeln!(self.pipe_io.output, "{} = {}", par, val).unwrap();
-            // }
+            for (par, val) in brch.answers.iter() {
+                writeln!(self.pipe_io.output, "{} = {}", par, val).unwrap();
+            }
 
-            // for (prim, args) in brch.prims.iter() {
-            //     writeln!(self.pipe_io.output, "{:?}({:?})", prim, args).unwrap();
-            // }
+            writeln!(self.pipe_io.output, "cursor = {}", brch.cursor).unwrap();
 
-            // for (pred, _polys, args) in brch.calls.iter() {
-            //     writeln!(self.pipe_io.output, "{:?}({:?})", pred, args).unwrap();
-            // }
+            for (prim, args) in brch.prims.iter() {
+                writeln!(self.pipe_io.output, "{:?}({:?})", prim, args).unwrap();
+            }
+
+            for call in brch.calls.iter() {
+                writeln!(self.pipe_io.output, "{:?}({:?})", call.pred, call.args,).unwrap();
+            }
 
             if brch.calls.is_empty() {
                 if brch.depth >= depth_start {
@@ -128,16 +199,16 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         }
     }
 
-    fn run_branch_step(&mut self, brch: Branch) {
-        let mut brch = brch;
-        let (pred, _polys, args) = brch.calls.remove(0);
+    fn run_branch_step(&mut self, mut brch: Branch) {
+        brch.next_cursor();
+        let call = brch.calls.remove(brch.cursor);
 
-        let rules = &self.prog.preds[&pred].rules.clone();
+        let rules = &self.prog.preds[&call.pred].rules.clone();
 
         for rule in rules.iter().rev() {
-            assert_eq!(rule.head.len(), args.len());
+            assert_eq!(rule.head.len(), call.args.len());
 
-            self.emit_branch(&brch, rule, &args);
+            self.emit_branch(&brch, rule, &call);
         }
     }
 
@@ -184,15 +255,15 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         Ok(())
     }
 
-    fn emit_branch(&mut self, brch: &Branch, rule: &Rule, args: &Vec<TermVal<IdentCtx>>) {
-        assert_eq!(rule.head.len(), args.len());
+    fn emit_branch(&mut self, brch: &Branch, rule: &Rule, call: &PredCall) {
+        assert_eq!(rule.head.len(), call.args.len());
 
         self.stats.step();
         self.ctx_cnt += 1;
         let rule_ctx = rule.tag_ctx(self.ctx_cnt);
 
         let mut unifier: Unifier<IdentCtx, LitVal, OptCons<Ident>> = Unifier::new();
-        for (par, arg) in rule_ctx.head.iter().zip(args.iter()) {
+        for (par, arg) in rule_ctx.head.iter().zip(call.args.iter()) {
             if unifier.unify(par, arg).is_err() {
                 return;
             }
@@ -205,8 +276,21 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             new_brch.prims.push((*prim, args.clone()));
         }
 
-        for (pred, _polys, args) in rule_ctx.calls.iter() {
-            new_brch.calls.push((*pred, Vec::new(), args.clone()));
+        let mut new_history = call.history.clone();
+        new_history.push((
+            call.pred,
+            call.args.iter().map(|arg| arg.height()).collect(),
+        ));
+
+        for (pred, polys, args) in rule_ctx.calls.iter().rev() {
+            let new_call = PredCall {
+                pred: *pred,
+                polys: polys.clone(),
+                args: args.clone(),
+                history: new_history.clone(),
+            };
+
+            new_brch.calls.insert(new_brch.cursor, new_call);
         }
 
         if self
@@ -226,8 +310,8 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         //     }
         // }
 
-        for (_pred, _polys, args) in new_brch.calls.iter_mut() {
-            for arg in args.iter_mut() {
+        for call in new_brch.calls.iter_mut() {
+            for arg in call.args.iter_mut() {
                 *arg = unifier.merge(&arg);
             }
         }

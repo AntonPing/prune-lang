@@ -62,6 +62,28 @@ impl<V, L, C> Term<V, L, C> {
     pub fn is_cons(&self) -> bool {
         matches!(self, Term::Cons(_, _))
     }
+
+    pub fn height(&self) -> usize {
+        match self {
+            Term::Var(_) => 1,
+            Term::Lit(_) => 1,
+            Term::Cons(_cons, flds) => {
+                let max_fld = flds.iter().map(|fld| fld.height()).max().unwrap_or(0);
+                max_fld + 1
+            }
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match self {
+            Term::Var(_) => 1,
+            Term::Lit(_) => 1,
+            Term::Cons(_cons, flds) => {
+                let sum_fld: usize = flds.iter().map(|fld| fld.size()).sum();
+                sum_fld + 1
+            }
+        }
+    }
 }
 
 impl<L: Copy, C: Copy> Term<Ident, L, C> {
