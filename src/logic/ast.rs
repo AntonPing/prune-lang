@@ -19,6 +19,7 @@ pub enum Goal {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Rule<V = Ident> {
+    pub vars: Vec<(V, TermType)>,
     pub head: Vec<TermVal<V>>,
     pub prims: Vec<(Prim, Vec<AtomVal<V>>)>,
     pub calls: Vec<(Ident, Vec<TermType>, Vec<TermVal<V>>)>,
@@ -26,6 +27,12 @@ pub struct Rule<V = Ident> {
 
 impl Rule<Ident> {
     pub fn tag_ctx(&self, ctx: usize) -> Rule<IdentCtx> {
+        let vars: Vec<(IdentCtx, TermType)> = self
+            .vars
+            .iter()
+            .map(|(par, typ)| (par.tag_ctx(ctx), typ.clone()))
+            .collect();
+
         let head: Vec<TermVal<IdentCtx>> = self.head.iter().map(|par| par.tag_ctx(ctx)).collect();
 
         let prims: Vec<(Prim, Vec<AtomVal<IdentCtx>>)> = self
@@ -46,7 +53,12 @@ impl Rule<Ident> {
             })
             .collect();
 
-        Rule { head, prims, calls }
+        Rule {
+            vars,
+            head,
+            prims,
+            calls,
+        }
     }
 }
 

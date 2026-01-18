@@ -74,6 +74,32 @@ fn solve_branch(brch: RuleWithEqs) -> Option<Rule> {
     Some(rule)
 }
 
+fn occurs_in_body<V: Copy + Eq>(rule: &Rule<V>, var: V) -> bool {
+    for term in rule.head.iter() {
+        if term.occurs(&var) {
+            return true;
+        }
+    }
+
+    for (_prim, args) in rule.prims.iter() {
+        for arg in args.iter() {
+            if arg.occurs(&var) {
+                return true;
+            }
+        }
+    }
+
+    for (_pred, _polys, args) in rule.calls.iter() {
+        for arg in args {
+            if arg.occurs(&var) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
 fn normalize_pred(pred: &mut PredDecl) {
     let head = pred
         .pars
@@ -83,6 +109,7 @@ fn normalize_pred(pred: &mut PredDecl) {
 
     let init_brch = RuleWithEqs {
         rule: Rule {
+            vars: pred.vars.clone(),
             head,
             prims: Vec::new(),
             calls: Vec::new(),
@@ -91,10 +118,19 @@ fn normalize_pred(pred: &mut PredDecl) {
     };
     let brchs = normalize_goal(&pred.goal, init_brch);
 
-    let rules = brchs
+    let mut rules: Vec<Rule> = brchs
         .into_iter()
         .flat_map(|brch| solve_branch(brch))
         .collect();
+
+    for rule in rules.iter_mut() {
+        rule.vars = rule
+            .vars
+            .iter()
+            .filter(|(var, _typ)| occurs_in_body(&rule, *var))
+            .cloned()
+            .collect();
+    }
 
     pred.rules = rules;
 }
