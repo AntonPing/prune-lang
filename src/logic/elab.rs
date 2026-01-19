@@ -1,6 +1,5 @@
 use super::*;
 
-use crate::utils::prim::Prim;
 use crate::utils::unify::*;
 
 #[derive(Clone, Debug)]
@@ -77,74 +76,43 @@ impl Elaborator {
     }
 
     fn elab_prim(&mut self, prim: Prim, args: &[AtomVal]) {
-        let args: Vec<_> = args
+        let pars: Vec<TermType> = prim
+            .get_typ()
+            .into_iter()
+            .map(|typ| Term::Lit(typ))
+            .collect();
+
+        let args: Vec<TermType> = args
             .iter()
             .map(|arg| self.elab_term(&arg.to_term()))
             .collect();
 
-        match prim {
-            Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem => {
-                self.unifier
-                    .unify_many(
-                        &[
-                            TermType::Lit(LitType::TyInt),
-                            TermType::Lit(LitType::TyInt),
-                            TermType::Lit(LitType::TyInt),
-                        ],
-                        &args,
-                    )
-                    .unwrap();
-            }
-            Prim::INeg => {
-                self.unifier
-                    .unify_many(
-                        &[
-                            TermType::Lit(LitType::TyInt),
-                            TermType::Lit(LitType::TyInt),
-                        ],
-                        &args,
-                    )
-                    .unwrap();
-            }
-            Prim::ICmp(_) => {
-                self.unifier
-                    .unify_many(
-                        &[
-                            TermType::Lit(LitType::TyInt),
-                            TermType::Lit(LitType::TyInt),
-                            TermType::Lit(LitType::TyBool),
-                        ],
-                        &args,
-                    )
-                    .unwrap();
-            }
-            Prim::BAnd | Prim::BOr => {
-                self.unifier
-                    .unify_many(
-                        &[
-                            TermType::Lit(LitType::TyBool),
-                            TermType::Lit(LitType::TyBool),
-                            TermType::Lit(LitType::TyBool),
-                        ],
-                        &args,
-                    )
-                    .unwrap();
-            }
-            Prim::BNot => {
-                self.unifier
-                    .unify_many(
-                        &[
-                            TermType::Lit(LitType::TyBool),
-                            TermType::Lit(LitType::TyBool),
-                        ],
-                        &args,
-                    )
-                    .unwrap();
-            }
-        }
+        self.unifier.unify_many(&pars, &args).unwrap();
     }
 
-    fn elab_goal(&mut self, goal: &mut Goal) {
+    fn elab_call(&mut self, pred: Ident, polys: &Vec<TermType>, args: &Vec<TermVal>) {
+        let args: Vec<_> = args.iter().map(|arg| self.elab_term(arg)).collect();
+
+        // instantiate predicate type scheme
+        let pred_scm = &self.pred_ctx[&pred];
+
+        let inst_map: HashMap<Ident, TermType> = pred_scm
+            .polys
+            .iter()
+            .cloned()
+            .zip(polys.iter().cloned())
+            .collect();
+
+        let inst_pars: Vec<_> = pred_scm
+            .pars
+            .iter()
+            .map(|par| par.substitute(&inst_map))
+            .collect();
+
+        self.unifier.unify_many(&inst_pars, &args).unwrap();
+    }
+
+    fn elab_goal(&mut self, goal: &Goal) {
         match goal {
             Goal::Lit(_) => {}
             Goal::Eq(lhs, rhs) => {
@@ -166,32 +134,7 @@ impl Elaborator {
                 }
             }
             Goal::Call(pred, polys, args) => {
-                let args: Vec<_> = args.iter().map(|arg| self.elab_term(arg)).collect();
-
-                // instantiate predicate type scheme
-                let pred_scm = &self.pred_ctx[pred];
-
-                let inst_map: HashMap<Ident, TermType> = pred_scm
-                    .polys
-                    .iter()
-                    .map(|poly| (*poly, Term::Var(poly.uniquify())))
-                    .collect();
-
-                let inst_polys: Vec<_> = pred_scm
-                    .polys
-                    .iter()
-                    .map(|poly| inst_map[poly].clone())
-                    .collect();
-
-                let inst_pars: Vec<_> = pred_scm
-                    .pars
-                    .iter()
-                    .map(|par| par.substitute(&inst_map))
-                    .collect();
-
-                *polys = inst_polys;
-
-                self.unifier.unify_many(&inst_pars, &args).unwrap();
+                self.elab_call(*pred, polys, args);
             }
         }
     }

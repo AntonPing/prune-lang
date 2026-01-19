@@ -4,12 +4,16 @@ use super::optimize;
 use super::*;
 
 pub struct Translater {
+    polys_map: HashMap<Ident, Vec<Ident>>,
     vars: Vec<(Ident, TermType)>,
 }
 
 impl Translater {
     fn new() -> Translater {
-        Translater { vars: Vec::new() }
+        Translater {
+            polys_map: HashMap::new(),
+            vars: Vec::new(),
+        }
     }
 
     fn fresh_var(&mut self) -> Ident {
@@ -121,7 +125,11 @@ impl Translater {
                 let (mut terms, mut goals): (Vec<TermVal>, Vec<Goal>) =
                     args.iter().map(|arg| self.translate_expr(arg)).unzip();
                 terms.push(Term::Var(x));
-                goals.push(Goal::Call(func.ident, Vec::new(), terms));
+                let polys = self.polys_map[&func.ident]
+                    .iter()
+                    .map(|poly| Term::Var(poly.uniquify()))
+                    .collect();
+                goals.push(Goal::Call(func.ident, polys, terms));
                 (Term::Var(x), Goal::And(goals))
             }
             ast::Expr::Ifte {
@@ -319,6 +327,14 @@ pub fn logic_translation(prog: &ast::Program) -> Program {
     }
 
     let mut pass = Translater::new();
+
+    for func in prog.funcs.iter() {
+        pass.polys_map.insert(
+            func.name.ident,
+            func.polys.iter().map(|func| func.ident).collect(),
+        );
+    }
+
     let mut preds = HashMap::new();
     for func in prog.funcs.iter() {
         let res = pass.translate_func(func);
