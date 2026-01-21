@@ -95,7 +95,7 @@ impl<'arg> Pipeline<'arg> {
     pub fn compile_pass(&mut self, prog: &syntax::ast::Program) -> logic::ast::Program {
         let mut prog = logic::compile::compile_pass(prog);
 
-        logic::elab::elab_pass(&mut prog);
+        logic::elaborate::elaborate_pass(&mut prog);
 
         prog
     }

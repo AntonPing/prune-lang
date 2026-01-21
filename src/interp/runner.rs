@@ -400,7 +400,7 @@ query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=100)
     assert!(errs.is_empty());
 
     let mut prog = crate::logic::compile::compile_pass(&prog);
-    crate::logic::elab::elab_pass(&mut prog);
+    crate::logic::elaborate::elaborate_pass(&mut prog);
 
     // println!("{:#?}", prog);
 

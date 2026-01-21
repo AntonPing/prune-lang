@@ -10,7 +10,7 @@ use ast::*;
 
 pub mod ast;
 pub mod compile;
-pub mod elab;
+pub mod elaborate;
 pub mod normalize;
 pub mod optimize;
-pub mod transform;
+pub mod translate;

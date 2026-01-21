@@ -41,7 +41,7 @@ impl Elaborator {
         }
     }
 
-    fn scan_data_ty_scm(&mut self, data_decl: &DataDecl) {
+    fn visit_data_ty_scm(&mut self, data_decl: &DataDecl) {
         for poly in data_decl.polys.iter() {
             self.unifier.fresh(*poly);
         }
@@ -51,7 +51,7 @@ impl Elaborator {
         self.data_ctx.insert(data_decl.name, data_scm);
     }
 
-    fn scan_cons_ty_scm(&mut self, data_decl: &DataDecl) {
+    fn visit_cons_ty_scm(&mut self, data_decl: &DataDecl) {
         let res = TermType::Cons(
             OptCons::Some(data_decl.name),
             data_decl
@@ -71,7 +71,7 @@ impl Elaborator {
         }
     }
 
-    fn scan_pred_ty_scm(&mut self, pred_decl: &PredDecl) {
+    fn visit_pred_ty_scm(&mut self, pred_decl: &PredDecl) {
         for poly in pred_decl.polys.iter() {
             self.unifier.fresh(*poly);
         }
@@ -88,12 +88,12 @@ impl Elaborator {
         self.pred_ctx.insert(pred_decl.name, pred_scm);
     }
 
-    fn elab_term(&mut self, term: &TermVal) -> TermType {
+    fn visit_term(&mut self, term: &TermVal) -> TermType {
         match term {
             Term::Var(var) => self.val_ctx[var].clone(),
             Term::Lit(lit) => TermType::Lit(lit.get_typ()),
             Term::Cons(cons, flds) => {
-                let flds: Vec<_> = flds.iter().map(|fld| self.elab_term(fld)).collect();
+                let flds: Vec<_> = flds.iter().map(|fld| self.visit_term(fld)).collect();
                 if let OptCons::Some(cons) = cons {
                     // instantiate constructor type scheme
                     let cons_scm = &self.cons_ctx[cons];
@@ -122,7 +122,7 @@ impl Elaborator {
         }
     }
 
-    fn elab_prim(&mut self, prim: Prim, args: &[AtomVal]) {
+    fn visit_prim(&mut self, prim: Prim, args: &[AtomVal]) {
         let pars: Vec<TermType> = prim
             .get_typ()
             .into_iter()
@@ -131,14 +131,14 @@ impl Elaborator {
 
         let args: Vec<TermType> = args
             .iter()
-            .map(|arg| self.elab_term(&arg.to_term()))
+            .map(|arg| self.visit_term(&arg.to_term()))
             .collect();
 
         self.unifier.unify_many(&pars, &args).unwrap();
     }
 
-    fn elab_call(&mut self, pred: Ident, polys: &Vec<TermType>, args: &Vec<TermVal>) {
-        let args: Vec<_> = args.iter().map(|arg| self.elab_term(arg)).collect();
+    fn visit_call(&mut self, pred: Ident, polys: &Vec<TermType>, args: &Vec<TermVal>) {
+        let args: Vec<_> = args.iter().map(|arg| self.visit_term(arg)).collect();
 
         // instantiate predicate type scheme
         let pred_scm = &self.pred_ctx[&pred];
@@ -159,41 +159,41 @@ impl Elaborator {
         self.unifier.unify_many(&inst_pars, &args).unwrap();
     }
 
-    fn elab_rule(&mut self, rule: &Rule) {
+    fn visit_rule(&mut self, rule: &Rule) {
         for (var, typ) in rule.vars.iter() {
             self.val_ctx.insert(*var, typ.clone());
         }
 
         for term in rule.head.iter() {
-            self.elab_term(term);
+            self.visit_term(term);
         }
 
         for (pred, polys, args) in rule.calls.iter() {
-            self.elab_call(*pred, polys, args);
+            self.visit_call(*pred, polys, args);
         }
 
         for (prim, args) in rule.prims.iter() {
-            self.elab_prim(*prim, args);
+            self.visit_prim(*prim, args);
         }
     }
 
-    fn elab_pred_decl(&mut self, pred_decl: &mut PredDecl) {
+    fn visit_pred_decl(&mut self, pred_decl: &mut PredDecl) {
         for (par, typ) in pred_decl.pars.iter() {
             self.val_ctx.insert(*par, typ.clone());
         }
 
         for rule in pred_decl.rules.iter() {
-            self.elab_rule(rule);
+            self.visit_rule(rule);
         }
     }
 
-    fn merge_pred_decl(&self, pred_decl: &mut PredDecl) {
+    fn elaborate_pred_decl(&self, pred_decl: &mut PredDecl) {
         for rule in pred_decl.rules.iter_mut() {
-            self.merge_rule(rule);
+            self.elaborate_rule(rule);
         }
     }
 
-    fn merge_rule(&self, rule: &mut Rule) {
+    fn elaborate_rule(&self, rule: &mut Rule) {
         for (_var, typ) in rule.vars.iter_mut() {
             *typ = self.unifier.merge(typ);
         }
@@ -205,37 +205,37 @@ impl Elaborator {
         }
     }
 
-    fn elab_prog(&mut self, prog: &mut Program) {
+    fn visit_prog(&mut self, prog: &mut Program) {
         for (_, data_decl) in prog.datas.iter() {
-            self.scan_data_ty_scm(data_decl);
+            self.visit_data_ty_scm(data_decl);
         }
 
         for (_, data_decl) in prog.datas.iter() {
-            self.scan_cons_ty_scm(data_decl);
+            self.visit_cons_ty_scm(data_decl);
         }
 
         for (_, pred_decl) in prog.preds.iter() {
-            self.scan_pred_ty_scm(pred_decl);
+            self.visit_pred_ty_scm(pred_decl);
         }
 
         for (_, pred_decl) in prog.preds.iter_mut() {
-            self.elab_pred_decl(pred_decl);
+            self.visit_pred_decl(pred_decl);
         }
 
         for (_, pred_decl) in prog.preds.iter_mut() {
-            self.merge_pred_decl(pred_decl);
+            self.elaborate_pred_decl(pred_decl);
         }
     }
 }
 
-pub fn elab_pass(prog: &mut Program) {
+pub fn elaborate_pass(prog: &mut Program) {
     let mut pass = Elaborator::new();
-    pass.elab_prog(prog);
+    pass.visit_prog(prog);
 }
 
 #[test]
 #[ignore = "just to see result"]
-fn elab_pass_test() {
+fn elaborate_pass_test() {
     let src: &'static str = r#"
 datatype List[a] where
 | Cons(a, List[a])
@@ -263,7 +263,7 @@ end
 
     println!("{:#?}", prog);
 
-    super::elab::elab_pass(&mut prog);
+    super::elaborate::elaborate_pass(&mut prog);
 
     println!("{:#?}", prog);
 }

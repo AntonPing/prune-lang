@@ -61,7 +61,7 @@ pub fn compile_pass(prog: &ast::Program) -> Program {
         .map(|data| (data.name.ident, compile_data_decl(data)))
         .collect();
 
-    let preds: HashMap<Ident, PredDecl> = transform::logic_translation(&prog.funcs)
+    let preds: HashMap<Ident, PredDecl> = translate::logic_translate(&prog.funcs)
         .iter()
         .map(|(pred, pred_decl)| {
             let pred_decl = PredDecl {

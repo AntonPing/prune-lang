@@ -1,6 +1,5 @@
 use crate::syntax::ast;
 
-use super::optimize;
 use super::*;
 
 pub struct Translater {
@@ -60,7 +59,7 @@ impl Translater {
             polys,
             pars,
             vars: self.vars.clone(),
-            goal: optimize::goal_optimize(goal),
+            goal: super::optimize::goal_optimize(goal),
         }
     }
 
@@ -285,7 +284,7 @@ impl Translater {
     }
 }
 
-pub(super) fn logic_translation(funcs: &Vec<ast::FuncDecl>) -> HashMap<Ident, GoalPredDecl> {
+pub(super) fn logic_translate(funcs: &Vec<ast::FuncDecl>) -> HashMap<Ident, GoalPredDecl> {
     let mut pass = Translater::new();
 
     for func in funcs.iter() {
@@ -331,7 +330,7 @@ end
     let (prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());
 
-    let preds: HashMap<Ident, GoalPredDecl> = transform::logic_translation(&prog.funcs);
+    let preds: HashMap<Ident, GoalPredDecl> = translate::logic_translate(&prog.funcs);
 
     println!("{:#?}", preds);
 }

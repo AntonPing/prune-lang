@@ -161,7 +161,7 @@ end
     let (prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());
 
-    let preds: HashMap<Ident, GoalPredDecl> = transform::logic_translation(&prog.funcs);
+    let preds: HashMap<Ident, GoalPredDecl> = translate::logic_translate(&prog.funcs);
 
     println!("{:#?}", preds);
 
