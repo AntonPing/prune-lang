@@ -1,6 +1,6 @@
 use super::*;
 
-pub fn goal_flatten(goal: Goal) -> Goal {
+fn goal_flatten(goal: Goal) -> Goal {
     match goal {
         Goal::And(goals) => {
             let mut vec = Vec::new();
@@ -40,10 +40,12 @@ pub fn goal_flatten(goal: Goal) -> Goal {
     }
 }
 
-pub fn goal_reorder(goal: Goal) -> Goal {
+#[allow(unused)]
+fn goal_reorder(goal: Goal) -> Goal {
     goal_reorder_help(goal).0
 }
 
+#[allow(unused)]
 fn goal_reorder_help(goal: Goal) -> (Goal, usize) {
     match goal {
         Goal::Lit(_) => (goal, 0),
@@ -71,7 +73,7 @@ fn goal_reorder_help(goal: Goal) -> (Goal, usize) {
     }
 }
 
-pub fn goal_optimize(goal: Goal) -> Goal {
+pub(super) fn goal_optimize(goal: Goal) -> Goal {
     // let goal = goal_flatten(goal);
     // goal_reorder(goal)
     // goal

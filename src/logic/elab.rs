@@ -41,6 +41,53 @@ impl Elaborator {
         }
     }
 
+    fn scan_data_ty_scm(&mut self, data_decl: &DataDecl) {
+        for poly in data_decl.polys.iter() {
+            self.unifier.fresh(*poly);
+        }
+        let data_scm = DataTyScm {
+            polys: data_decl.polys.clone(),
+        };
+        self.data_ctx.insert(data_decl.name, data_scm);
+    }
+
+    fn scan_cons_ty_scm(&mut self, data_decl: &DataDecl) {
+        let res = TermType::Cons(
+            OptCons::Some(data_decl.name),
+            data_decl
+                .polys
+                .iter()
+                .map(|poly| TermType::Var(*poly))
+                .collect(),
+        );
+
+        for cons in &data_decl.cons {
+            let cons_typ = ConsTyScm {
+                polys: data_decl.polys.clone(),
+                flds: cons.flds.clone(),
+                res: res.clone(),
+            };
+            self.cons_ctx.insert(cons.name, cons_typ);
+        }
+    }
+
+    fn scan_pred_ty_scm(&mut self, pred_decl: &PredDecl) {
+        for poly in pred_decl.polys.iter() {
+            self.unifier.fresh(*poly);
+        }
+
+        let polys = pred_decl.polys.clone();
+
+        let pars = pred_decl
+            .pars
+            .iter()
+            .map(|(_par, typ)| typ.clone())
+            .collect();
+
+        let pred_scm = PredTyScm { polys, pars };
+        self.pred_ctx.insert(pred_decl.name, pred_scm);
+    }
+
     fn elab_term(&mut self, term: &TermVal) -> TermType {
         match term {
             Term::Var(var) => self.val_ctx[var].clone(),
@@ -112,117 +159,48 @@ impl Elaborator {
         self.unifier.unify_many(&inst_pars, &args).unwrap();
     }
 
-    fn elab_goal(&mut self, goal: &Goal) {
-        match goal {
-            Goal::Lit(_) => {}
-            Goal::Eq(lhs, rhs) => {
-                let lhs = self.elab_term(lhs);
-                let rhs = self.elab_term(rhs);
-                self.unifier.unify(&lhs, &rhs).unwrap();
-            }
-            Goal::Prim(prim, args) => {
-                self.elab_prim(*prim, args);
-            }
-            Goal::And(goals) => {
-                for goal in goals {
-                    self.elab_goal(goal);
-                }
-            }
-            Goal::Or(goals) => {
-                for goal in goals {
-                    self.elab_goal(goal);
-                }
-            }
-            Goal::Call(pred, polys, args) => {
-                self.elab_call(*pred, polys, args);
-            }
-        }
-    }
-
-    fn scan_data_ty_scm(&mut self, data_decl: &DataDecl) {
-        for poly in data_decl.polys.iter() {
-            self.unifier.fresh(*poly);
-        }
-        let data_scm = DataTyScm {
-            polys: data_decl.polys.clone(),
-        };
-        self.data_ctx.insert(data_decl.name, data_scm);
-    }
-
-    fn scan_cons_ty_scm(&mut self, data_decl: &DataDecl) {
-        let res = TermType::Cons(
-            OptCons::Some(data_decl.name),
-            data_decl
-                .polys
-                .iter()
-                .map(|poly| TermType::Var(*poly))
-                .collect(),
-        );
-
-        for cons in &data_decl.cons {
-            let cons_typ = ConsTyScm {
-                polys: data_decl.polys.clone(),
-                flds: cons.flds.clone(),
-                res: res.clone(),
-            };
-            self.cons_ctx.insert(cons.name, cons_typ);
-        }
-    }
-
-    fn scan_pred_ty_scm(&mut self, pred_decl: &PredDecl) {
-        for poly in pred_decl.polys.iter() {
-            self.unifier.fresh(*poly);
+    fn elab_rule(&mut self, rule: &Rule) {
+        for (var, typ) in rule.vars.iter() {
+            self.val_ctx.insert(*var, typ.clone());
         }
 
-        let polys = pred_decl.polys.clone();
+        for term in rule.head.iter() {
+            self.elab_term(term);
+        }
 
-        let pars = pred_decl
-            .pars
-            .iter()
-            .map(|(_par, typ)| typ.clone())
-            .collect();
+        for (pred, polys, args) in rule.calls.iter() {
+            self.elab_call(*pred, polys, args);
+        }
 
-        let pred_scm = PredTyScm { polys, pars };
-        self.pred_ctx.insert(pred_decl.name, pred_scm);
+        for (prim, args) in rule.prims.iter() {
+            self.elab_prim(*prim, args);
+        }
     }
 
     fn elab_pred_decl(&mut self, pred_decl: &mut PredDecl) {
         for (par, typ) in pred_decl.pars.iter() {
             self.val_ctx.insert(*par, typ.clone());
         }
-        for (var, typ) in pred_decl.vars.iter() {
-            self.val_ctx.insert(*var, typ.clone());
+
+        for rule in pred_decl.rules.iter() {
+            self.elab_rule(rule);
         }
-        self.elab_goal(&mut pred_decl.goal);
     }
 
     fn merge_pred_decl(&self, pred_decl: &mut PredDecl) {
-        for (_var, typ) in pred_decl.vars.iter_mut() {
+        for rule in pred_decl.rules.iter_mut() {
+            self.merge_rule(rule);
+        }
+    }
+
+    fn merge_rule(&self, rule: &mut Rule) {
+        for (_var, typ) in rule.vars.iter_mut() {
             *typ = self.unifier.merge(typ);
         }
 
-        self.merge_goal(&mut pred_decl.goal);
-    }
-
-    fn merge_goal(&self, goal: &mut Goal) {
-        match goal {
-            Goal::Lit(_) => {}
-            Goal::Eq(_, _) => {}
-            Goal::Prim(_, _) => {}
-            Goal::And(goals) => {
-                for goal in goals {
-                    self.merge_goal(goal);
-                }
-            }
-            Goal::Or(goals) => {
-                for goal in goals {
-                    self.merge_goal(goal);
-                }
-            }
-            Goal::Call(_pred, polys, _args) => {
-                for poly in polys {
-                    *poly = self.unifier.merge(poly);
-                }
+        for (_pred, polys, _args) in rule.calls.iter_mut() {
+            for poly in polys {
+                *poly = self.unifier.merge(poly);
             }
         }
     }
@@ -257,7 +235,7 @@ pub fn elab_pass(prog: &mut Program) {
 
 #[test]
 #[ignore = "just to see result"]
-fn prog_to_pred_test() {
+fn elab_pass_test() {
     let src: &'static str = r#"
 datatype List[a] where
 | Cons(a, List[a])
@@ -281,9 +259,11 @@ end
     let (prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());
 
-    let mut prog = super::transform::logic_translation(&prog);
+    let mut prog = super::compile::compile_pass(&prog);
+
     println!("{:#?}", prog);
 
-    elab_pass(&mut prog);
+    super::elab::elab_pass(&mut prog);
+
     println!("{:#?}", prog);
 }

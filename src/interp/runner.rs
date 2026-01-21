@@ -399,9 +399,9 @@ query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=100)
     let errs = crate::tych::check::check_pass(&prog);
     assert!(errs.is_empty());
 
-    let mut prog = crate::logic::transform::logic_translation(&prog);
+    let mut prog = crate::logic::compile::compile_pass(&prog);
     crate::logic::elab::elab_pass(&mut prog);
-    crate::logic::normalize::normalize_pass(&mut prog);
+
     // println!("{:#?}", prog);
 
     let mut pipe_io = PipeIO::empty();

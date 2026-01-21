@@ -100,7 +100,7 @@ fn occurs_in_body<V: Copy + Eq>(rule: &Rule<V>, var: V) -> bool {
     false
 }
 
-fn normalize_pred(pred: &mut PredDecl) {
+pub(super) fn normalize_pred(pred: &GoalPredDecl) -> Vec<Rule> {
     let head = pred
         .pars
         .iter()
@@ -116,9 +116,8 @@ fn normalize_pred(pred: &mut PredDecl) {
         },
         eqs: Vec::new(),
     };
-    let brchs = normalize_goal(&pred.goal, init_brch);
 
-    let mut rules: Vec<Rule> = brchs
+    let mut rules: Vec<Rule> = normalize_goal(&pred.goal, init_brch)
         .into_iter()
         .flat_map(|brch| solve_branch(brch))
         .collect();
@@ -132,18 +131,12 @@ fn normalize_pred(pred: &mut PredDecl) {
             .collect();
     }
 
-    pred.rules = rules;
-}
-
-pub fn normalize_pass(prog: &mut Program) {
-    for (_, pred) in prog.preds.iter_mut() {
-        normalize_pred(pred);
-    }
+    rules
 }
 
 #[test]
-// #[ignore = "just to see result"]
-fn normalize_pass_test() {
+#[ignore = "just to see result"]
+fn normalize_pred_test() {
     let src: &'static str = r#"
 datatype List[a] where
 | Cons(a, List[a])
@@ -164,15 +157,26 @@ begin
     end
 end
 "#;
+
     let (prog, errs) = crate::syntax::parser::parse_program(&src);
     assert!(errs.is_empty());
 
-    let mut prog = super::transform::logic_translation(&prog);
-    println!("{:#?}", prog);
+    let preds: HashMap<Ident, GoalPredDecl> = transform::logic_translation(&prog.funcs);
 
-    crate::logic::elab::elab_pass(&mut prog);
-    println!("{:#?}", prog);
+    println!("{:#?}", preds);
 
-    normalize_pass(&mut prog);
-    println!("{:#?}", prog);
+    let preds: HashMap<Ident, PredDecl> = preds
+        .iter()
+        .map(|(pred, pred_decl)| {
+            let pred_decl = PredDecl {
+                name: *pred,
+                polys: pred_decl.polys.clone(),
+                pars: pred_decl.pars.clone(),
+                rules: super::normalize::normalize_pred(pred_decl),
+            };
+            (*pred, pred_decl)
+        })
+        .collect();
+
+    println!("{:#?}", preds);
 }

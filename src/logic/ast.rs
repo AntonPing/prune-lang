@@ -8,16 +8,6 @@ pub struct Program {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Goal {
-    Lit(bool),
-    Eq(TermVal, TermVal),
-    Prim(Prim, Vec<AtomVal>),
-    And(Vec<Goal>),
-    Or(Vec<Goal>),
-    Call(Ident, Vec<TermType>, Vec<TermVal>),
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct Rule<V = Ident> {
     pub vars: Vec<(V, TermType)>,
     pub head: Vec<TermVal<V>>,
@@ -80,8 +70,6 @@ pub struct PredDecl {
     pub name: Ident,
     pub polys: Vec<Ident>,
     pub pars: Vec<(Ident, TermType)>,
-    pub vars: Vec<(Ident, TermType)>,
-    pub goal: Goal,
     pub rules: Vec<Rule>,
 }
 
@@ -97,4 +85,24 @@ pub enum QueryParam {
     DepthLimit(usize),
     AnswerLimit(usize),
     AnswerPause(bool),
+}
+
+// `Goal` and `GoalPredDecl` are temporary data structure used inside the compiling pass
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum Goal {
+    Lit(bool),
+    Eq(TermVal, TermVal),
+    Prim(Prim, Vec<AtomVal>),
+    And(Vec<Goal>),
+    Or(Vec<Goal>),
+    Call(Ident, Vec<TermType>, Vec<TermVal>),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct GoalPredDecl {
+    pub name: Ident,
+    pub polys: Vec<Ident>,
+    pub pars: Vec<(Ident, TermType)>,
+    pub vars: Vec<(Ident, TermType)>,
+    pub goal: Goal,
 }
