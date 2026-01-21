@@ -10,7 +10,12 @@ struct RuleWithEqs {
 
 fn normalize_goal(goal: &Goal, mut brch: RuleWithEqs) -> Vec<RuleWithEqs> {
     match goal {
-        Goal::Lit(_) => panic!("no literal goal after optimization!"),
+        Goal::Lit(true) => {
+            vec![brch]
+        }
+        Goal::Lit(false) => {
+            vec![]
+        }
         Goal::Eq(lhs, rhs) => {
             brch.eqs.push((lhs.clone(), rhs.clone()));
             vec![brch]

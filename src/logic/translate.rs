@@ -59,7 +59,7 @@ impl Translater {
             polys,
             pars,
             vars: self.vars.clone(),
-            goal: super::optimize::goal_optimize(goal),
+            goal,
         }
     }
 
