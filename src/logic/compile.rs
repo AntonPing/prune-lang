@@ -114,4 +114,6 @@ end
     let prog = super::compile::compile_pass(&prog);
 
     println!("{:#?}", prog);
+
+    println!("{}", prog);
 }
