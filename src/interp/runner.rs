@@ -1,7 +1,8 @@
+use super::config::{RunnerConfig, RunnerStats};
+use super::smt_solver::{SmtBackend, SmtSolver};
+use super::strategy::{CallInfo, ConflitCache};
 use super::*;
 use crate::cli::pipeline::PipeIO;
-use crate::interp::config::{RunnerConfig, RunnerStats};
-use crate::interp::smt_solver::{SmtBackend, SmtSolver};
 use crate::utils::unify::Unifier;
 
 #[derive(Clone, Debug)]
@@ -14,26 +15,87 @@ struct Branch {
 }
 
 impl Branch {
-    fn next_cursor(&mut self) {
+    fn peek(&mut self) -> &PredCall {
+        if self.cursor >= self.calls.len() {
+            self.cursor = 0;
+            for call in self.calls.iter_mut() {
+                call.info.history.clear();
+            }
+        }
+        &self.calls[self.cursor]
+    }
+
+    fn next(&mut self) -> &PredCall {
+        if self.cursor >= self.calls.len() {
+            self.cursor = 0;
+            for call in self.calls.iter_mut() {
+                call.info.history.clear();
+            }
+        }
+
+        let old_cursor = self.cursor;
+        self.cursor += 1;
+
+        if self.cursor >= self.calls.len() {
+            self.cursor = 0;
+            for call in self.calls.iter_mut() {
+                call.info.history.clear();
+            }
+        }
+
+        &self.calls[old_cursor]
+    }
+
+    #[allow(unused)]
+    fn left_biased_strategy(&mut self) -> PredCall {
+        assert!(!self.calls.is_empty());
+        assert_eq!(self.cursor, 0); // cursor always at the left-most side
+        self.calls.remove(self.cursor)
+    }
+
+    #[allow(unused)]
+    fn naive_strategy(&mut self, n: usize) -> PredCall {
         assert!(!self.calls.is_empty());
 
-        if self.cursor >= self.calls.len() {
-            self.cursor = 0;
-            for call in self.calls.iter_mut() {
-                call.history.clear();
-            }
+        while !self.peek().info.history.naive_strategy_pred(n) {
+            self.next();
+        }
+        self.calls.remove(self.cursor)
+    }
+
+    #[allow(unused)]
+    fn struct_recur_strategy(&mut self) -> PredCall {
+        assert!(!self.calls.is_empty());
+
+        let mut pred = self.peek().pred;
+        // the borrow checker is kind of stupid, avoid .clone() when it becomes smarter
+        let mut args = self.peek().args.clone();
+
+        while !self
+            .peek()
+            .info
+            .history
+            .struct_recur_strategy_pred(pred, &args)
+        {
+            self.next();
+            pred = self.peek().pred;
+            args = self.peek().args.clone();
         }
 
-        if !self.calls[self.cursor].naive_strategy_pred(1) {
-            self.cursor += 1;
-        }
+        self.calls.remove(self.cursor)
+    }
 
-        if self.cursor >= self.calls.len() {
-            self.cursor = 0;
-            for call in self.calls.iter_mut() {
-                call.history.clear();
+    #[allow(unused)]
+    fn conflit_driven_strategy(&mut self, cache: &mut ConflitCache) -> PredCall {
+        let mut count = 0;
+        while !cache.lookup(&self.peek().info.path) {
+            self.next();
+            count += 1;
+            if count == self.calls.len() {
+                break;
             }
         }
+        self.calls.remove(self.cursor)
     }
 }
 
@@ -43,34 +105,7 @@ struct PredCall {
     pred: Ident,
     polys: Vec<TermType>,
     args: Vec<TermVal<IdentCtx>>,
-    history: Vec<(Ident, Vec<usize>)>,
-}
-
-impl PredCall {
-    #[allow(dead_code)]
-    fn left_biased_strategy_pred(&self) -> bool {
-        true
-    }
-
-    #[allow(dead_code)]
-    fn naive_strategy_pred(&self, n: usize) -> bool {
-        self.history.len() < n
-    }
-
-    #[allow(dead_code)]
-    fn struct_recur_strategy_pred(&self) -> bool {
-        let args: Vec<usize> = self.args.iter().map(|arg| arg.height()).collect();
-
-        for (pred2, args2) in self.history.iter() {
-            if self.pred == *pred2 {
-                if !args2.iter().zip(args.iter()).all(|(arg2, arg)| arg2 <= arg) {
-                    return false;
-                }
-            }
-        }
-
-        true
-    }
+    info: CallInfo,
 }
 
 pub struct RunnerState<'prog, 'io> {
@@ -80,6 +115,7 @@ pub struct RunnerState<'prog, 'io> {
     stats: RunnerStats,
     ctx_cnt: usize,
     ansr_cnt: usize,
+    cache: ConflitCache,
     stack: Vec<Branch>,
     smt_solver: SmtSolver,
 }
@@ -97,6 +133,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             stats: RunnerStats::new(),
             ctx_cnt: 0,
             ansr_cnt: 0,
+            cache: ConflitCache::new(10),
             stack: Vec::new(),
             smt_solver: SmtSolver::new(backend),
         }
@@ -134,7 +171,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             pred: entry,
             polys: Vec::new(),
             args,
-            history: Vec::new(),
+            info: CallInfo::new(),
         };
 
         let brch = Branch {
@@ -204,15 +241,20 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
     }
 
     fn run_branch_step(&mut self, mut brch: Branch) {
-        brch.next_cursor();
-        let call = brch.calls.remove(brch.cursor);
+        // let call = brch.left_biased_strategy();
+
+        let call = brch.naive_strategy(1);
+
+        // let call = brch.struct_recur_strategy();
+
+        // let call = brch.conflit_driven_strategy(&mut self.cache);
 
         let rules = &self.prog.preds[&call.pred].rules.clone();
 
-        for rule in rules.iter().rev() {
+        for (rule_idx, rule) in rules.iter().enumerate().rev() {
             assert_eq!(rule.head.len(), call.args.len());
 
-            self.emit_branch(&brch, rule, &call);
+            self.emit_branch(&brch, rule_idx, rule, &call);
         }
     }
 
@@ -267,7 +309,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         Ok(())
     }
 
-    fn emit_branch(&mut self, brch: &Branch, rule: &Rule, call: &PredCall) {
+    fn emit_branch(&mut self, brch: &Branch, rule_idx: usize, rule: &Rule, call: &PredCall) {
         assert_eq!(rule.head.len(), call.args.len());
 
         self.stats.step();
@@ -277,6 +319,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         let mut unifier: Unifier<IdentCtx, LitVal, OptCons<Ident>> = Unifier::new();
         for (par, arg) in rule_ctx.head.iter().zip(call.args.iter()) {
             if unifier.unify(par, arg).is_err() {
+                self.cache.update(&call.info.path);
                 return;
             }
         }
@@ -288,44 +331,44 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             new_brch.prims.push((*prim, args.clone()));
         }
 
-        let mut new_history = call.history.clone();
-        new_history.push((
-            call.pred,
-            call.args.iter().map(|arg| arg.height()).collect(),
-        ));
-
-        for (pred, polys, args) in rule_ctx.calls.iter().rev() {
-            let new_call = PredCall {
-                pred: *pred,
-                polys: polys.clone(),
-                args: args.clone(),
-                history: new_history.clone(),
-            };
-
-            new_brch.calls.insert(new_brch.cursor, new_call);
-        }
-
         if self
             .propagate_prims(&mut unifier, &mut new_brch.prims)
             .is_err()
         {
+            self.cache.update(&call.info.path);
             return;
         }
 
-        for (_par, val) in new_brch.answers.iter_mut() {
-            *val = unifier.merge(val);
-        }
+        let mut new_history = call.info.history.clone();
+        new_history.push(
+            call.pred,
+            call.args.iter().map(|arg| arg.height()).collect(),
+        );
 
-        // for (_prim, args) in new_brch.prims.iter_mut() {
-        //     for arg in args.iter_mut() {
-        //         *arg = unifier.merge(&arg.to_term()).to_atom().unwrap();
-        //     }
-        // }
+        for (call_idx, (pred, polys, args)) in rule_ctx.calls.iter().enumerate().rev() {
+            let mut new_path = call.info.path.clone();
+            new_path.push(rule_idx, call_idx);
+
+            let new_call = PredCall {
+                pred: *pred,
+                polys: polys.clone(),
+                args: args.clone(),
+                info: CallInfo {
+                    history: new_history.clone(),
+                    path: new_path,
+                },
+            };
+            new_brch.calls.insert(new_brch.cursor, new_call);
+        }
 
         for call in new_brch.calls.iter_mut() {
             for arg in call.args.iter_mut() {
                 *arg = unifier.merge(&arg);
             }
+        }
+
+        for (_par, val) in new_brch.answers.iter_mut() {
+            *val = unifier.merge(val);
         }
 
         self.stack.push(new_brch);
