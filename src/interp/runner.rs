@@ -16,87 +16,74 @@ struct Branch {
 }
 
 impl Branch {
-    fn peek(&mut self) -> &PredCall {
-        if self.cursor >= self.calls.len() {
-            self.cursor = 0;
-            for call in self.calls.iter_mut() {
-                call.info.history.clear();
-            }
+    fn clear_history(&mut self) {
+        for call in self.calls.iter_mut() {
+            call.info.history.clear();
         }
-        &self.calls[self.cursor]
     }
 
-    fn next(&mut self) -> &PredCall {
-        if self.cursor >= self.calls.len() {
-            self.cursor = 0;
-            for call in self.calls.iter_mut() {
-                call.info.history.clear();
-            }
-        }
-
-        let old_cursor = self.cursor;
-        self.cursor += 1;
-
-        if self.cursor >= self.calls.len() {
-            self.cursor = 0;
-            for call in self.calls.iter_mut() {
-                call.info.history.clear();
-            }
-        }
-
-        &self.calls[old_cursor]
+    #[allow(unused)]
+    fn random_strategy(&mut self) -> PredCall {
+        assert!(!self.calls.is_empty());
+        let idx = rand::random::<u32>().rem_euclid(self.calls.len() as u32);
+        self.calls.remove(idx as usize)
     }
 
     #[allow(unused)]
     fn left_biased_strategy(&mut self) -> PredCall {
         assert!(!self.calls.is_empty());
-        assert_eq!(self.cursor, 0); // cursor always at the left-most side
-        self.calls.remove(self.cursor)
+        self.calls.remove(0)
     }
 
     #[allow(unused)]
     fn naive_strategy(&mut self, n: usize) -> PredCall {
         assert!(!self.calls.is_empty());
 
-        while !self.peek().info.history.naive_strategy_pred(n) {
-            self.next();
+        let idx = self
+            .calls
+            .iter()
+            .position(|call| call.info.history.naive_strategy_pred(n));
+
+        if let Some(idx) = idx {
+            self.calls.remove(idx)
+        } else {
+            self.clear_history();
+            self.naive_strategy(n)
         }
-        self.calls.remove(self.cursor)
     }
 
     #[allow(unused)]
     fn struct_recur_strategy(&mut self) -> PredCall {
         assert!(!self.calls.is_empty());
 
-        let mut pred = self.peek().pred;
-        // the borrow checker is kind of stupid, avoid .clone() when it becomes smarter
-        let mut args = self.peek().args.clone();
+        let idx = self.calls.iter().position(|call| {
+            call.info
+                .history
+                .struct_recur_strategy_pred(call.pred, &call.args)
+        });
 
-        while !self
-            .peek()
-            .info
-            .history
-            .struct_recur_strategy_pred(pred, &args)
-        {
-            self.next();
-            pred = self.peek().pred;
-            args = self.peek().args.clone();
+        if let Some(idx) = idx {
+            self.calls.remove(idx)
+        } else {
+            self.clear_history();
+            self.struct_recur_strategy()
         }
-
-        self.calls.remove(self.cursor)
     }
 
     #[allow(unused)]
     fn conflit_driven_strategy(&mut self, cache: &mut ConflitCache) -> PredCall {
-        let mut count = 0;
-        while !cache.lookup(&self.peek().info.path) {
-            self.next();
-            count += 1;
-            if count == self.calls.len() {
-                break;
-            }
+        assert!(!self.calls.is_empty());
+
+        let idx = self
+            .calls
+            .iter()
+            .position(|call| cache.lookup(&call.info.path));
+
+        if let Some(idx) = idx {
+            self.calls.remove(idx)
+        } else {
+            self.random_strategy()
         }
-        self.calls.remove(self.cursor)
     }
 }
 
@@ -134,7 +121,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             stats: RunnerStats::new(),
             ctx_cnt: 0,
             ansr_cnt: 0,
-            cache: ConflitCache::new(10),
+            cache: ConflitCache::new(5),
             stack: Vec::new(),
             solver: Box::new(SmtLibSolver::new(backend)),
         }
@@ -242,6 +229,8 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
     }
 
     fn run_branch_step(&mut self, mut brch: Branch) {
+        // let call = brch.random_strategy();
+
         // let call = brch.left_biased_strategy();
 
         let call = brch.naive_strategy(1);

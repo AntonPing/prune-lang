@@ -100,11 +100,11 @@ impl History {
 
         for node in self.0.iter() {
             if node.pred == pred {
-                if !node
+                if node
                     .args_size
                     .iter()
                     .zip(args_size.iter())
-                    .all(|(arg2, arg)| arg2 <= arg)
+                    .all(|(arg0, arg)| arg0 <= arg)
                 {
                     return false;
                 }
