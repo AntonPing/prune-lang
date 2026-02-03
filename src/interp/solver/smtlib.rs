@@ -1,26 +1,20 @@
+use super::common::*;
 use super::*;
+
 use easy_smt::{Context, ContextBuilder, SExpr};
 
-use std::collections::HashMap;
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum SmtBackend {
-    Z3,
-    CVC5,
-}
-
-pub struct SmtSolver {
+pub struct SmtLibSolver {
     ctx: Context,
 }
 
-impl SmtSolver {
-    pub fn new(backend: SmtBackend) -> Self {
+impl SmtLibSolver {
+    pub fn new(backend: common::SolverBackend) -> Self {
         let mut ctx_bld = ContextBuilder::new();
         match backend {
-            SmtBackend::Z3 => {
+            common::SolverBackend::Z3 => {
                 ctx_bld.solver("z3").solver_args(["-smt2", "-in", "-v:0"]);
             }
-            SmtBackend::CVC5 => {
+            common::SolverBackend::CVC5 => {
                 ctx_bld
                     .solver("cvc5")
                     .solver_args(["--quiet", "--lang=smt2", "--incremental"]);
@@ -31,10 +25,10 @@ impl SmtSolver {
         let mut ctx = ctx_bld.build().unwrap();
         ctx.set_logic("QF_NIA").unwrap();
         match backend {
-            SmtBackend::Z3 => {
+            common::SolverBackend::Z3 => {
                 ctx.set_option(":timeout", ctx.numeral(1000)).unwrap();
             }
-            SmtBackend::CVC5 => {
+            common::SolverBackend::CVC5 => {
                 ctx.set_option(":tlimit-per", ctx.numeral(1000)).unwrap();
             }
         }
@@ -42,7 +36,7 @@ impl SmtSolver {
         // push an empty context for reset
         ctx.push().unwrap();
 
-        SmtSolver { ctx }
+        SmtLibSolver { ctx }
     }
 
     pub fn check_sat(
@@ -58,7 +52,7 @@ impl SmtSolver {
         self.ctx.pop().unwrap();
         self.ctx.push().unwrap();
 
-        let ty_map: HashMap<IdentCtx, LitType> = self.infer_type(prims);
+        let ty_map: HashMap<IdentCtx, LitType> = infer_type(prims);
         let sexp_map = self.solve_constraints(prims, &ty_map);
 
         let check_res = self.ctx.check().unwrap();
@@ -80,52 +74,6 @@ impl SmtSolver {
         } else {
             None
         }
-    }
-
-    pub fn get_value(
-        &mut self,
-        vars: &[IdentCtx],
-        map: &HashMap<IdentCtx, SExpr>,
-    ) -> HashMap<IdentCtx, LitVal> {
-        let vars_sexp = vars.iter().map(|var| map[var]).collect();
-        let map_sexp = self.ctx.get_value(vars_sexp).unwrap();
-        let map: HashMap<IdentCtx, LitVal> = vars
-            .iter()
-            .cloned()
-            .zip(
-                map_sexp
-                    .iter()
-                    .map(|(_var, val)| self.sexp_to_lit_val(*val).unwrap()),
-            )
-            .collect();
-        map
-    }
-
-    fn infer_type(
-        &mut self,
-        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
-    ) -> HashMap<IdentCtx, LitType> {
-        let mut map = HashMap::new();
-
-        for (prim, args) in prims.iter() {
-            for (arg, typ) in args.iter().zip(prim.get_typ().iter()) {
-                match arg {
-                    Term::Var(var) => {
-                        if let Some(res) = map.get(var) {
-                            assert_eq!(*res, *typ);
-                        } else {
-                            map.insert(*var, *typ);
-                        }
-                    }
-                    Term::Lit(lit) => {
-                        assert_eq!(lit.get_typ(), *typ);
-                    }
-                    Term::Cons(_, _) => unreachable!(),
-                }
-            }
-        }
-
-        map
     }
 
     fn solve_constraints(
@@ -245,5 +193,44 @@ impl SmtSolver {
         // todo: basic type `Char``
 
         None
+    }
+}
+
+impl common::PrimSolver for SmtLibSolver {
+    fn check_sat(
+        &mut self,
+        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
+    ) -> Option<HashMap<IdentCtx, LitVal>> {
+        // fast path for empty solver query
+        if prims.is_empty() {
+            return Some(HashMap::new());
+        }
+
+        // reset solver state
+        self.ctx.pop().unwrap();
+        self.ctx.push().unwrap();
+
+        let ty_map: HashMap<IdentCtx, LitType> = infer_type(prims);
+        let sexp_map = self.solve_constraints(prims, &ty_map);
+
+        let check_res = self.ctx.check().unwrap();
+        if check_res == easy_smt::Response::Sat {
+            let vars: Vec<IdentCtx> = ty_map.iter().map(|(var, _typ)| *var).collect();
+            let res = vars
+                .iter()
+                .cloned()
+                .zip(
+                    self.ctx
+                        .get_value(vars.iter().map(|var| sexp_map[var]).collect())
+                        .unwrap()
+                        .iter()
+                        .map(|(_var, val)| self.sexp_to_lit_val(*val).unwrap()),
+                )
+                .collect();
+
+            Some(res)
+        } else {
+            None
+        }
     }
 }

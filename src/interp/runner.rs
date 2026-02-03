@@ -1,5 +1,6 @@
 use super::config::{RunnerConfig, RunnerStats};
-use super::smt_solver::{SmtBackend, SmtSolver};
+use super::solver::common::*;
+use super::solver::smtlib::SmtLibSolver;
 use super::strategy::{CallInfo, ConflitCache};
 use super::*;
 use crate::cli::pipeline::PipeIO;
@@ -117,14 +118,14 @@ pub struct RunnerState<'prog, 'io> {
     ansr_cnt: usize,
     cache: ConflitCache,
     stack: Vec<Branch>,
-    smt_solver: SmtSolver,
+    solver: Box<dyn PrimSolver>,
 }
 
 impl<'prog, 'io> RunnerState<'prog, 'io> {
     pub fn new(
         prog: &'prog Program,
         pipe: &'io mut PipeIO,
-        backend: SmtBackend,
+        backend: SolverBackend,
     ) -> RunnerState<'prog, 'io> {
         RunnerState {
             prog,
@@ -135,7 +136,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             ansr_cnt: 0,
             cache: ConflitCache::new(10),
             stack: Vec::new(),
-            smt_solver: SmtSolver::new(backend),
+            solver: Box::new(SmtLibSolver::new(backend)),
         }
     }
 
@@ -218,7 +219,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
     fn solve_answer(&mut self, brch: &Branch) {
         let start = std::time::Instant::now();
 
-        if let Some(map) = self.smt_solver.check_sat(&brch.prims) {
+        if let Some(map) = self.solver.check_sat(&brch.prims) {
             let duration = start.elapsed();
 
             writeln!(
@@ -448,7 +449,7 @@ query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=100)
     // println!("{:#?}", prog);
 
     let mut pipe_io = PipeIO::empty();
-    let mut runner = RunnerState::new(&prog, &mut pipe_io, SmtBackend::Z3);
+    let mut runner = RunnerState::new(&prog, &mut pipe_io, SolverBackend::Z3);
     let query = &prog.querys[0];
 
     for param in query.params.iter() {

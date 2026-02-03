@@ -104,10 +104,10 @@ impl<'arg> Pipeline<'arg> {
         let mut res_vec = Vec::new();
 
         let backend = match self.args.backend {
-            args::SmtBackend::Z3Inc => interp::smt_solver::SmtBackend::Z3,
-            args::SmtBackend::Z3Sq => interp::smt_solver::SmtBackend::Z3,
-            args::SmtBackend::CVC5Inc => interp::smt_solver::SmtBackend::CVC5,
-            args::SmtBackend::CVC5Sq => interp::smt_solver::SmtBackend::CVC5,
+            args::SmtBackend::Z3Inc => interp::solver::common::SolverBackend::Z3,
+            args::SmtBackend::Z3Sq => interp::solver::common::SolverBackend::Z3,
+            args::SmtBackend::CVC5Inc => interp::solver::common::SolverBackend::CVC5,
+            args::SmtBackend::CVC5Sq => interp::solver::common::SolverBackend::CVC5,
             args::SmtBackend::NoSmt => todo!(),
         };
 

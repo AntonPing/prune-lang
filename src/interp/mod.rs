@@ -8,5 +8,5 @@ use crate::logic::ast::*;
 pub mod config;
 pub mod progagate;
 pub mod runner;
-pub mod smt_solver;
+pub mod solver;
 pub mod strategy;
