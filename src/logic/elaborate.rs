@@ -123,11 +123,7 @@ impl Elaborator {
     }
 
     fn visit_prim(&mut self, prim: Prim, args: &[AtomVal]) {
-        let pars: Vec<TermType> = prim
-            .get_typ()
-            .into_iter()
-            .map(|typ| Term::Lit(typ))
-            .collect();
+        let pars: Vec<TermType> = prim.get_typ().into_iter().map(Term::Lit).collect();
 
         let args: Vec<TermType> = args
             .iter()
@@ -137,7 +133,7 @@ impl Elaborator {
         self.unifier.unify_many(&pars, &args).unwrap();
     }
 
-    fn visit_call(&mut self, pred: Ident, polys: &Vec<TermType>, args: &Vec<TermVal>) {
+    fn visit_call(&mut self, pred: Ident, polys: &[TermType], args: &[TermVal]) {
         let args: Vec<_> = args.iter().map(|arg| self.visit_term(arg)).collect();
 
         // instantiate predicate type scheme

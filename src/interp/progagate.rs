@@ -9,8 +9,8 @@ pub enum PropagateResult {
     Conflit,
 }
 
-pub fn propagate_prims(prim: Prim, args: &Vec<AtomVal<IdentCtx>>) -> PropagateResult {
-    match (prim, &args[..]) {
+pub fn propagate_prims(prim: Prim, args: &[AtomVal<IdentCtx>]) -> PropagateResult {
+    match (prim, args) {
         (Prim::IAdd, [arg1, arg2, arg3]) => propagate_iadd(arg1, arg2, arg3),
         (Prim::ISub, [arg1, arg2, arg3]) => propagate_isub(arg1, arg2, arg3),
         (Prim::IMul, [arg1, arg2, arg3]) => propagate_imul(arg1, arg2, arg3),

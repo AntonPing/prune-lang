@@ -22,25 +22,6 @@ impl Translater {
         var
     }
 
-    fn translate_type(&self, typ: &ast::Type) -> TermType {
-        match typ {
-            ast::Type::Lit { lit, span: _ } => Term::Lit(*lit),
-            ast::Type::Var { var, span: _ } => Term::Var(var.ident),
-            ast::Type::Cons {
-                cons,
-                flds,
-                span: _,
-            } => {
-                let flds = flds.iter().map(|typ| self.translate_type(typ)).collect();
-                Term::Cons(OptCons::Some(cons.ident), flds)
-            }
-            ast::Type::Tuple { flds, span: _ } => {
-                let flds: Vec<TermType> = flds.iter().map(|typ| self.translate_type(typ)).collect();
-                Term::Cons(OptCons::None, flds)
-            }
-        }
-    }
-
     fn translate_func(&mut self, func: &ast::FuncDecl) -> GoalPredDecl {
         self.vars = Vec::new();
         let (term, goal) = self.translate_expr(&func.body);
@@ -49,10 +30,10 @@ impl Translater {
         let mut pars: Vec<(Ident, TermType)> = func
             .pars
             .iter()
-            .map(|(var, typ)| (var.ident, self.translate_type(typ)))
+            .map(|(var, typ)| (var.ident, translate_type(typ)))
             .collect();
         let res = Ident::fresh(&"res");
-        pars.push((res, self.translate_type(&func.res)));
+        pars.push((res, translate_type(&func.res)));
         let goal = Goal::And(vec![Goal::Eq(Term::Var(res), term), goal]);
         GoalPredDecl {
             name,
@@ -284,7 +265,26 @@ impl Translater {
     }
 }
 
-pub(super) fn logic_translate(funcs: &Vec<ast::FuncDecl>) -> HashMap<Ident, GoalPredDecl> {
+fn translate_type(typ: &ast::Type) -> TermType {
+    match typ {
+        ast::Type::Lit { lit, span: _ } => Term::Lit(*lit),
+        ast::Type::Var { var, span: _ } => Term::Var(var.ident),
+        ast::Type::Cons {
+            cons,
+            flds,
+            span: _,
+        } => {
+            let flds = flds.iter().map(translate_type).collect();
+            Term::Cons(OptCons::Some(cons.ident), flds)
+        }
+        ast::Type::Tuple { flds, span: _ } => {
+            let flds: Vec<TermType> = flds.iter().map(translate_type).collect();
+            Term::Cons(OptCons::None, flds)
+        }
+    }
+}
+
+pub(super) fn logic_translate(funcs: &[ast::FuncDecl]) -> HashMap<Ident, GoalPredDecl> {
     let mut pass = Translater::new();
 
     for func in funcs.iter() {

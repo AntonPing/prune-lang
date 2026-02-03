@@ -3,7 +3,7 @@ use super::*;
 pub trait PrimSolver {
     fn check_sat(
         &mut self,
-        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
+        prims: &[(Prim, Vec<AtomVal<IdentCtx>>)],
     ) -> Option<HashMap<IdentCtx, LitVal>>;
 }
 
@@ -13,7 +13,7 @@ pub enum SolverBackend {
     CVC5,
 }
 
-pub fn infer_type(prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>) -> HashMap<IdentCtx, LitType> {
+pub fn infer_type(prims: &[(Prim, Vec<AtomVal<IdentCtx>>)]) -> HashMap<IdentCtx, LitType> {
     let mut map = HashMap::new();
 
     for (prim, args) in prims.iter() {

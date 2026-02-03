@@ -76,13 +76,11 @@ pub fn compile_pass(prog: &ast::Program) -> Program {
 
     let querys = prog.querys.iter().map(compile_query).collect();
 
-    let prog = Program {
+    Program {
         datas,
         preds,
         querys,
-    };
-
-    prog
+    }
 }
 
 #[test]

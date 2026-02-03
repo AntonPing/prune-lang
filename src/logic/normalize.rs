@@ -53,7 +53,7 @@ fn solve_branch(brch: RuleWithEqs) -> Option<Rule> {
     let mut unifier: Unifier<Ident, LitVal, OptCons<Ident>> = Unifier::new();
 
     for (lhs, rhs) in brch.eqs.iter() {
-        if unifier.unify(&lhs, &rhs).is_err() {
+        if unifier.unify(lhs, rhs).is_err() {
             return None; // unsat branch!
         }
     }
@@ -61,7 +61,7 @@ fn solve_branch(brch: RuleWithEqs) -> Option<Rule> {
     let mut rule = brch.rule;
 
     for term in rule.head.iter_mut() {
-        *term = unifier.merge(&term);
+        *term = unifier.merge(term);
     }
 
     for (_prim, args) in rule.prims.iter_mut() {
@@ -72,7 +72,7 @@ fn solve_branch(brch: RuleWithEqs) -> Option<Rule> {
 
     for (_pred, _polys, args) in rule.calls.iter_mut() {
         for arg in args {
-            *arg = unifier.merge(&arg);
+            *arg = unifier.merge(arg);
         }
     }
 
@@ -105,6 +105,7 @@ fn occurs_in_body<V: Copy + Eq>(rule: &Rule<V>, var: V) -> bool {
     false
 }
 
+#[allow(clippy::manual_retain)]
 pub(super) fn normalize_pred(pred: &GoalPredDecl) -> Vec<Rule> {
     let head = pred
         .pars
@@ -124,14 +125,17 @@ pub(super) fn normalize_pred(pred: &GoalPredDecl) -> Vec<Rule> {
 
     let mut rules: Vec<Rule> = normalize_goal(&pred.goal, init_brch)
         .into_iter()
-        .flat_map(|brch| solve_branch(brch))
+        .flat_map(solve_branch)
         .collect();
 
     for rule in rules.iter_mut() {
+        // use `retain`` when borrow checker becomes smarter
+        // rule.vars.retain(|(var, _typ)| occurs_in_body(rule, *var));
+
         rule.vars = rule
             .vars
             .iter()
-            .filter(|(var, _typ)| occurs_in_body(&rule, *var))
+            .filter(|(var, _typ)| occurs_in_body(rule, *var))
             .cloned()
             .collect();
     }

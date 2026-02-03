@@ -95,19 +95,18 @@ impl History {
         self.0.len() < n
     }
 
-    pub fn struct_recur_strategy_pred(&self, pred: Ident, args: &Vec<TermVal<IdentCtx>>) -> bool {
+    pub fn struct_recur_strategy_pred(&self, pred: Ident, args: &[TermVal<IdentCtx>]) -> bool {
         let args_size: Vec<usize> = args.iter().map(|arg| arg.height()).collect();
 
         for node in self.0.iter() {
-            if node.pred == pred {
-                if node
+            if node.pred == pred
+                && node
                     .args_size
                     .iter()
                     .zip(args_size.iter())
                     .all(|(arg0, arg)| arg0 <= arg)
-                {
-                    return false;
-                }
+            {
+                return false;
             }
         }
 
@@ -141,7 +140,7 @@ impl ConflitCache {
     pub fn new(max_size: usize) -> ConflitCache {
         ConflitCache {
             max_size,
-            cache: std::iter::repeat(Path::new()).take(max_size).collect(),
+            cache: std::iter::repeat_n(Path::new(), max_size).collect(),
             cursor: 0,
         }
     }
@@ -151,9 +150,7 @@ impl ConflitCache {
         // for path in self.cache.iter() {
         //     println!("{}", path);
         // }
-        let res = self.cache.iter().any(|path2| path <= path2);
-        // println!("result: {}", res);
-        res
+        self.cache.iter().any(|path2| path <= path2)
     }
 
     pub fn update(&mut self, path: &Path) {
@@ -161,5 +158,23 @@ impl ConflitCache {
             self.cache[self.cursor] = path.clone();
             self.cursor = (self.cursor + 1) % self.max_size;
         }
+    }
+}
+
+impl Default for CallInfo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Default for History {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Default for Path {
+    fn default() -> Self {
+        Self::new()
     }
 }

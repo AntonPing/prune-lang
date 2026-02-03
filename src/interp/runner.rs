@@ -290,7 +290,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
 
         let filtered_prims: Vec<(Prim, Vec<AtomVal<IdentCtx>>)> = prims
             .iter()
-            .zip(skip_flags.into_iter())
+            .zip(skip_flags)
             .filter_map(|(prim, flag)| if !flag { Some(prim.clone()) } else { None })
             .collect();
 
@@ -353,7 +353,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
 
         for call in new_brch.calls.iter_mut() {
             for arg in call.args.iter_mut() {
-                *arg = unifier.merge(&arg);
+                *arg = unifier.merge(arg);
             }
         }
 

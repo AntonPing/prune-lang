@@ -41,7 +41,7 @@ impl SmtLibSolver {
 
     pub fn check_sat(
         &mut self,
-        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
+        prims: &[(Prim, Vec<AtomVal<IdentCtx>>)],
     ) -> Option<HashMap<IdentCtx, LitVal>> {
         // fast path for empty solver query
         if prims.is_empty() {
@@ -57,7 +57,7 @@ impl SmtLibSolver {
 
         let check_res = self.ctx.check().unwrap();
         if check_res == easy_smt::Response::Sat {
-            let vars: Vec<IdentCtx> = ty_map.iter().map(|(var, _typ)| *var).collect();
+            let vars: Vec<IdentCtx> = ty_map.keys().copied().collect();
             let res = vars
                 .iter()
                 .cloned()
@@ -78,7 +78,7 @@ impl SmtLibSolver {
 
     fn solve_constraints(
         &mut self,
-        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
+        prims: &[(Prim, Vec<AtomVal<IdentCtx>>)],
         ty_map: &HashMap<IdentCtx, LitType>,
     ) -> HashMap<IdentCtx, SExpr> {
         let sexp_map: HashMap<IdentCtx, SExpr> = ty_map
@@ -199,7 +199,7 @@ impl SmtLibSolver {
 impl common::PrimSolver for SmtLibSolver {
     fn check_sat(
         &mut self,
-        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
+        prims: &[(Prim, Vec<AtomVal<IdentCtx>>)],
     ) -> Option<HashMap<IdentCtx, LitVal>> {
         // fast path for empty solver query
         if prims.is_empty() {
@@ -215,7 +215,7 @@ impl common::PrimSolver for SmtLibSolver {
 
         let check_res = self.ctx.check().unwrap();
         if check_res == easy_smt::Response::Sat {
-            let vars: Vec<IdentCtx> = ty_map.iter().map(|(var, _typ)| *var).collect();
+            let vars: Vec<IdentCtx> = ty_map.keys().copied().collect();
             let res = vars
                 .iter()
                 .cloned()
