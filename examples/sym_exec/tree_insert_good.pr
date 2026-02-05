@@ -1,64 +1,64 @@
-datatype Tree where
-| Node(Tree, Int, Tree)
+datatype Tree[a] where
 | Empty
+| Node(Tree[a], a, Tree[a])
 end
 
-function insert(tree: Tree, x: Int) -> Tree
+function insert(tree: Tree[Int], x: Int) -> Tree[Int]
 begin
     match tree with
+    | Empty => Node(Empty, x, Empty)
     | Node(left, y, right) =>
         condition
         | x < y => Node(insert(left, x), y, right)
-        | x > y => Node(insert(left, x), y, right)
+        | x > y => Node(left, y, insert(right, x))
         | x == y => tree
         end
-    | Empty => Node(Empty, x, Empty)
     end
 end
 
-function is_sorted(tree: Tree) -> Bool
+function is_sorted(tree: Tree[Int]) -> Bool
 begin
     match tree with
+    | Empty => true
     | Node(left, x, right) =>
         is_sorted_max(left, x) && is_sorted_min(right, x)
-    | Empty => true
     end
 end
 
-function is_sorted_min(tree: Tree, min: Int)  -> Bool
+function is_sorted_min(tree: Tree[Int], min: Int) -> Bool
 begin
     match tree with
+    | Empty => true
     | Node(left, x, right) =>
         x > min &&
         is_sorted_min_max(left, min, x) && is_sorted_min(right, x)
-    | Empty => true
     end
 end
 
-function is_sorted_max(tree: Tree, max: Int) -> Bool
+function is_sorted_max(tree: Tree[Int], max: Int) -> Bool
 begin
     match tree with
+    | Empty => true
     | Node(left, x, right) =>
         x < max &&
         is_sorted_max(left, x) && is_sorted_min_max(right, x, max)
-    | Empty => true
     end
 end
 
-function is_sorted_min_max(tree: Tree, min: Int, max: Int) -> Bool
+function is_sorted_min_max(tree: Tree[Int], min: Int, max: Int) -> Bool
 begin
     match tree with
+    | Empty => true
     | Node(left, x, right) =>
         x > min && x < max &&
         is_sorted_min_max(left, min, x) && is_sorted_min_max(right, x, max)
-    | Empty => true
     end
 end
 
-function keep_sorted(tree: Tree, x: Int)
+function example(tree: Tree[Int], x: Int)
 begin
     guard is_sorted(tree);
     guard !is_sorted(insert(tree, x));
 end
 
-query keep_sorted(depth_step=5, depth_limit=50, answer_limit=1)
+query example(depth_step=5, depth_limit=25, answer_limit=1)

@@ -1,9 +1,9 @@
-datatype IntList where
-| Cons(Int, IntList)
+datatype List[a] where
 | Nil
+| Cons(a, List[a])
 end
 
-function concat(xs: IntList, ys: IntList) -> IntList
+function concat[a](xs: List[a], ys: List[a]) -> List[a]
 begin
     match xs with
     | Nil => ys
@@ -11,20 +11,15 @@ begin
     end
 end
 
-function rev_nat_list(n: Int) -> IntList
+function rev_nat_list(n: Int) -> List[Int]
 begin
-    if n == 0 then
-        Nil
-    else
-        Cons(n, rev_nat_list(n - 1))
+    if n == 0 then Nil
+    else Cons(n, rev_nat_list(n - 1))
 end
 
-function example(zs: IntList)
+function example(zs: List[Int])
 begin
-    fresh xs, ys;
-    guard xs = rev_nat_list(100);
-    guard ys = rev_nat_list(100);
-    guard concat(xs, ys) = zs;
+    guard concat(rev_nat_list(100), rev_nat_list(100)) = zs;
 end
 
 query example(depth_step=50, depth_limit=1000, answer_limit=1)

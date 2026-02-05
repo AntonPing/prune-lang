@@ -1,52 +1,48 @@
-datatype AVLTree where
-| Node(AVLTree, Int, AVLTree) // node of (left, key, right)
-| Empty // empty tree
+datatype Tree[a] where
+| Empty
+| Node(Tree[a], a, Tree[a])
 end
 
-datatype OptionInt where
-| Some(Int)
+datatype Option[a] where
 | None
+| Some(a)
 end
 
-function insert(tree: AVLTree, x: Int) -> AVLTree
+function insert(tree: Tree[Int], x: Int) -> Tree[Int]
 begin
     match tree with
+    | Empty => Node(Empty, x, Empty)
     | Node(left, y, right) =>
         condition
-        | x < y =>
-            rebalance(Node(insert(left, x), y, right))
-        | x > y =>
-            rebalance(Node(left, y, insert(right, x)))
-        | x == y =>
-            tree
+        | x < y => rebalance(Node(insert(left, x), y, right))
+        | x > y => rebalance(Node(left, y, insert(right, x)))
+        | x == y => tree
         end
-    | Empty => Node(Empty, x, Empty)
     end
 end
 
-function get_height(tree: AVLTree) -> Int
+function get_height[a](tree: Tree[a]) -> Int
 begin
     match tree with
+    | Empty => 0
     | Node(left, _key, right) => 
         let left_height = get_height(left);
         let right_height = get_height(right);
-        if left_height < right_height then
-            right_height + 1
-        else
-            left_height + 1
-    | Empty => 0
+        if left_height < right_height
+        then right_height + 1
+        else left_height + 1
     end
 end
 
-function balance_factor(tree: AVLTree) -> Int
+function balance_factor[a](tree: Tree[a]) -> Int
 begin
     match tree with
-    | Node(left, _key, right) => get_height(left) - get_height(right)
     | Empty => 0
+    | Node(left, _key, right) => get_height(left) - get_height(right)
     end
 end
 
-function rebalance(tree: AVLTree) -> AVLTree
+function rebalance[a](tree: Tree[a]) -> Tree[a]
 begin
     let bf = balance_factor(tree);
     condition
@@ -67,31 +63,34 @@ begin
     end
 end
 
-function rotate_left(tree: AVLTree) -> AVLTree
+function rotate_left[a](tree: Tree[a]) -> Tree[a]
 begin
     let Node(left, key, Node(r_left, r_key, r_right)) = tree;
     Node(Node(left, key, r_left), r_key, r_right)
 end
 
-function rotate_right(tree: AVLTree) -> AVLTree
+function rotate_right[a](tree: Tree[a]) -> Tree[a]
 begin
     let Node(Node(l_left, l_key, l_right), key, right) = tree;
     Node(l_left, l_key, Node(l_right, key, right))
 end
 
-function is_balanced(tree: AVLTree) -> Bool
+function is_balanced[a](tree: Tree[a]) -> Bool
 begin
     match is_balanced_help(tree) with
-    | Some(_) => true 
     | None => false
+    | Some(_) => true 
     end
 end
 
-function is_balanced_help(tree: AVLTree) -> OptionInt
+function is_balanced_help[a](tree: Tree[a]) -> Option[Int]
 begin
     match tree with
+    | Empty => Some(0)
     | Node(left, _, right) => 
         match (is_balanced_help(left), is_balanced_help(right)) with
+        | (None, _) => None
+        | (_, None) => None
         | (Some(left_height), Some(right_height)) =>
             let diff_height = left_height - right_height;
             if diff_height >= -1 && diff_height <= 1 then
@@ -101,53 +100,50 @@ begin
                     Some(left_height + 1)
             else
                 None
-        | (None, _) => None
-        | (_, None) => None
         end
-    | Empty => Some(0)
     end
 end
 
-function is_sorted(tree: AVLTree) -> Bool
+function is_sorted(tree: Tree[Int]) -> Bool
 begin
     match tree with
+    | Empty => true
     | Node(left, x, right) =>
         is_sorted_max(left, x) && is_sorted_min(right, x)
-    | Empty => true
     end
 end
 
-function is_sorted_min(tree: AVLTree, min: Int) -> Bool
+function is_sorted_min(tree: Tree[Int], min: Int) -> Bool
 begin
     match tree with
+    | Empty => true
     | Node(left, x, right) =>
         x > min &&
         is_sorted_min_max(left, min, x) && is_sorted_min(right, x)
-    | Empty => true
     end
 end
 
-function is_sorted_max(tree: AVLTree, max: Int) -> Bool
+function is_sorted_max(tree: Tree[Int], max: Int) -> Bool
 begin
     match tree with
+    | Empty => true
     | Node(left, x, right) =>
         x < max &&
         is_sorted_max(left, x) && is_sorted_min_max(right, x, max)
-    | Empty => true
     end
 end
 
-function is_sorted_min_max(tree: AVLTree, min: Int, max: Int) -> Bool
+function is_sorted_min_max(tree: Tree[Int], min: Int, max: Int) -> Bool
 begin
     match tree with
+    | Empty => true
     | Node(left, x, right) =>
         x > min && x < max &&
         is_sorted_min_max(left, min, x) && is_sorted_min_max(right, x, max)
-    | Empty => true
     end
 end
 
-function keep_sorted_and_balanced(tree: AVLTree, x: Int)
+function example(tree: Tree[Int], x: Int)
 begin
     guard is_sorted(tree);
     guard is_balanced(tree);
@@ -158,4 +154,4 @@ begin
     end
 end
 
-query keep_sorted_and_balanced(depth_step=5, depth_limit=25, answer_limit=1)
+query example(depth_step=5, depth_limit=25, answer_limit=1)

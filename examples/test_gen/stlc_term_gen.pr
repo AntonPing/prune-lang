@@ -24,87 +24,38 @@ begin
     end
 end
 
-function type_eq(ty1: Type, ty2: Type) -> Bool
-begin
-    match ty1 with
-    | TyInt =>
-        match ty2 with
-        | TyInt => true
-        | TyBool => false
-        | TyArr(_, _) => false
-        end
-    | TyBool =>
-        match ty2 with
-        | TyInt => false
-        | TyBool => true
-        | TyArr(_, _) => false
-        end
-    | TyArr(lhs, rhs) =>
-        match ty2 with
-        | TyInt => false
-        | TyBool => false
-        | TyArr(lhs2, rhs2) =>
-            type_eq(lhs, lhs2) && type_eq(rhs, rhs2)
-        end
-    end
+datatype List[a] where
+| Nil
+| Cons(a, List[a])
 end
 
-datatype OptionType where
-| SomeType(Type)
-| NoneType
-end
-
-datatype Context where
-| ConsCtx(Int, Type, Context)
-| NilCtx
-end
-
-function context_lookup(ctx: Context, x: Int) -> OptionType
+function context_lookup(ctx: List[(Int, Type)], x: Int) -> Type
 begin
     match ctx with
-    | ConsCtx(y, ty, tail) =>
-        if x == y then
-            SomeType(ty)
-        else
-            context_lookup(tail, x)
-    | NilCtx => NoneType
+    | Cons((y, ty), tail) =>
+        if x == y then ty else context_lookup(tail, x)
+    | Nil => undefined
     end
 end
 
-function type_infer(ctx: Context, expr: Expr) -> OptionType
+function type_infer(ctx: List[(Int, Type)], expr: Expr) -> Type
 begin
     match expr with
-    | Cst(x) => SomeType(value_type(x))
+    | Cst(x) => value_type(x)
     | Var(x) => context_lookup(ctx, x)
     | Abs(x, ty, e) =>
-        match type_infer(ConsCtx(x, ty, ctx), e) with
-        | SomeType(ty2) => SomeType(TyArr(ty, ty2))
-        | NoneType => NoneType
-        end
+        let ty2 = type_infer(Cons((x, ty), ctx), e);
+        TyArr(ty, ty2)
     | App(e1, e2) =>
-        match type_infer(ctx, e1) with
-        | SomeType(ty1) =>
-            match ty1 with
-            | TyInt => NoneType
-            | TyBool => NoneType
-            | TyArr(lhs, rhs) =>
-                match type_infer(ctx, e2) with
-                | SomeType(ty2) =>
-                    if type_eq(lhs, ty2) then
-                        SomeType(rhs)
-                    else
-                        NoneType
-                | NoneType => NoneType
-                end
-            end
-        | NoneType => NoneType
-        end
+        let TyArr(lhs, rhs) = type_infer(ctx, e1);
+        guard lhs = type_infer(ctx, e2);
+        rhs
     end
 end
 
-function gen_stlc_term(expr: Expr, ty: Type)
+function example(expr: Expr, ty: Type)
 begin
-    guard type_infer(NilCtx, expr) = SomeType(ty);
+    guard type_infer(Nil, expr) = ty;
 end
 
-query gen_stlc_term(depth_step=5, depth_limit=30, answer_limit=100)
+query example(depth_step=5, depth_limit=30, answer_limit=100)

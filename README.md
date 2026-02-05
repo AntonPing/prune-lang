@@ -112,8 +112,7 @@ The result can be interpreted as `x=3, y=4, z=5`, which is correct.
 
 Before running the following example, please make sure that you have external SMT solver (Z3 or CVC5) installed.
 
-This version of the Pythagorean triple problem uses integer arithmetic constraints. [This example](examples/other/pythagorean.pr) is also available in the repository.
-
+This version of the Pythagorean triple problem uses integer arithmetic constraints. [This example](examples/feature/smt_sat.pr) is also available in the repository.
 
 ```
 function pythagorean_triple(a: Int, b: Int, c: Int)

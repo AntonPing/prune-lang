@@ -1,0 +1,9 @@
+function example(a: Int, b: Int, c: Int)
+begin
+    guard a > 0;
+    guard b > 0;
+    guard c > 0;
+    guard a * a * a + b * b * b = c * c * c;
+end
+
+query example(depth_step=1, depth_limit=1, answer_limit=1)

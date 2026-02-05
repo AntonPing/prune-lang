@@ -1,14 +1,14 @@
-datatype IntList where
-| Cons(Int, IntList)
+datatype List[a] where
 | Nil
+| Cons(a, List[a])
 end
 
-function reverse(xs: IntList) -> IntList
+function reverse[a](xs: List[a]) -> List[a]
 begin
     reverse_help(xs, Nil)
 end
 
-function reverse_help(xs: IntList, ys: IntList) -> IntList
+function reverse_help[a](xs: List[a], ys: List[a]) -> List[a]
 begin
     match xs with
     | Nil => ys
@@ -16,19 +16,15 @@ begin
     end
 end
 
-function rev_nat_list(n: Int) -> IntList
+function rev_nat_list(n: Int) -> List[Int]
 begin
-    if n == 0 then
-        Nil
-    else
-        Cons(n, rev_nat_list(n - 1))
+    if n == 0 then Nil
+    else Cons(n, rev_nat_list(n - 1))
 end
 
-function reverse_forward(ys: IntList)
+function example(ys: List[Int])
 begin
-    fresh xs;
-    guard xs = rev_nat_list(100);
-    guard ys = reverse(xs);
+    guard ys = reverse(rev_nat_list(100));
 end
 
-query reverse_forward(depth_step=50, depth_limit=1000, answer_limit=1)
+query example(depth_step=50, depth_limit=1000, answer_limit=1)

@@ -4,50 +4,44 @@ datatype Expr where
 | App(Expr, Expr)
 end
 
-datatype IntList where
-| Cons(Int, IntList)
+datatype List[a] where
 | Nil
+| Cons(a, List[a])
 end
 
-function remove(xs: IntList, x: Int) -> IntList
+function remove(xs: List[Int], x: Int) -> List[Int]
 begin
     match xs with
-    | Cons(head, tail) =>
-        if head == x then
-            remove(tail, x)
-        else
-            Cons(head, remove(tail, x))
     | Nil => Nil
+    | Cons(head, tail) =>
+        if head == x then remove(tail, x)
+        else Cons(head, remove(tail, x))
     end
 end
 
-function reverse_concat(xs: IntList, ys: IntList) -> IntList
+function concat[a](xs: List[a], ys: List[a]) -> List[a]
 begin
-    match ys with
-    | Cons(head, tail) => reverse_concat(Cons(head, xs), tail)
-    | Nil => xs
+    match xs with
+    | Nil => ys
+    | Cons(head, tail) => Cons(head, concat(tail, ys))
     end
 end
 
-function free_vars(expr: Expr) -> IntList
-begin
-    free_vars_help(expr, Nil)
-end
-
-function free_vars_help(expr: Expr, acc: IntList) -> IntList
+function free_vars(expr: Expr) -> List[Int]
 begin
     match expr with
-    | Var(x) => Cons(x, acc)
-    | Abs(x, e) => remove(free_vars_help(e, acc), x)
+    | Var(x) => Cons(x, Nil)
+    | Abs(x, e) => remove(free_vars(e), x)
     | App(e1, e2) => 
-        let vs = free_vars_help(e1, acc);
-        free_vars_help(e2, reverse_concat(acc, vs))
+        let v1 = free_vars(e1);
+        let v2 = free_vars(e2);
+        concat(v1, v2)
     end
 end
 
-function gen_lambda_free(expr: Expr)
+function example(expr: Expr)
 begin
     guard free_vars(expr) = Nil;
 end
 
-query gen_lambda_free(depth_step=5, depth_limit=30, answer_limit=100)
+query example(depth_step=5, depth_limit=30, answer_limit=100)

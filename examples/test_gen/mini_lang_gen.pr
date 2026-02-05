@@ -1,49 +1,17 @@
-datatype Type where
-| TyInt
-| TyBool
-end
-
-function type_eq(ty1: Type, ty2: Type) -> Bool
-begin
-    match ty1 with
-    | TyInt =>
-        match ty2 with
-        | TyInt => true
-        | TyBool => false
-        end
-    | TyBool =>
-        match ty2 with
-        | TyInt => false
-        | TyBool => true
-        end
-    end
-end
-
-datatype OptionType where
-| SomeType(Type)
-| NoneType
-end
-
-datatype Context where
-| ConsCtx(Int, Type, Context)
-| NilCtx
-end
-
-function context_lookup(ctx: Context, x: Int) -> OptionType
-begin
-    match ctx with
-    | ConsCtx(y, ty, tail) =>
-        if x == y then
-            SomeType(ty)
-        else
-            context_lookup(tail, x)
-    | NilCtx => NoneType
-    end
+datatype Expr where
+| Cst(Value)
+| Var(Int)
 end
 
 datatype Value where
 | VInt(Int)
 | VBool(Bool)
+end
+
+datatype Type where
+| TyInt
+| TyBool
+| TyArr(Type, Type)
 end
 
 function value_type(val: Value) -> Type
@@ -54,78 +22,69 @@ begin
     end
 end
 
-datatype Expr where
-| Cst(Value)
-| Var(Int)
+datatype List[a] where
+| Nil
+| Cons(a, List[a])
 end
 
-function well_type_expr(ctx: Context, expr: Expr) -> OptionType
+function context_lookup(ctx: List[(Int, Type)], x: Int) -> Type
+begin
+    match ctx with
+    | Cons((y, ty), tail) =>
+        if x == y then ty else context_lookup(tail, x)
+    | Nil => undefined
+    end
+end
+
+function infer_expr(ctx: List[(Int, Type)], expr: Expr) -> Type
 begin
     match expr with
-    | Cst(val) => SomeType(value_type(val))
+    | Cst(val) => value_type(val)
     | Var(x) => context_lookup(ctx, x)
     end
 end
 
+datatype Stmt where
+| Def(Int, Type)
+| Set(Int, Expr)
+| Ifte(Expr, Stmt, Stmt)
+end
+
 datatype Stmts where
-| Def(Type, Int)
-| Set(Int, Value)
-| Ifte(Expr, Stmts, Stmts)
-| Seq(Stmts, Stmts)
+| Seq(List[Stmt])
 end
 
-datatype OptionCtx where
-| SomeCtx(Context)
-| NoneCtx
-end
-
-function well_type_stmts(ctx: Context, stmt: Stmts) -> OptionCtx
+function infer_stmt(ctx: List[(Int, Type)], stmt: Stmt) -> List[(Int, Type)]
 begin
     match stmt with
-    | Def(ty, x) =>
-        SomeCtx(ConsCtx(x, ty, ctx))
-    | Set(x, val) =>
-        match context_lookup(ctx, x) with
-        | SomeType(ty) =>
-            if type_eq(value_type(val), ty) then
-                SomeCtx(ctx)
-            else
-                NoneCtx
-        | NoneType => NoneCtx
-        end
+    | Def(x, ty) => Cons((x, ty), ctx)
+    | Set(x, expr) =>
+        let ty = context_lookup(ctx, x);
+        guard ty = infer_expr(ctx, expr);
+        ctx
     | Ifte(cond, th_br, el_br) =>
-        match well_type_expr(ctx, cond) with
-        | SomeType(cond_ty) =>
-            if type_eq(cond_ty, TyBool) then
-                match well_type_stmts(ctx, th_br) with
-                | SomeCtx(_ctx_th) =>
-                    match well_type_stmts(ctx, el_br) with
-                    | SomeCtx(_ctx_el) => SomeCtx(ctx)
-                    | NoneCtx => NoneCtx
-                    end
-                | NoneCtx => NoneCtx
-                end
-            else
-                NoneCtx
-        | NoneType => NoneCtx
-        end
-    | Seq(left, right) =>
-        match well_type_stmts(ctx, left) with
-        | SomeCtx(ctx2) => well_type_stmts(ctx2, right) 
-        | NoneCtx => NoneCtx
-        end
+        let cond_ty = infer_expr(ctx, cond);
+        guard cond_ty = TyBool;
+        let _ = infer_stmt(ctx, th_br);
+        let _ = infer_stmt(ctx, el_br);
+        ctx
     end
 end
 
-function well_type_expr_gen(expr: Expr, ty: Type) -> Bool
+function infer_stmts(ctx: List[(Int, Type)], stmts: Stmts) -> List[(Int, Type)]
 begin
-    guard well_type_expr(NilCtx, expr) = SomeType(ty);
-    true
+    match stmts with
+    | Seq(Nil) => ctx
+    | Seq(Cons(stmt, tail)) =>
+        let ctx2 = infer_stmt(ctx, stmt);
+        infer_stmts(ctx2, Seq(tail))
+    end
 end
 
-function well_type_stmts_gen(stmt: Stmts, ctx: Context)
+function example(stmts: Stmts)
 begin
-    guard well_type_stmts(NilCtx, stmt) = SomeCtx(ctx);
+    fresh ctx;
+    guard infer_stmts(Nil, stmts) = ctx;
 end
 
-query well_type_stmts_gen(depth_step=5, depth_limit=30, answer_limit=100)
+query example(depth_step=5, depth_limit=30, answer_limit=100)
