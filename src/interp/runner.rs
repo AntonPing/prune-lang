@@ -2,7 +2,7 @@ use super::config::{RunnerConfig, RunnerStats};
 use super::solver;
 use super::strategy::{CallInfo, ConflitCache};
 use super::*;
-use crate::cli;
+use crate::cli::args;
 use crate::cli::pipeline::PipeIO;
 use crate::utils::unify::Unifier;
 
@@ -106,22 +106,24 @@ pub struct RunnerState<'prog, 'io> {
     cache: ConflitCache,
     stack: Vec<Branch>,
     solver: Box<dyn solver::common::PrimSolver>,
+    heuristic: args::Heuristic,
 }
 
 impl<'prog, 'io> RunnerState<'prog, 'io> {
     pub fn new(
         prog: &'prog Program,
         pipe: &'io mut PipeIO,
-        solver: cli::args::Solver,
+        solver: args::Solver,
+        heuristic: args::Heuristic,
     ) -> RunnerState<'prog, 'io> {
         let solver: Box<dyn solver::common::PrimSolver> = match solver {
-            cli::args::Solver::Z3 => Box::new(super::solver::smtlib::SmtLibSolver::new(
+            args::Solver::Z3 => Box::new(super::solver::smtlib::SmtLibSolver::new(
                 super::solver::smtlib::SolverBackend::Z3,
             )),
-            cli::args::Solver::CVC5 => Box::new(super::solver::smtlib::SmtLibSolver::new(
+            args::Solver::CVC5 => Box::new(super::solver::smtlib::SmtLibSolver::new(
                 super::solver::smtlib::SolverBackend::CVC5,
             )),
-            cli::args::Solver::NoSmt => Box::new(super::solver::no_smt::NoSmtSolver::new()),
+            args::Solver::NoSmt => Box::new(super::solver::no_smt::NoSmtSolver::new()),
         };
 
         RunnerState {
@@ -134,6 +136,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             cache: ConflitCache::new(5),
             stack: Vec::new(),
             solver,
+            heuristic,
         }
     }
 
@@ -239,15 +242,13 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
     }
 
     fn run_branch_step(&mut self, mut brch: Branch) {
-        // let call = brch.random_strategy();
-
-        // let call = brch.left_biased_strategy();
-
-        let call = brch.naive_strategy(1);
-
-        // let call = brch.struct_recur_strategy();
-
-        // let call = brch.conflit_driven_strategy(&mut self.cache);
+        let call = match self.heuristic {
+            args::Heuristic::LeftBiased => brch.left_biased_strategy(),
+            args::Heuristic::Interleave => brch.naive_strategy(1),
+            args::Heuristic::StructRecur => brch.struct_recur_strategy(),
+            args::Heuristic::ConflictDriven => brch.conflit_driven_strategy(&mut self.cache),
+            args::Heuristic::Random => brch.random_strategy(),
+        };
 
         let rules = &self.prog.preds[&call.pred].rules.clone();
 
@@ -448,7 +449,12 @@ query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=100)
     // println!("{:#?}", prog);
 
     let mut pipe_io = PipeIO::empty();
-    let mut runner = RunnerState::new(&prog, &mut pipe_io, cli::args::Solver::Z3);
+    let mut runner = RunnerState::new(
+        &prog,
+        &mut pipe_io,
+        args::Solver::Z3,
+        args::Heuristic::Interleave,
+    );
     let query = &prog.querys[0];
 
     for param in query.params.iter() {

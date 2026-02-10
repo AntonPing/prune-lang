@@ -8,6 +8,15 @@ pub enum Solver {
     NoSmt,
 }
 
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Heuristic {
+    LeftBiased,
+    Interleave,
+    StructRecur,
+    ConflictDriven,
+    Random,
+}
+
 #[derive(Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
 pub struct CliArgs {
@@ -21,6 +30,9 @@ pub struct CliArgs {
 
     #[arg(long, default_value = "no-smt", value_name = "SOLVER")]
     pub solver: Solver,
+
+    #[arg(long, default_value = "interleave", value_name = "HEURISTIC")]
+    pub heuristic: Heuristic,
 
     #[arg(short, long, default_value_t = 10, value_name = "INT")]
     pub verbosity: u8,
@@ -45,6 +57,7 @@ pub fn get_test_cli_args(prog_name: PathBuf) -> CliArgs {
         output: None,
         stat_log: None,
         solver: Solver::Z3,
+        heuristic: Heuristic::Interleave,
         verbosity: 10,
         mute_output: true,
         mute_stat_log: true,
