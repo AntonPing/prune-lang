@@ -3,18 +3,24 @@ use super::*;
 
 use easy_smt::{Context, ContextBuilder, SExpr};
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum SolverBackend {
+    Z3,
+    CVC5,
+}
+
 pub struct SmtLibSolver {
     ctx: Context,
 }
 
 impl SmtLibSolver {
-    pub fn new(backend: common::SolverBackend) -> Self {
+    pub fn new(backend: SolverBackend) -> Self {
         let mut ctx_bld = ContextBuilder::new();
         match backend {
-            common::SolverBackend::Z3 => {
+            SolverBackend::Z3 => {
                 ctx_bld.solver("z3").solver_args(["-smt2", "-in", "-v:0"]);
             }
-            common::SolverBackend::CVC5 => {
+            SolverBackend::CVC5 => {
                 ctx_bld
                     .solver("cvc5")
                     .solver_args(["--quiet", "--lang=smt2", "--incremental"]);
@@ -25,10 +31,10 @@ impl SmtLibSolver {
         let mut ctx = ctx_bld.build().unwrap();
         ctx.set_logic("QF_NIA").unwrap();
         match backend {
-            common::SolverBackend::Z3 => {
+            SolverBackend::Z3 => {
                 ctx.set_option(":timeout", ctx.numeral(1000)).unwrap();
             }
-            common::SolverBackend::CVC5 => {
+            SolverBackend::CVC5 => {
                 ctx.set_option(":tlimit-per", ctx.numeral(1000)).unwrap();
             }
         }

@@ -88,7 +88,7 @@ query pythagorean_triple(depth_step=20, depth_limit=200, answer_limit=1)
 To run this example, save the code as test1.pr and execute:
 
 ```bash
-prune no-smt test1.pr
+prune test1.pr
 ```
 
 Sample output:
@@ -129,8 +129,8 @@ query pythagorean_triple(depth_step=1, depth_limit=1, answer_limit=1)
 Save this code as test2.pr and run:
 
 ```bash
-prune z3-inc test2.pr   # for Z3 solver
-prune cvc5-inc test2.pr # for CVC5 solver
+prune test2.pr --solver z3   # for Z3 solver
+prune test2.pr --solver cvc5 # for CVC5 solver
 ```
 
 Sample output:

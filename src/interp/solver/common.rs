@@ -7,12 +7,6 @@ pub trait PrimSolver {
     ) -> Option<HashMap<IdentCtx, LitVal>>;
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum SolverBackend {
-    Z3,
-    CVC5,
-}
-
 pub fn infer_type(prims: &[(Prim, Vec<AtomVal<IdentCtx>>)]) -> HashMap<IdentCtx, LitType> {
     let mut map = HashMap::new();
 

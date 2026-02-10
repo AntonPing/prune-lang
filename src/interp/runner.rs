@@ -1,8 +1,8 @@
 use super::config::{RunnerConfig, RunnerStats};
-use super::solver::common::*;
-use super::solver::smtlib::SmtLibSolver;
+use super::solver;
 use super::strategy::{CallInfo, ConflitCache};
 use super::*;
+use crate::cli;
 use crate::cli::pipeline::PipeIO;
 use crate::utils::unify::Unifier;
 
@@ -105,15 +105,25 @@ pub struct RunnerState<'prog, 'io> {
     ansr_cnt: usize,
     cache: ConflitCache,
     stack: Vec<Branch>,
-    solver: Box<dyn PrimSolver>,
+    solver: Box<dyn solver::common::PrimSolver>,
 }
 
 impl<'prog, 'io> RunnerState<'prog, 'io> {
     pub fn new(
         prog: &'prog Program,
         pipe: &'io mut PipeIO,
-        backend: SolverBackend,
+        solver: cli::args::Solver,
     ) -> RunnerState<'prog, 'io> {
+        let solver: Box<dyn solver::common::PrimSolver> = match solver {
+            cli::args::Solver::Z3 => Box::new(super::solver::smtlib::SmtLibSolver::new(
+                super::solver::smtlib::SolverBackend::Z3,
+            )),
+            cli::args::Solver::CVC5 => Box::new(super::solver::smtlib::SmtLibSolver::new(
+                super::solver::smtlib::SolverBackend::CVC5,
+            )),
+            cli::args::Solver::NoSmt => Box::new(super::solver::no_smt::NoSmtSolver::new()),
+        };
+
         RunnerState {
             prog,
             pipe_io: pipe,
@@ -123,7 +133,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             ansr_cnt: 0,
             cache: ConflitCache::new(5),
             stack: Vec::new(),
-            solver: Box::new(SmtLibSolver::new(backend)),
+            solver,
         }
     }
 
@@ -438,7 +448,7 @@ query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=100)
     // println!("{:#?}", prog);
 
     let mut pipe_io = PipeIO::empty();
-    let mut runner = RunnerState::new(&prog, &mut pipe_io, SolverBackend::Z3);
+    let mut runner = RunnerState::new(&prog, &mut pipe_io, cli::args::Solver::Z3);
     let query = &prog.querys[0];
 
     for param in query.params.iter() {

@@ -103,15 +103,7 @@ impl<'arg> Pipeline<'arg> {
     pub fn run_backend(&self, prog: &logic::ast::Program, pipe_io: &mut PipeIO) -> Vec<usize> {
         let mut res_vec = Vec::new();
 
-        let backend = match self.args.backend {
-            args::SmtBackend::Z3Inc => interp::solver::common::SolverBackend::Z3,
-            args::SmtBackend::Z3Sq => interp::solver::common::SolverBackend::Z3,
-            args::SmtBackend::CVC5Inc => interp::solver::common::SolverBackend::CVC5,
-            args::SmtBackend::CVC5Sq => interp::solver::common::SolverBackend::CVC5,
-            args::SmtBackend::NoSmt => todo!(),
-        };
-
-        let mut runner = interp::runner::RunnerState::new(prog, pipe_io, backend);
+        let mut runner = interp::runner::RunnerState::new(prog, pipe_io, self.args.solver);
         for query_decl in &prog.querys {
             for param in query_decl.params.iter() {
                 runner.config_set_param(param);
