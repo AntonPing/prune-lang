@@ -1,25 +1,21 @@
 use super::args::CliArgs;
 use super::diagnostic::{DiagLevel, Diagnostic};
 use super::*;
+use crate::cli::replay::ReplayWriter;
 use crate::{interp, logic, syntax, tych};
 
 pub struct PipeIO {
     pub output: Box<dyn Write>,
-    pub stat_log: Box<dyn Write>,
+    pub stat: Box<dyn Write>,
+    pub tree: Box<dyn Write>,
 }
 
 impl PipeIO {
     pub fn empty() -> PipeIO {
         PipeIO {
             output: Box::new(io::empty()),
-            stat_log: Box::new(io::empty()),
-        }
-    }
-
-    pub fn stdout() -> PipeIO {
-        PipeIO {
-            output: Box::new(io::stdout()),
-            stat_log: Box::new(io::stdout()),
+            stat: Box::new(io::empty()),
+            tree: Box::new(io::empty()),
         }
     }
 }
@@ -117,27 +113,92 @@ impl<'arg> Pipeline<'arg> {
     }
 }
 
+fn create_dump_dir(src_path: &PathBuf) -> Result<PathBuf, io::Error> {
+    use std::fs;
+
+    if src_path.extension().and_then(|ext| ext.to_str()) != Some("pr") {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("source file extension is not \".pr\"!: {:?}", src_path),
+        ));
+    }
+
+    if !src_path.exists() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("file \"{:?}\" doesn't exist!", src_path),
+        ));
+    }
+
+    if !src_path.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("path \"{:?}\" exists, but it is not a file!", src_path),
+        ));
+    }
+
+    let file_stem = src_path.file_stem().unwrap().to_os_string();
+
+    let mut dir_path = src_path.clone();
+    dir_path.pop();
+    dir_path.push(file_stem);
+
+    if !dir_path.exists() {
+        fs::create_dir(&dir_path)?;
+    } else {
+        if !dir_path.is_dir() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("path \"{:?}\" exist, but it is not a directory!", dir_path),
+            ));
+        }
+    }
+
+    Ok(dir_path)
+}
+
 pub fn run_pipline(args: &CliArgs) -> Result<Vec<usize>, io::Error> {
-    let src = std::fs::read_to_string(&args.input)?;
+    let src_path = PathBuf::from(&args.input);
 
     let mut pipe_io = PipeIO::empty();
+    if args.dump_file {
+        let dir_path = create_dump_dir(&src_path)?;
 
-    if args.mute_output {
-        pipe_io.output = Box::new(std::io::empty());
-    } else if let Some(path) = &args.output {
-        pipe_io.output = Box::new(File::create(path)?);
+        let output = File::create(dir_path.join("output.txt"))?;
+        if args.show_output {
+            pipe_io.output = Box::new(ReplayWriter::replay_stdout(output));
+        } else {
+            pipe_io.output = Box::new(output);
+        }
+
+        let stat = File::create(dir_path.join("stat.txt"))?;
+        if args.show_stat {
+            pipe_io.stat = Box::new(ReplayWriter::replay_stdout(stat));
+        } else {
+            pipe_io.stat = Box::new(stat);
+        }
+
+        let tree = File::create(dir_path.join("tree.txt"))?;
+        if args.show_tree {
+            pipe_io.tree = Box::new(ReplayWriter::replay_stdout(tree));
+        } else {
+            pipe_io.tree = Box::new(tree);
+        }
     } else {
-        pipe_io.output = Box::new(std::io::stdout());
+        if args.show_output {
+            pipe_io.output = Box::new(io::stdout());
+        }
+
+        if args.show_stat {
+            pipe_io.stat = Box::new(io::stdout());
+        }
+
+        if args.show_tree {
+            pipe_io.tree = Box::new(io::stdout());
+        }
     }
 
-    if args.mute_stat_log {
-        pipe_io.stat_log = Box::new(std::io::empty());
-    } else if let Some(path) = &args.stat_log {
-        pipe_io.stat_log = Box::new(File::create(path)?);
-    } else {
-        pipe_io.stat_log = Box::new(std::io::stdout());
-    }
-
+    let src = std::fs::read_to_string(src_path)?;
     let mut pipe = Pipeline::new(args);
     match pipe.run_pipline(&src, &mut pipe_io) {
         Ok(res) => {

@@ -22,12 +22,6 @@ pub enum Heuristic {
 pub struct CliArgs {
     pub input: PathBuf,
 
-    #[arg(short, long, value_name = "FILE")]
-    pub output: Option<PathBuf>,
-
-    #[arg(long, value_name = "FILE")]
-    pub stat_log: Option<PathBuf>,
-
     #[arg(long, default_value = "no-smt", value_name = "SOLVER")]
     pub solver: Solver,
 
@@ -37,11 +31,17 @@ pub struct CliArgs {
     #[arg(short, long, default_value_t = 10, value_name = "INT")]
     pub verbosity: u8,
 
-    #[arg(long, default_value_t = false)]
-    pub mute_output: bool,
+    #[arg(long, default_value_t = true)]
+    pub dump_file: bool,
 
     #[arg(long, default_value_t = false)]
-    pub mute_stat_log: bool,
+    pub show_output: bool,
+
+    #[arg(long, default_value_t = true)]
+    pub show_stat: bool,
+
+    #[arg(long, default_value_t = false)]
+    pub show_tree: bool,
 
     #[arg(long, default_value_t = false)]
     pub warn_as_err: bool,
@@ -54,13 +54,13 @@ pub fn parse_cli_args() -> CliArgs {
 pub fn get_test_cli_args(prog_name: PathBuf) -> CliArgs {
     CliArgs {
         input: prog_name,
-        output: None,
-        stat_log: None,
         solver: Solver::Z3,
         heuristic: Heuristic::Interleave,
         verbosity: 10,
-        mute_output: true,
-        mute_stat_log: true,
+        dump_file: false,
+        show_output: false,
+        show_stat: false,
+        show_tree: false,
         warn_as_err: true,
     }
 }

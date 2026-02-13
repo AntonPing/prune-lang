@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Rewrite benchmark examples.
+- Change CLI arguments for program outputs.
 
 ### Added
 
 - Support generic type for datatypes and functions.
+- Support file dump in output directory.
 
 ## [0.1.3] - 2026-02-04
 

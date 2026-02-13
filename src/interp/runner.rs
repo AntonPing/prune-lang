@@ -380,7 +380,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             (self.config.depth_step..=self.config.depth_limit).step_by(self.config.depth_step)
         {
             writeln!(
-                self.pipe_io.stat_log,
+                self.pipe_io.stat,
                 "[RUN]: try depth = {}... (found answer: {})",
                 depth_limit, self.ansr_cnt
             )
@@ -391,7 +391,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             self.run_dfs_with_depth(entry, depth_limit - self.config.depth_step + 1, depth_limit);
 
             let stat_res = self.stats.print_stat();
-            writeln!(self.pipe_io.stat_log, "{}", stat_res).unwrap();
+            writeln!(self.pipe_io.stat, "{}", stat_res).unwrap();
 
             if self.ansr_cnt >= self.config.answer_limit {
                 return self.ansr_cnt;

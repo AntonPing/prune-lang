@@ -5,3 +5,4 @@ use std::path::PathBuf;
 pub mod args;
 pub mod diagnostic;
 pub mod pipeline;
+pub mod replay;

@@ -23,3 +23,8 @@ Cargo.lock
 # Added by cargo
 
 /target
+
+# Ignore test example outputs
+
+/examples/**
+!/examples/**/*.pr
