@@ -1,5 +1,4 @@
 use super::*;
-
 use crate::utils::lit::LitVal::*;
 use crate::utils::term::Term::*;
 
@@ -9,7 +8,7 @@ pub enum PropagateResult {
     Conflit,
 }
 
-pub fn propagate_prims(prim: Prim, args: &[AtomVal<IdentCtx>]) -> PropagateResult {
+fn propagate_prims(prim: Prim, args: &[AtomVal<IdentCtx>]) -> PropagateResult {
     match (prim, args) {
         (Prim::IAdd, [arg1, arg2, arg3]) => propagate_iadd(arg1, arg2, arg3),
         (Prim::ISub, [arg1, arg2, arg3]) => propagate_isub(arg1, arg2, arg3),
@@ -236,4 +235,54 @@ fn propagate_bool_not(arg1: &AtomVal<IdentCtx>, arg2: &AtomVal<IdentCtx>) -> Pro
         }
         (_, _) => PropagateResult::Skip,
     }
+}
+
+pub fn propagate_unify(
+    prims: &mut Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
+    unifier: &mut Unifier<IdentCtx, LitVal, OptCons<Ident>>,
+) -> Result<(), ()> {
+    let mut skip_flags: Vec<bool> = prims.iter().map(|_| false).collect();
+    let mut dirty_flag: bool = true;
+
+    while dirty_flag {
+        dirty_flag = false;
+
+        for ((prim, args), skip_flag) in prims.iter_mut().zip(skip_flags.iter_mut()) {
+            if *skip_flag {
+                continue;
+            }
+
+            for arg in args.iter_mut() {
+                *arg = unifier.merge(&arg.to_term()).to_atom().unwrap();
+            }
+
+            match super::progagate::propagate_prims(*prim, args) {
+                progagate::PropagateResult::Skip => {
+                    // skip, do nothing
+                }
+                progagate::PropagateResult::Propagate(subst) => {
+                    for (lhs, rhs) in subst.iter() {
+                        unifier
+                            .unify(&lhs.to_term(), &rhs.to_term())
+                            .map_err(|_| ())?;
+                    }
+                    *skip_flag = true;
+                    if !subst.is_empty() {
+                        dirty_flag = true;
+                    }
+                }
+                progagate::PropagateResult::Conflit => return Err(()),
+            }
+        }
+    }
+
+    let filtered_prims: Vec<(Prim, Vec<AtomVal<IdentCtx>>)> = prims
+        .iter()
+        .zip(skip_flags)
+        .filter_map(|(prim, flag)| if !flag { Some(prim.clone()) } else { None })
+        .collect();
+
+    *prims = filtered_prims;
+
+    Ok(())
 }
