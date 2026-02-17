@@ -14,6 +14,7 @@ pub enum Heuristic {
     Interleave,
     StructRecur,
     ConflictDriven,
+    LookAhead,
     Random,
 }
 
@@ -55,7 +56,7 @@ pub fn get_test_cli_args(prog_name: PathBuf) -> CliArgs {
     CliArgs {
         input: prog_name,
         solver: Solver::Z3,
-        heuristic: Heuristic::Interleave,
+        heuristic: Heuristic::LookAhead,
         verbosity: 10,
         dump_file: false,
         show_output: false,

@@ -208,6 +208,10 @@ impl History {
         History(Vec::new())
     }
 
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     pub fn clear(&mut self) {
         self.0.clear();
     }

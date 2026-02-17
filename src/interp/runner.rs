@@ -115,12 +115,45 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         }
     }
 
+    fn lookahead_strategy(&mut self, brch: &mut Branch) -> usize {
+        let mut vec = Vec::new();
+
+        for call_idx in 0..brch.calls.len() {
+            let br = self.lookahead_check(brch, call_idx);
+            // single branch propagation
+            if br <= 1 {
+                return call_idx;
+            }
+            vec.push(5 * br + brch.calls[call_idx].info.history.len());
+        }
+
+        // println!("{:?}", vec);
+        let (idx, _) = vec.iter().enumerate().min_by_key(|(_idx, br)| *br).unwrap();
+        idx
+    }
+
+    fn lookahead_check(&mut self, brch: &Branch, call_idx: usize) -> usize {
+        let rules = &self.prog.preds[&brch.calls[call_idx].pred].rules;
+
+        let mut count: usize = 0;
+        for rule in rules.iter() {
+            self.stats.step_la();
+            let rule_ctx = &rule.tag_ctx(self.ctx_cnt + 1);
+            if self.unify_rule_lookahead(brch, call_idx, rule_ctx).is_ok() {
+                count += 1;
+            }
+        }
+
+        count
+    }
+
     fn run_branch_step(&mut self, brch: &mut Branch) {
         let call_idx = match self.heuristic {
             args::Heuristic::LeftBiased => brch.left_biased_strategy(),
             args::Heuristic::Interleave => brch.naive_strategy(1),
             args::Heuristic::StructRecur => brch.struct_recur_strategy(),
             args::Heuristic::ConflictDriven => brch.conflit_driven_strategy(&mut self.cache),
+            args::Heuristic::LookAhead => self.lookahead_strategy(brch),
             args::Heuristic::Random => brch.random_strategy(),
         };
 
@@ -137,6 +170,34 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
                 self.stack.push(new_brch);
             }
         }
+    }
+
+    fn unify_rule_lookahead(
+        &self,
+        brch: &Branch,
+        call_idx: usize,
+        rule_ctx: &Rule<IdentCtx>,
+    ) -> Result<(), ()> {
+        let call = &brch.calls[call_idx];
+        assert_eq!(rule_ctx.head.len(), call.args.len());
+
+        let mut unifier: Unifier<IdentCtx, LitVal, OptCons<Ident>> = Unifier::new();
+        for (par, arg) in rule_ctx.head.iter().zip(call.args.iter()) {
+            if unifier.unify(par, arg).is_err() {
+                return Err(());
+            }
+        }
+
+        let mut prims = brch.prims.clone();
+        for (prim, args) in rule_ctx.prims.iter() {
+            prims.push((*prim, args.clone()));
+        }
+
+        if super::progagate::propagate_unify(&mut prims, &mut unifier).is_err() {
+            return Err(());
+        }
+
+        Ok(())
     }
 
     fn unify_rule(
@@ -196,18 +257,6 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
 
         Ok(new_brch)
     }
-
-    // fn emit_branch(&mut self, brch: &Branch, rule_idx: usize, rule: &Rule, call: &PredCall) {
-    //     assert_eq!(rule.head.len(), call.args.len());
-
-    //     self.stats.step();
-    //     self.ctx_cnt += 1;
-    //     let rule_ctx = rule.tag_ctx(self.ctx_cnt);
-
-    //     if let Ok(new_brch) = self.unify_rule(brch, &rule_ctx, rule_idx, call) {
-    //         self.stack.push(new_brch);
-    //     }
-    // }
 
     pub fn run_iddfs_loop(&mut self, entry: Ident) -> usize {
         for depth_limit in
