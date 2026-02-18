@@ -69,8 +69,8 @@ function pythagorean_triple(xs: BitList, ys: BitList, zs: BitList)
 begin
     let xs2 = add(xs, Cons(I, Nil));
     let ys2 = add(ys, Cons(I, Nil));
-    let zs2 = add(zs, Cons(I, Nil));
-    guard add(mul(xs2, xs2), mul(ys2, ys2)) = mul(zs2, zs2);
+    guard zs = Cons(I, Cons(O, Cons(I, Nil)));
+    guard add(mul(xs2, xs2), mul(ys2, ys2)) = mul(zs, zs);
 end
 
 query pythagorean_triple(depth_step=10, depth_limit=200, answer_limit=1)

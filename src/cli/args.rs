@@ -13,7 +13,6 @@ pub enum Heuristic {
     LeftBiased,
     Interleave,
     StructRecur,
-    ConflictDriven,
     LookAhead,
     Random,
 }

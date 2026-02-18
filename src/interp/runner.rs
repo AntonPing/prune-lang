@@ -12,7 +12,6 @@ pub struct RunnerState<'prog, 'io> {
     stats: RunnerStats,
     ctx_cnt: usize,
     ansr_cnt: usize,
-    cache: ConflitCache,
     stack: Vec<Branch>,
     solver: Box<dyn solver::common::PrimSolver>,
     heuristic: args::Heuristic,
@@ -42,7 +41,6 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             stats: RunnerStats::new(),
             ctx_cnt: 0,
             ansr_cnt: 0,
-            cache: ConflitCache::new(5),
             stack: Vec::new(),
             solver,
             heuristic,
@@ -124,7 +122,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             if br <= 1 {
                 return call_idx;
             }
-            vec.push(5 * br + brch.calls[call_idx].info.history.len());
+            vec.push(5 * br + brch.calls[call_idx].history.len());
         }
 
         // println!("{:?}", vec);
@@ -152,7 +150,6 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             args::Heuristic::LeftBiased => brch.left_biased_strategy(),
             args::Heuristic::Interleave => brch.naive_strategy(1),
             args::Heuristic::StructRecur => brch.struct_recur_strategy(),
-            args::Heuristic::ConflictDriven => brch.conflit_driven_strategy(&mut self.cache),
             args::Heuristic::LookAhead => self.lookahead_strategy(brch),
             args::Heuristic::Random => brch.random_strategy(),
         };
@@ -160,13 +157,13 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         let call = &brch.calls[call_idx];
         let rules = &self.prog.preds[&call.pred].rules.clone();
 
-        for (rule_idx, rule) in rules.iter().enumerate().rev() {
+        for rule in rules.iter().rev() {
             assert_eq!(rule.head.len(), call.args.len());
 
             self.stats.step();
             self.ctx_cnt += 1;
             let rule_ctx = rule.tag_ctx(self.ctx_cnt);
-            if let Ok(new_brch) = self.unify_rule(&brch, call_idx, &rule_ctx, rule_idx) {
+            if let Ok(new_brch) = self.unify_rule(&brch, call_idx, &rule_ctx) {
                 self.stack.push(new_brch);
             }
         }
@@ -205,7 +202,6 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         brch: &Branch,
         call_idx: usize,
         rule_ctx: &Rule<IdentCtx>,
-        rule_idx: usize,
     ) -> Result<Branch, ()> {
         let call = &brch.calls[call_idx];
         assert_eq!(rule_ctx.head.len(), call.args.len());
@@ -213,7 +209,6 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         let mut unifier: Unifier<IdentCtx, LitVal, OptCons<Ident>> = Unifier::new();
         for (par, arg) in rule_ctx.head.iter().zip(call.args.iter()) {
             if unifier.unify(par, arg).is_err() {
-                self.cache.update(&call.info.path);
                 return Err(());
             }
         }
@@ -227,28 +222,21 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         }
 
         if super::progagate::propagate_unify(&mut new_brch.prims, &mut unifier).is_err() {
-            self.cache.update(&call.info.path);
             return Err(());
         }
 
-        let mut new_history = call.info.history.clone();
+        let mut new_history = call.history.clone();
         new_history.push(
             call.pred,
             call.args.iter().map(|arg| arg.height()).collect(),
         );
 
-        for (call_idx2, (pred, polys, args)) in rule_ctx.calls.iter().enumerate().rev() {
-            let mut new_path = call.info.path.clone();
-            new_path.push(rule_idx, call_idx2);
-
+        for (pred, polys, args) in rule_ctx.calls.iter().rev() {
             let new_call = PredCall {
                 pred: *pred,
                 polys: polys.clone(),
                 args: args.clone(),
-                info: CallInfo {
-                    history: new_history.clone(),
-                    path: new_path,
-                },
+                history: new_history.clone(),
             };
             new_brch.insert(call_idx, new_call);
         }
