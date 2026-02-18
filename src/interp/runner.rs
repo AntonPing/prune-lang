@@ -68,7 +68,9 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             .map(|(par, _typ)| *par)
             .collect();
 
-        let brch = Branch::new(pred, pars, self.ctx_cnt);
+        let rule_cnt = self.prog.preds[&pred].rules.len();
+        let brch = Branch::new(pred, pars, rule_cnt);
+
         self.stack.push(brch);
 
         while let Some(mut brch) = self.stack.pop() {
@@ -117,12 +119,11 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         let mut vec = Vec::new();
 
         for call_idx in 0..brch.calls.len() {
-            let br = self.lookahead_check(brch, call_idx);
-            // single branch propagation
-            if br <= 1 {
+            let call = &brch.calls[call_idx];
+            if call.match_rules.len() <= 1 {
                 return call_idx;
             }
-            vec.push(5 * br + brch.calls[call_idx].history.len());
+            vec.push(5 * call.match_rules.len() + call.history.len());
         }
 
         // println!("{:?}", vec);
@@ -130,19 +131,50 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         idx
     }
 
-    fn lookahead_check(&mut self, brch: &Branch, call_idx: usize) -> usize {
-        let rules = &self.prog.preds[&brch.calls[call_idx].pred].rules;
+    fn lookahead_update(
+        &mut self,
+        call: &mut PredCall,
+        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
+    ) {
+        let rules = &self.prog.preds[&call.pred].rules;
 
-        let mut count: usize = 0;
-        for rule in rules.iter() {
+        let mut new_brchs = Vec::new();
+        for rule_idx in call.match_rules.iter().cloned() {
             self.stats.step_la();
-            let rule_ctx = &rule.tag_ctx(self.ctx_cnt + 1);
-            if self.unify_rule_lookahead(brch, call_idx, rule_ctx).is_ok() {
-                count += 1;
+            let rule_ctx = &rules[rule_idx].tag_ctx(self.ctx_cnt + 1);
+            if self.try_unify_rule(call, prims, rule_ctx).is_ok() {
+                new_brchs.push(rule_idx);
             }
         }
 
-        count
+        call.match_rules = new_brchs;
+    }
+
+    fn try_unify_rule(
+        &self,
+        call: &PredCall,
+        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
+        rule_ctx: &Rule<IdentCtx>,
+    ) -> Result<(), ()> {
+        assert_eq!(rule_ctx.head.len(), call.args.len());
+
+        let mut unifier: Unifier<IdentCtx, LitVal, OptCons<Ident>> = Unifier::new();
+        for (par, arg) in rule_ctx.head.iter().zip(call.args.iter()) {
+            if unifier.unify(par, arg).is_err() {
+                return Err(());
+            }
+        }
+
+        let mut prims = prims.clone();
+        for (prim, args) in rule_ctx.prims.iter() {
+            prims.push((*prim, args.clone()));
+        }
+
+        if super::progagate::propagate_unify(&mut prims, &mut unifier).is_err() {
+            return Err(());
+        }
+
+        Ok(())
     }
 
     fn run_branch_step(&mut self, brch: &mut Branch) {
@@ -155,11 +187,11 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         };
 
         let call = &brch.calls[call_idx];
-        let rules = &self.prog.preds[&call.pred].rules.clone();
+        let rules = &self.prog.preds[&call.pred].rules;
 
-        for rule in rules.iter().rev() {
+        for rule_idx in call.match_rules.iter().rev() {
+            let rule = &rules[*rule_idx];
             assert_eq!(rule.head.len(), call.args.len());
-
             self.stats.step();
             self.ctx_cnt += 1;
             let rule_ctx = rule.tag_ctx(self.ctx_cnt);
@@ -167,34 +199,6 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
                 self.stack.push(new_brch);
             }
         }
-    }
-
-    fn unify_rule_lookahead(
-        &self,
-        brch: &Branch,
-        call_idx: usize,
-        rule_ctx: &Rule<IdentCtx>,
-    ) -> Result<(), ()> {
-        let call = &brch.calls[call_idx];
-        assert_eq!(rule_ctx.head.len(), call.args.len());
-
-        let mut unifier: Unifier<IdentCtx, LitVal, OptCons<Ident>> = Unifier::new();
-        for (par, arg) in rule_ctx.head.iter().zip(call.args.iter()) {
-            if unifier.unify(par, arg).is_err() {
-                return Err(());
-            }
-        }
-
-        let mut prims = brch.prims.clone();
-        for (prim, args) in rule_ctx.prims.iter() {
-            prims.push((*prim, args.clone()));
-        }
-
-        if super::progagate::propagate_unify(&mut prims, &mut unifier).is_err() {
-            return Err(());
-        }
-
-        Ok(())
     }
 
     fn unify_rule(
@@ -232,16 +236,34 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         );
 
         for (pred, polys, args) in rule_ctx.calls.iter().rev() {
-            let new_call = PredCall {
+            let mut new_call = PredCall {
                 pred: *pred,
                 polys: polys.clone(),
                 args: args.clone(),
+                match_rules: (0..self.prog.preds[pred].rules.len()).collect(),
                 history: new_history.clone(),
             };
+            self.lookahead_update(&mut new_call, &new_brch.prims);
             new_brch.insert(call_idx, new_call);
         }
 
-        new_brch.merge(unifier);
+        // unifier merging
+        for call in new_brch.calls.iter_mut() {
+            let mut dirty_flag = false;
+            for arg in call.args.iter_mut() {
+                if let Some(new_arg) = unifier.subst_opt(arg) {
+                    *arg = new_arg;
+                    dirty_flag = true;
+                }
+            }
+            if dirty_flag {
+                self.lookahead_update(call, &new_brch.prims);
+            }
+        }
+
+        for (_par, val) in new_brch.answers.iter_mut() {
+            *val = unifier.merge(val);
+        }
 
         Ok(new_brch)
     }

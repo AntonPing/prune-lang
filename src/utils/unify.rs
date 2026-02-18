@@ -81,6 +81,33 @@ impl<V: Eq + Hash + Clone, L: PartialEq + Clone, C: Eq + Clone> Unifier<V, L, C>
         }
     }
 
+    pub fn subst_opt(&self, term: &Term<V, L, C>) -> Option<Term<V, L, C>> {
+        let mut flag = false;
+        let res = self.subst_opt_help(term, &mut flag);
+        if flag { Some(res) } else { None }
+    }
+
+    pub fn subst_opt_help(&self, term: &Term<V, L, C>, flag: &mut bool) -> Term<V, L, C> {
+        match term {
+            Term::Var(var) => {
+                if let Some(term) = self.map.get(var) {
+                    *flag = true;
+                    self.subst_opt_help(term, flag)
+                } else {
+                    Term::Var(var.clone())
+                }
+            }
+            Term::Lit(lit) => Term::Lit(lit.clone()),
+            Term::Cons(cons, flds) => {
+                let flds = flds
+                    .iter()
+                    .map(|fld| self.subst_opt_help(fld, flag))
+                    .collect();
+                Term::Cons(cons.clone(), flds)
+            }
+        }
+    }
+
     pub fn merge(&self, term: &Term<V, L, C>) -> Term<V, L, C> {
         match term {
             Term::Var(var) => {

@@ -9,14 +9,12 @@ pub struct Branch {
 }
 
 impl Branch {
-    pub fn new(pred: Ident, pars: Vec<Ident>, ctx_cnt: usize) -> Branch {
+    pub fn new(pred: Ident, pars: Vec<Ident>, rule_cnt: usize) -> Branch {
         let call = PredCall {
             pred,
             polys: Vec::new(),
-            args: pars
-                .iter()
-                .map(|par| Term::Var(par.tag_ctx(ctx_cnt)))
-                .collect(),
+            args: pars.iter().map(|par| Term::Var(par.tag_ctx(0))).collect(),
+            match_rules: (0..rule_cnt).collect(),
             history: History::new(),
         };
 
@@ -24,7 +22,7 @@ impl Branch {
             depth: 0,
             answers: pars
                 .iter()
-                .map(|par| (*par, Term::Var(par.tag_ctx(ctx_cnt))))
+                .map(|par| (*par, Term::Var(par.tag_ctx(0))))
                 .collect(),
             prims: Vec::new(),
             calls: vec![call],
@@ -110,6 +108,7 @@ pub struct PredCall {
     pub pred: Ident,
     pub polys: Vec<TermType>,
     pub args: Vec<TermVal<IdentCtx>>,
+    pub match_rules: Vec<usize>,
     pub history: History,
 }
 
