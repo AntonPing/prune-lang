@@ -253,7 +253,7 @@ pub fn propagate_unify(
             }
 
             for arg in args.iter_mut() {
-                *arg = unifier.merge(&arg.to_term()).to_atom().unwrap();
+                *arg = unifier.subst(&arg.to_term()).to_atom().unwrap();
             }
 
             match super::progagate::propagate_prims(*prim, args) {

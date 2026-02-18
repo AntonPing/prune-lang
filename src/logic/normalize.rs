@@ -61,18 +61,18 @@ fn solve_branch(brch: RuleWithEqs) -> Option<Rule> {
     let mut rule = brch.rule;
 
     for term in rule.head.iter_mut() {
-        *term = unifier.merge(term);
+        *term = unifier.subst(term);
     }
 
     for (_prim, args) in rule.prims.iter_mut() {
         for arg in args {
-            *arg = unifier.merge(&arg.to_term()).to_atom().unwrap();
+            *arg = unifier.subst(&arg.to_term()).to_atom().unwrap();
         }
     }
 
     for (_pred, _polys, args) in rule.calls.iter_mut() {
         for arg in args {
-            *arg = unifier.merge(arg);
+            *arg = unifier.subst(arg);
         }
     }
 

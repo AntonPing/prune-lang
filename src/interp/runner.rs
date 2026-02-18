@@ -262,7 +262,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         }
 
         for (_par, val) in new_brch.answers.iter_mut() {
-            *val = unifier.merge(val);
+            *val = unifier.subst(val);
         }
 
         Ok(new_brch)

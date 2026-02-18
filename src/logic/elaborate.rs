@@ -191,12 +191,12 @@ impl Elaborator {
 
     fn elaborate_rule(&self, rule: &mut Rule) {
         for (_var, typ) in rule.vars.iter_mut() {
-            *typ = self.unifier.merge(typ);
+            *typ = self.unifier.subst(typ);
         }
 
         for (_pred, polys, _args) in rule.calls.iter_mut() {
             for poly in polys {
-                *poly = self.unifier.merge(poly);
+                *poly = self.unifier.subst(poly);
             }
         }
     }

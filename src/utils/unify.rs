@@ -87,7 +87,7 @@ impl<V: Eq + Hash + Clone, L: PartialEq + Clone, C: Eq + Clone> Unifier<V, L, C>
         if flag { Some(res) } else { None }
     }
 
-    pub fn subst_opt_help(&self, term: &Term<V, L, C>, flag: &mut bool) -> Term<V, L, C> {
+    fn subst_opt_help(&self, term: &Term<V, L, C>, flag: &mut bool) -> Term<V, L, C> {
         match term {
             Term::Var(var) => {
                 if let Some(term) = self.map.get(var) {
@@ -108,37 +108,37 @@ impl<V: Eq + Hash + Clone, L: PartialEq + Clone, C: Eq + Clone> Unifier<V, L, C>
         }
     }
 
-    pub fn merge(&self, term: &Term<V, L, C>) -> Term<V, L, C> {
+    pub fn subst(&self, term: &Term<V, L, C>) -> Term<V, L, C> {
         match term {
             Term::Var(var) => {
                 if let Some(term) = self.map.get(var) {
-                    self.merge(term)
+                    self.subst(term)
                 } else {
                     Term::Var(var.clone())
                 }
             }
             Term::Lit(lit) => Term::Lit(lit.clone()),
             Term::Cons(cons, flds) => {
-                let flds = flds.iter().map(|fld| self.merge(fld)).collect();
+                let flds = flds.iter().map(|fld| self.subst(fld)).collect();
                 Term::Cons(cons.clone(), flds)
             }
         }
     }
 
-    pub fn merge_err(&self, err: &UnifyError<V, L, C>) -> UnifyError<V, L, C> {
+    pub fn subst_err(&self, err: &UnifyError<V, L, C>) -> UnifyError<V, L, C> {
         match err {
             UnifyError::UnifyFailed(lhs, rhs) => {
-                let lhs = self.merge(lhs);
-                let rhs = self.merge(rhs);
+                let lhs = self.subst(lhs);
+                let rhs = self.subst(rhs);
                 UnifyError::UnifyFailed(lhs, rhs)
             }
             UnifyError::OccurCheckFailed(x, typ) => {
-                let typ = self.merge(typ);
+                let typ = self.subst(typ);
                 UnifyError::OccurCheckFailed(x.clone(), typ)
             }
             UnifyError::UnifyVecDiffLen(vec1, vec2) => {
-                let vec1 = vec1.iter().map(|typ| self.merge(typ)).collect();
-                let vec2 = vec2.iter().map(|typ| self.merge(typ)).collect();
+                let vec1 = vec1.iter().map(|typ| self.subst(typ)).collect();
+                let vec2 = vec2.iter().map(|typ| self.subst(typ)).collect();
                 UnifyError::UnifyVecDiffLen(vec1, vec2)
             }
         }

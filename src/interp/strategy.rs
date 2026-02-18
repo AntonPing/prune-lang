@@ -38,12 +38,12 @@ impl Branch {
     pub fn merge(&mut self, unifier: Unifier<IdentCtx, LitVal, OptCons<Ident>>) {
         for call in self.calls.iter_mut() {
             for arg in call.args.iter_mut() {
-                *arg = unifier.merge(arg);
+                *arg = unifier.subst(arg);
             }
         }
 
         for (_par, val) in self.answers.iter_mut() {
-            *val = unifier.merge(val);
+            *val = unifier.subst(val);
         }
     }
 

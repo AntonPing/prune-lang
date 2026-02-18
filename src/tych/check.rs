@@ -402,7 +402,7 @@ pub fn check_pass(prog: &Program) -> Vec<UnifyError<Ident, LitType, OptCons<Iden
     let mut pass = Checker::new();
     pass.check_prog(prog);
     for err in pass.diag.iter_mut() {
-        *err = pass.unifier.merge_err(err);
+        *err = pass.unifier.subst_err(err);
     }
     pass.diag
 }
