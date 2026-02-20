@@ -2,7 +2,7 @@ use super::config::{RunnerConfig, RunnerStats};
 use super::solver;
 use super::strategy::*;
 use super::*;
-use crate::cli::args;
+use crate::cli::args::{self, Heuristic};
 use crate::cli::pipeline::PipeIO;
 
 pub struct RunnerState<'prog, 'io> {
@@ -68,8 +68,29 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             .map(|(par, _typ)| *par)
             .collect();
 
-        let rule_cnt = self.prog.preds[&pred].rules.len();
-        let brch = Branch::new(pred, pars, rule_cnt);
+        let rules = &self.prog.preds[&pred].rules;
+        let mut call = PredCall {
+            pred,
+            polys: Vec::new(),
+            args: pars.iter().map(|par| Term::Var(par.tag_ctx(0))).collect(),
+            looks: (0..rules.len()).collect(),
+            history: History::new(),
+        };
+
+        if self.heuristic == Heuristic::LookAhead {
+            self.stats.step_la();
+            call.lookahead_update(&rules);
+        }
+
+        let brch = Branch {
+            depth: 0,
+            answers: pars
+                .iter()
+                .map(|par| (*par, Term::Var(par.tag_ctx(0))))
+                .collect(),
+            prims: Vec::new(),
+            calls: vec![call],
+        };
 
         self.stack.push(brch);
 
@@ -77,9 +98,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             if self.ansr_cnt >= self.config.answer_limit {
                 return;
             }
-
             assert!(brch.depth <= depth_end);
-
             if brch.calls.is_empty() {
                 if brch.depth >= depth_start {
                     self.solve_answer(&brch);
@@ -95,7 +114,6 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
 
         if let Some(map) = self.solver.check_sat(&brch.prims) {
             let duration = start.elapsed();
-
             writeln!(
                 self.pipe_io.output,
                 "[ANSWER]: depth = {}, solving time = {:?}",
@@ -115,98 +133,33 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         }
     }
 
-    fn lookahead_strategy(&mut self, brch: &mut Branch) -> usize {
-        let mut vec = Vec::new();
-
-        for call_idx in 0..brch.calls.len() {
-            let call = &brch.calls[call_idx];
-            if call.match_rules.len() <= 1 {
-                return call_idx;
-            }
-            vec.push(5 * call.match_rules.len() + call.history.len());
-        }
-
-        // println!("{:?}", vec);
-        let (idx, _) = vec.iter().enumerate().min_by_key(|(_idx, br)| *br).unwrap();
-        idx
-    }
-
-    fn lookahead_update(
-        &mut self,
-        call: &mut PredCall,
-        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
-    ) {
-        let rules = &self.prog.preds[&call.pred].rules;
-
-        let mut new_brchs = Vec::new();
-        for rule_idx in call.match_rules.iter().cloned() {
-            self.stats.step_la();
-            let rule_ctx = &rules[rule_idx].tag_ctx(self.ctx_cnt + 1);
-            if self.try_unify_rule(call, prims, rule_ctx).is_ok() {
-                new_brchs.push(rule_idx);
-            }
-        }
-
-        call.match_rules = new_brchs;
-    }
-
-    fn try_unify_rule(
-        &self,
-        call: &PredCall,
-        prims: &Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
-        rule_ctx: &Rule<IdentCtx>,
-    ) -> Result<(), ()> {
-        assert_eq!(rule_ctx.head.len(), call.args.len());
-
-        let mut unifier: Unifier<IdentCtx, LitVal, OptCons<Ident>> = Unifier::new();
-        for (par, arg) in rule_ctx.head.iter().zip(call.args.iter()) {
-            if unifier.unify(par, arg).is_err() {
-                return Err(());
-            }
-        }
-
-        let mut prims = prims.clone();
-        for (prim, args) in rule_ctx.prims.iter() {
-            prims.push((*prim, args.clone()));
-        }
-
-        if super::progagate::propagate_unify(&mut prims, &mut unifier).is_err() {
-            return Err(());
-        }
-
-        Ok(())
-    }
-
     fn run_branch_step(&mut self, brch: &mut Branch) {
         let call_idx = match self.heuristic {
             args::Heuristic::LeftBiased => brch.left_biased_strategy(),
             args::Heuristic::Interleave => brch.naive_strategy(1),
             args::Heuristic::StructRecur => brch.struct_recur_strategy(),
-            args::Heuristic::LookAhead => self.lookahead_strategy(brch),
+            args::Heuristic::LookAhead => brch.lookahead_strategy(),
             args::Heuristic::Random => brch.random_strategy(),
         };
 
-        let call = &brch.calls[call_idx];
-        let rules = &self.prog.preds[&call.pred].rules;
-
-        for rule_idx in call.match_rules.iter().rev() {
-            let rule = &rules[*rule_idx];
-            assert_eq!(rule.head.len(), call.args.len());
+        for rule_idx in brch.calls[call_idx].looks.iter().rev() {
             self.stats.step();
             self.ctx_cnt += 1;
-            let rule_ctx = rule.tag_ctx(self.ctx_cnt);
-            if let Ok(new_brch) = self.unify_rule(&brch, call_idx, &rule_ctx) {
+            if let Ok(new_brch) = self.apply_rule(&brch, call_idx, *rule_idx) {
                 self.stack.push(new_brch);
             }
         }
     }
 
-    fn unify_rule(
+    fn apply_rule(
         &mut self,
         brch: &Branch,
         call_idx: usize,
-        rule_ctx: &Rule<IdentCtx>,
+        rule_idx: usize,
     ) -> Result<Branch, ()> {
+        let rules = &self.prog.preds[&brch.calls[call_idx].pred].rules;
+        let rule_ctx = rules[rule_idx].tag_ctx(self.ctx_cnt);
+
         let call = &brch.calls[call_idx];
         assert_eq!(rule_ctx.head.len(), call.args.len());
 
@@ -240,14 +193,18 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
                 pred: *pred,
                 polys: polys.clone(),
                 args: args.clone(),
-                match_rules: (0..self.prog.preds[pred].rules.len()).collect(),
+                looks: (0..self.prog.preds[pred].rules.len()).collect(),
                 history: new_history.clone(),
             };
-            self.lookahead_update(&mut new_call, &new_brch.prims);
+
+            if self.heuristic == Heuristic::LookAhead {
+                self.stats.step_la();
+                new_call.lookahead_update(&self.prog.preds[pred].rules);
+            }
+
             new_brch.insert(call_idx, new_call);
         }
 
-        // unifier merging
         for call in new_brch.calls.iter_mut() {
             let mut dirty_flag = false;
             for arg in call.args.iter_mut() {
@@ -256,8 +213,10 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
                     dirty_flag = true;
                 }
             }
-            if dirty_flag {
-                self.lookahead_update(call, &new_brch.prims);
+            // update lookahead information if any information is propagated
+            if dirty_flag && self.heuristic == Heuristic::LookAhead {
+                self.stats.step_la();
+                call.lookahead_update(&self.prog.preds[&call.pred].rules);
             }
         }
 

@@ -14,7 +14,7 @@ impl Branch {
             pred,
             polys: Vec::new(),
             args: pars.iter().map(|par| Term::Var(par.tag_ctx(0))).collect(),
-            match_rules: (0..rule_cnt).collect(),
+            looks: (0..rule_cnt).collect(),
             history: History::new(),
         };
 
@@ -100,6 +100,21 @@ impl Branch {
             self.struct_recur_strategy()
         }
     }
+
+    pub fn lookahead_strategy(&mut self) -> usize {
+        let mut vec = Vec::new();
+
+        for call_idx in 0..self.calls.len() {
+            let call = &self.calls[call_idx];
+            if call.looks.len() <= 1 {
+                return call_idx;
+            }
+            vec.push(5 * call.looks.len() + call.history.len());
+        }
+
+        let (idx, _) = vec.iter().enumerate().min_by_key(|(_idx, br)| *br).unwrap();
+        idx
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -108,8 +123,29 @@ pub struct PredCall {
     pub pred: Ident,
     pub polys: Vec<TermType>,
     pub args: Vec<TermVal<IdentCtx>>,
-    pub match_rules: Vec<usize>,
+    pub looks: Vec<usize>,
     pub history: History,
+}
+
+impl PredCall {
+    fn try_unify_rule_head(&self, head: &Vec<TermVal>) -> Result<(), ()> {
+        assert_eq!(head.len(), self.args.len());
+
+        let mut unifier: Unifier<IdentCtx, LitVal, OptCons<Ident>> = Unifier::new();
+        for (par, arg) in head.iter().zip(self.args.iter()) {
+            if unifier.unify(&par.tag_ctx(0), arg).is_err() {
+                return Err(());
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn lookahead_update(&mut self, rules: &Vec<Rule>) {
+        let mut new_looks = self.looks.clone();
+        new_looks.retain(|look| self.try_unify_rule_head(&rules[*look].head).is_ok());
+        self.looks = new_looks
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
