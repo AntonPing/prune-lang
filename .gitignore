@@ -27,4 +27,5 @@ Cargo.lock
 # Ignore test example outputs
 
 /examples/**
+!/examples/**/
 !/examples/**/*.pr
