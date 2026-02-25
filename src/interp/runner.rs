@@ -95,6 +95,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         self.stack.push(brch);
 
         while let Some(mut brch) = self.stack.pop() {
+            // write!(self.pipe_io.tree, "{}", brch).unwrap();
             if self.ansr_cnt >= self.config.answer_limit {
                 return;
             }

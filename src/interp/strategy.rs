@@ -1,4 +1,6 @@
 use super::*;
+use itertools::Itertools;
+use std::fmt;
 
 #[derive(Clone, Debug)]
 pub struct Branch {
@@ -6,6 +8,27 @@ pub struct Branch {
     pub answers: Vec<(Ident, TermVal<IdentCtx>)>,
     pub prims: Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
     pub calls: Vec<PredCall>,
+}
+
+impl fmt::Display for Branch {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "##### depth: = {} #####", self.depth)?;
+
+        for (par, val) in self.answers.iter() {
+            writeln!(f, "{} = {}", par, val)?;
+        }
+
+        for (prim, args) in self.prims.iter() {
+            let args = args.iter().format(&", ");
+            writeln!(f, "{:?}({})", prim, args)?;
+        }
+
+        for call in self.calls.iter() {
+            writeln!(f, "{}", call)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl Branch {
@@ -125,6 +148,18 @@ pub struct PredCall {
     pub args: Vec<TermVal<IdentCtx>>,
     pub looks: Vec<usize>,
     pub history: History,
+}
+
+impl fmt::Display for PredCall {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let args = self.args.iter().format(&", ");
+        if self.polys.is_empty() {
+            write!(f, "{}({})", self.pred, args)
+        } else {
+            let polys = self.polys.iter().format(&", ");
+            write!(f, "{}[{}]({})", self.pred, polys, args)
+        }
+    }
 }
 
 impl PredCall {
