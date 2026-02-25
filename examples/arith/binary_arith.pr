@@ -8,6 +8,14 @@ datatype BitList where
 | Cons(Bit, BitList)
 end
 
+function not_zero(xs: BitList)
+begin
+    match xs with
+    | Cons(I, _) => ()
+    | Cons(O, ys) => not_zero(ys)
+    end
+end
+
 function well_formed(xs: BitList)
 begin
     match xs with
@@ -58,19 +66,30 @@ end
 
 function mul(xs: BitList, ys: BitList) -> BitList
 begin
-    match xs with
-    | Nil => Nil
-    | Cons(O, ks) => Cons(O, mul(ks, ys))
-    | Cons(I, ks) => add(Cons(O, mul(ks, ys)), ys)
+    match (xs, ys) with
+    | (Nil, Nil) => Nil
+    | (Cons(_, _), Nil) => Nil
+    | (Nil, Cons(_, _)) => Nil
+    | (Cons(x_head, x_tail), Cons(y_head, y_tail)) =>
+        let new_tail = mul(x_tail, y_tail);
+        match (x_head, y_head) with
+        | (O, O) => Cons(O, Cons(O, new_tail))
+        | (O, I) => Cons(O, add(x_tail, Cons(O, new_tail)))
+        | (I, O) => Cons(O, add(y_tail, Cons(O, new_tail)))
+        | (I, I) => 
+            let cross = add(x_tail, y_tail);
+            Cons(I, add(cross, Cons(O, new_tail)))
+        end
     end
 end
 
 function pythagorean_triple(xs: BitList, ys: BitList, zs: BitList)
 begin
-    let xs2 = add(xs, Cons(I, Nil));
-    let ys2 = add(ys, Cons(I, Nil));
-    guard zs = Cons(I, Cons(O, Cons(I, Nil)));
-    guard add(mul(xs2, xs2), mul(ys2, ys2)) = mul(zs, zs);
+    guard () = not_zero(xs);
+    guard () = well_formed(xs);
+    guard () = not_zero(ys);
+    guard () = well_formed(ys);
+    guard add(mul(xs, xs), mul(ys, ys)) = mul(zs, zs);
 end
 
-query pythagorean_triple(depth_step=10, depth_limit=200, answer_limit=1)
+query pythagorean_triple(depth_step=20, depth_limit=200, answer_limit=1)
