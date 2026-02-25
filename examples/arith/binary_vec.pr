@@ -1,0 +1,174 @@
+datatype Bit where
+| O
+| I
+end
+
+datatype BitVec2 where
+| BV2(Bit, Bit)
+end
+
+datatype BitVec4 where
+| BV4(BitVec2, BitVec2)
+end
+
+datatype BitVec8 where
+| BV8(BitVec4, BitVec4)
+end
+
+datatype BitVec16 where
+| BV16(BitVec8, BitVec8)
+end
+
+function zero_bv2() -> BitVec2
+begin
+    BV2(O, O)
+end
+
+function zero_bv4() -> BitVec4
+begin
+    BV4(BV2(O, O), BV2(O, O))
+end
+
+function zero_bv8() -> BitVec8
+begin
+    BV8(BV4(BV2(O, O), BV2(O, O)), BV4(BV2(O, O), BV2(O, O)))
+end
+
+// adder (Ci, A, B) -> (S, Co)
+function full_adder_1(ci: Bit, x: Bit, y: Bit) -> (Bit, Bit) 
+begin
+    match (ci, x, y) with
+    | (O, O, O) => (O, O)
+    | (I, O, O) => (I, O)
+    | (O, I, O) => (I, O)
+    | (I, I, O) => (O, I)
+    | (O, O, I) => (I, O)
+    | (I, O, I) => (O, I)
+    | (O, I, I) => (O, I)
+    | (I, I, I) => (I, I)
+    end
+end
+
+function full_adder_2(c: Bit, a: BitVec2, b: BitVec2) -> (BitVec2, Bit)
+begin
+    let BV2(ah, al) = a;
+    let BV2(bh, bl) = b;
+    let (sl, cl) = full_adder_1(c, al, bl);
+    let (sh, ch) = full_adder_1(cl, ah, bh);
+    (BV2(sh, sl), ch)
+end
+
+function full_adder_4(c: Bit, a: BitVec4, b: BitVec4) -> (BitVec4, Bit)
+begin
+    let BV4(ah, al) = a;
+    let BV4(bh, bl) = b;
+    let (sl, cl) = full_adder_2(c, al, bl);
+    let (sh, ch) = full_adder_2(cl, ah, bh);
+    (BV4(sh, sl), ch)
+end
+
+function full_adder_8(c: Bit, a: BitVec8, b: BitVec8) -> (BitVec8, Bit) 
+begin
+    let BV8(ah, al) = a;
+    let BV8(bh, bl) = b;
+    let (sl, cl) = full_adder_4(c, al, bl);
+    let (sh, ch) = full_adder_4(cl, ah, bh);
+    (BV8(sh, sl), ch)
+end
+
+function full_adder_16(c: Bit, a: BitVec16, b: BitVec16) -> (BitVec16, Bit) 
+begin
+    let BV16(ah, al) = a;
+    let BV16(bh, bl) = b;
+    let (sl, cl) = full_adder_8(c, al, bl);
+    let (sh, ch) = full_adder_8(cl, ah, bh);
+    (BV16(sh, sl), ch)
+end
+
+function add_bv1(a: Bit, b: Bit) -> Bit
+begin
+    let (s, c) = full_adder_1(O, a, b);
+    guard c = O;
+    s
+end
+
+function add_bv2(a: BitVec2, b: BitVec2) -> BitVec2
+begin
+    let (s, c) = full_adder_2(O, a, b);
+    guard c = O;
+    s
+end
+
+function add_bv4(a: BitVec4, b: BitVec4) -> BitVec4
+begin
+    let (s, c) = full_adder_4(O, a, b);
+    guard c = O;
+    s
+end
+
+function add_bv8(a: BitVec8, b: BitVec8) -> BitVec8
+begin
+    let (s, c) = full_adder_8(O, a, b);
+    guard c = O;
+    s
+end
+
+function add_bv16(a: BitVec16, b: BitVec16) -> BitVec16
+begin
+    let (s, c) = full_adder_16(O, a, b);
+    guard c = O;
+    s
+end
+
+function mul_bv1(a: Bit, b: Bit) -> BitVec2
+begin
+    match (a, b) with
+    | (O, O) => BV2(O, O)
+    | (O, I) => BV2(O, O)
+    | (I, O) => BV2(O, O)
+    | (I, I) => BV2(O, I)
+    end
+end
+
+function mul_bv2(a: BitVec2, b: BitVec2) -> BitVec4
+begin
+    let BV2(ah, al) = a;
+    let BV2(bh, bl) = b;
+    let low = mul_bv1(al, bl);
+    let high = mul_bv1(ah, bh);
+    let BV2(mh, ml) = add_bv2(mul_bv1(ah, bl), mul_bv1(al, bh));
+    let mid = BV4(BV2(O, mh), BV2(ml, O));
+    add_bv4(BV4(high, low), mid)
+end
+
+function mul_bv4(a: BitVec4, b: BitVec4) -> BitVec8
+begin
+    let BV4(ah, al) = a;
+    let BV4(bh, bl) = b;
+    let low = mul_bv2(al, bl);
+    let high = mul_bv2(ah, bh);
+    let BV4(mh, ml) = add_bv4(mul_bv2(ah, bl), mul_bv2(al, bh));
+    let mid = BV8(BV4(zero_bv2(), mh), BV4(ml, zero_bv2()));
+    add_bv8(BV8(high, low), mid)
+end
+
+function mul_bv8(a: BitVec8, b: BitVec8) -> BitVec16
+begin
+    let BV8(ah, al) = a;
+    let BV8(bh, bl) = b;
+    let low = mul_bv4(al, bl);
+    let high = mul_bv4(ah, bh);
+    let BV8(mh, ml) = add_bv8(mul_bv4(ah, bl), mul_bv4(al, bh));
+    let mid = BV16(BV8(zero_bv4(), mh), BV8(ml, zero_bv4()));
+    add_bv16(BV16(high, low), mid)
+end
+
+function example(a: BitVec4, b: BitVec4, c: BitVec4)
+begin
+    fresh a2, b2;
+    guard a = add_bv4(a2, BV4(BV2(O, O), BV2(O, I)));
+    guard b = add_bv4(b2, BV4(BV2(O, O), BV2(O, I)));
+    guard add_bv8(mul_bv4(a, a), mul_bv4(b, b)) = mul_bv4(c, c);
+end
+
+query example(depth_step=100, depth_limit=3000, answer_limit=6)

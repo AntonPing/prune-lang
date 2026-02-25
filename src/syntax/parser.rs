@@ -162,6 +162,11 @@ impl<'src> Parser<'src> {
     where
         F: Fn(&mut Parser) -> ParseResult<T>,
     {
+        // An ad-hoc solution for interpreting Unit as [LParen, RParen]
+        if self.peek_token() == Token::Unit && left == Token::LParen && right == Token::RParen {
+            self.next_token()?;
+            return Ok(Vec::new());
+        }
         let mut vec: Vec<T> = Vec::new();
         self.match_token(left)?;
         // allow leading delimiter
@@ -401,8 +406,8 @@ impl<'src> Parser<'src> {
             }
             Token::LowerIdent => {
                 let var = self.parse_lower_var()?;
-                if let Token::LParen = self.peek_token() {
-                    let args = self.parse_expr_args()?;
+                let args = self.option(|par| par.parse_expr_args())?;
+                if let Some(args) = args {
                     let end = self.end_pos();
                     let span = Span { start, end };
                     Ok(Expr::App {
