@@ -1,30 +1,25 @@
 use super::*;
+use crate::cli::args;
 
 #[derive(Debug)]
 pub struct RunnerConfig {
     pub depth_step: usize,
     pub depth_limit: usize,
     pub answer_limit: usize,
-    pub print_iter: bool,
-    pub print_stat: bool,
     pub answer_pause: bool,
-}
-
-impl Default for RunnerConfig {
-    fn default() -> Self {
-        Self::new()
-    }
+    pub solver: args::Solver,
+    pub heuristic: args::Heuristic,
 }
 
 impl RunnerConfig {
-    pub fn new() -> RunnerConfig {
+    pub fn new(solver: args::Solver, heuristic: args::Heuristic) -> RunnerConfig {
         RunnerConfig {
             depth_step: 5,
             depth_limit: 100,
             answer_limit: usize::MAX,
-            print_iter: true,
-            print_stat: true,
             answer_pause: false,
+            solver,
+            heuristic,
         }
     }
 
@@ -32,9 +27,6 @@ impl RunnerConfig {
         self.depth_step = 5;
         self.depth_limit = 100;
         self.answer_limit = usize::MAX;
-        self.print_iter = true;
-        self.print_stat = true;
-        self.answer_pause = true;
     }
 
     pub fn set_param(&mut self, param: &QueryParam) {

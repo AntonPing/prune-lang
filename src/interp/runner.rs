@@ -2,7 +2,7 @@ use super::config::{RunnerConfig, RunnerStats};
 use super::solver;
 use super::strategy::*;
 use super::*;
-use crate::cli::args::{self, Heuristic};
+use crate::cli::args;
 use crate::cli::pipeline::PipeIO;
 
 pub struct RunnerState<'prog, 'io> {
@@ -14,7 +14,6 @@ pub struct RunnerState<'prog, 'io> {
     ansr_cnt: usize,
     stack: Vec<Branch>,
     solver: Box<dyn solver::common::PrimSolver>,
-    heuristic: args::Heuristic,
 }
 
 impl<'prog, 'io> RunnerState<'prog, 'io> {
@@ -24,7 +23,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         solver: args::Solver,
         heuristic: args::Heuristic,
     ) -> RunnerState<'prog, 'io> {
-        let solver: Box<dyn solver::common::PrimSolver> = match solver {
+        let solver_obj: Box<dyn solver::common::PrimSolver> = match solver {
             args::Solver::Z3 => Box::new(super::solver::smtlib::SmtLibSolver::new(
                 super::solver::smtlib::SolverBackend::Z3,
             )),
@@ -37,13 +36,12 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         RunnerState {
             prog,
             pipe_io: pipe,
-            config: RunnerConfig::new(),
+            config: RunnerConfig::new(solver, heuristic),
             stats: RunnerStats::new(),
             ctx_cnt: 0,
             ansr_cnt: 0,
             stack: Vec::new(),
-            solver,
-            heuristic,
+            solver: solver_obj,
         }
     }
 
@@ -77,7 +75,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             history: History::new(),
         };
 
-        if self.heuristic == Heuristic::LookAhead {
+        if self.config.heuristic == args::Heuristic::LookAhead {
             self.stats.step_la();
             call.lookahead_update(&rules);
         }
@@ -135,7 +133,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
     }
 
     fn run_branch_step(&mut self, brch: &mut Branch) {
-        let call_idx = match self.heuristic {
+        let call_idx = match self.config.heuristic {
             args::Heuristic::LeftBiased => brch.left_biased_strategy(),
             args::Heuristic::Interleave => brch.naive_strategy(1),
             args::Heuristic::StructRecur => brch.struct_recur_strategy(),
@@ -198,7 +196,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
                 history: new_history.clone(),
             };
 
-            if self.heuristic == Heuristic::LookAhead {
+            if self.config.heuristic == args::Heuristic::LookAhead {
                 self.stats.step_la();
                 new_call.lookahead_update(&self.prog.preds[pred].rules);
             }
@@ -215,7 +213,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
                 }
             }
             // update lookahead information if any information is propagated
-            if dirty_flag && self.heuristic == Heuristic::LookAhead {
+            if dirty_flag && self.config.heuristic == args::Heuristic::LookAhead {
                 self.stats.step_la();
                 call.lookahead_update(&self.prog.preds[&call.pred].rules);
             }
