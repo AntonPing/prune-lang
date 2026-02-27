@@ -99,8 +99,13 @@ impl<'arg> Pipeline<'arg> {
     pub fn run_backend(&self, prog: &logic::ast::Program, pipe_io: &mut PipeIO) -> Vec<usize> {
         let mut res_vec = Vec::new();
 
-        let mut runner =
-            interp::runner::RunnerState::new(prog, pipe_io, self.args.solver, self.args.heuristic);
+        let mut runner = interp::runner::RunnerState::new(
+            prog,
+            pipe_io,
+            self.args.solver,
+            self.args.heuristic,
+            self.args.debug_mode,
+        );
 
         for query_decl in &prog.querys {
             for param in query_decl.params.iter() {

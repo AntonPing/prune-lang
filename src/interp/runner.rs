@@ -22,6 +22,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         pipe: &'io mut PipeIO,
         solver: args::Solver,
         heuristic: args::Heuristic,
+        debug_mode: bool,
     ) -> RunnerState<'prog, 'io> {
         let solver_obj: Box<dyn solver::common::PrimSolver> = match solver {
             args::Solver::Z3 => Box::new(super::solver::smtlib::SmtLibSolver::new(
@@ -36,7 +37,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         RunnerState {
             prog,
             pipe_io: pipe,
-            config: RunnerConfig::new(solver, heuristic),
+            config: RunnerConfig::new(solver, heuristic, debug_mode),
             stats: RunnerStats::new(),
             ctx_cnt: 0,
             ansr_cnt: 0,
@@ -93,7 +94,14 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         self.stack.push(brch);
 
         while let Some(mut brch) = self.stack.pop() {
-            // write!(self.pipe_io.tree, "{}", brch).unwrap();
+            if self.config.debug_mode {
+                println!("{}", brch);
+
+                // pause to wait for any input
+                let mut s = String::new();
+                std::io::stdin().read_line(&mut s).unwrap();
+            }
+
             if self.ansr_cnt >= self.config.answer_limit {
                 return;
             }
@@ -305,6 +313,7 @@ query is_elem_after_append(depth_step=5, depth_limit=50, answer_limit=100)
         &mut pipe_io,
         args::Solver::Z3,
         args::Heuristic::Interleave,
+        false,
     );
     let query = &prog.querys[0];
 

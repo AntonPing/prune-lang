@@ -34,6 +34,9 @@ pub struct CliArgs {
     #[arg(long, default_value_t = true)]
     pub dump_file: bool,
 
+    #[arg(long, default_value_t = true)]
+    pub debug_mode: bool,
+
     #[arg(long, default_value_t = false)]
     pub show_output: bool,
 
@@ -58,6 +61,7 @@ pub fn get_test_cli_args(prog_name: PathBuf) -> CliArgs {
         heuristic: Heuristic::LookAhead,
         verbosity: 10,
         dump_file: false,
+        debug_mode: false,
         show_output: false,
         show_stat: false,
         show_tree: false,

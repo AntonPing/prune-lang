@@ -9,10 +9,11 @@ pub struct RunnerConfig {
     pub answer_pause: bool,
     pub solver: args::Solver,
     pub heuristic: args::Heuristic,
+    pub debug_mode: bool,
 }
 
 impl RunnerConfig {
-    pub fn new(solver: args::Solver, heuristic: args::Heuristic) -> RunnerConfig {
+    pub fn new(solver: args::Solver, heuristic: args::Heuristic, debug_mode: bool) -> RunnerConfig {
         RunnerConfig {
             depth_step: 5,
             depth_limit: 100,
@@ -20,6 +21,7 @@ impl RunnerConfig {
             answer_pause: false,
             solver,
             heuristic,
+            debug_mode,
         }
     }
 
