@@ -44,7 +44,7 @@ pub struct CliArgs {
     pub show_stat: bool,
 
     #[arg(long, default_value_t = false)]
-    pub show_tree: bool,
+    pub show_prog: bool,
 
     #[arg(long, default_value_t = false)]
     pub warn_as_err: bool,
@@ -64,7 +64,7 @@ pub fn get_test_cli_args(prog_name: PathBuf) -> CliArgs {
         debug_mode: false,
         show_output: false,
         show_stat: false,
-        show_tree: false,
+        show_prog: false,
         warn_as_err: true,
     }
 }

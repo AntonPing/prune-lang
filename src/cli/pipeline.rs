@@ -7,7 +7,7 @@ use crate::{interp, logic, syntax, tych};
 pub struct PipeIO {
     pub output: Box<dyn Write>,
     pub stat: Box<dyn Write>,
-    pub tree: Box<dyn Write>,
+    pub prog: Box<dyn Write>,
 }
 
 impl PipeIO {
@@ -15,7 +15,7 @@ impl PipeIO {
         PipeIO {
             output: Box::new(io::empty()),
             stat: Box::new(io::empty()),
-            tree: Box::new(io::empty()),
+            prog: Box::new(io::empty()),
         }
     }
 }
@@ -59,6 +59,8 @@ impl<'arg> Pipeline<'arg> {
         self.check_pass(&mut prog)?;
 
         let prog = self.compile_pass(&prog);
+
+        writeln!(pipe_io.prog, "{}", prog).unwrap();
 
         let res = self.run_backend(&prog, pipe_io);
         Ok(res)
@@ -183,11 +185,11 @@ pub fn run_pipline(args: &CliArgs) -> Result<Vec<usize>, io::Error> {
             pipe_io.stat = Box::new(stat);
         }
 
-        let tree = File::create(dir_path.join("tree.txt"))?;
-        if args.show_tree {
-            pipe_io.tree = Box::new(ReplayWriter::replay_stdout(tree));
+        let prog = File::create(dir_path.join("prog.txt"))?;
+        if args.show_prog {
+            pipe_io.prog = Box::new(ReplayWriter::replay_stdout(prog));
         } else {
-            pipe_io.tree = Box::new(tree);
+            pipe_io.prog = Box::new(prog);
         }
     } else {
         if args.show_output {
@@ -198,8 +200,8 @@ pub fn run_pipline(args: &CliArgs) -> Result<Vec<usize>, io::Error> {
             pipe_io.stat = Box::new(io::stdout());
         }
 
-        if args.show_tree {
-            pipe_io.tree = Box::new(io::stdout());
+        if args.show_prog {
+            pipe_io.prog = Box::new(io::stdout());
         }
     }
 
