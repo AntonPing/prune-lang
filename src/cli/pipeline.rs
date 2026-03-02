@@ -152,13 +152,11 @@ fn create_dump_dir(src_path: &PathBuf) -> Result<PathBuf, io::Error> {
 
     if !dir_path.exists() {
         fs::create_dir(&dir_path)?;
-    } else {
-        if !dir_path.is_dir() {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!("path \"{:?}\" exist, but it is not a directory!", dir_path),
-            ));
-        }
+    } else if !dir_path.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!("path \"{:?}\" exist, but it is not a directory!", dir_path),
+        ));
     }
 
     Ok(dir_path)

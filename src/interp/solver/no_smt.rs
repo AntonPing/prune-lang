@@ -8,6 +8,12 @@ impl NoSmtSolver {
     }
 }
 
+impl Default for NoSmtSolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl common::PrimSolver for NoSmtSolver {
     fn check_sat(
         &mut self,

@@ -78,7 +78,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
 
         if self.config.heuristic == args::Heuristic::LookAhead {
             self.stats.step_la();
-            call.lookahead_update(&rules);
+            call.lookahead_update(rules);
         }
 
         let brch = Branch {
@@ -152,7 +152,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
         for rule_idx in brch.calls[call_idx].looks.iter().rev() {
             self.stats.step();
             self.ctx_cnt += 1;
-            if let Ok(new_brch) = self.apply_rule(&brch, call_idx, *rule_idx) {
+            if let Ok(new_brch) = self.apply_rule(brch, call_idx, *rule_idx) {
                 self.stack.push(new_brch);
             }
         }
@@ -185,7 +185,7 @@ impl<'prog, 'io> RunnerState<'prog, 'io> {
             new_brch.prims.push((*prim, args.clone()));
         }
 
-        if super::progagate::propagate_unify(&mut new_brch.prims, &mut unifier).is_err() {
+        if !super::progagate::propagate_unify(&mut new_brch.prims, &mut unifier) {
             return Err(());
         }
 

@@ -23,7 +23,7 @@ impl<W1: Write> ReplayWriter<W1, Stdout> {
 impl<W1: Write, W2: Write> Write for ReplayWriter<W1, W2> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let n = self.writer1.write(buf)?;
-        let _ = self.writer2.write_all(&buf[..n])?;
+        self.writer2.write_all(&buf[..n])?;
         Ok(n)
     }
 

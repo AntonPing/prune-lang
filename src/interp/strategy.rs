@@ -19,7 +19,7 @@ impl fmt::Display for Branch {
         }
 
         for (prim, args) in self.prims.iter() {
-            let args = args.iter().format(&", ");
+            let args = args.iter().format(", ");
             writeln!(f, "{:?}({})", prim, args)?;
         }
 
@@ -152,18 +152,18 @@ pub struct PredCall {
 
 impl fmt::Display for PredCall {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let args = self.args.iter().format(&", ");
+        let args = self.args.iter().format(", ");
         if self.polys.is_empty() {
             write!(f, "{}({})", self.pred, args)
         } else {
-            let polys = self.polys.iter().format(&", ");
+            let polys = self.polys.iter().format(", ");
             write!(f, "{}[{}]({})", self.pred, polys, args)
         }
     }
 }
 
 impl PredCall {
-    fn try_unify_rule_head(&self, head: &Vec<TermVal>) -> Result<(), ()> {
+    fn try_unify_rule_head(&self, head: &[TermVal]) -> Result<(), ()> {
         assert_eq!(head.len(), self.args.len());
 
         let mut unifier: Unifier<IdentCtx, LitVal, OptCons<Ident>> = Unifier::new();
@@ -176,7 +176,7 @@ impl PredCall {
         Ok(())
     }
 
-    pub fn lookahead_update(&mut self, rules: &Vec<Rule>) {
+    pub fn lookahead_update(&mut self, rules: &[Rule]) {
         let mut new_looks = self.looks.clone();
         new_looks.retain(|look| self.try_unify_rule_head(&rules[*look].head).is_ok());
         self.looks = new_looks
@@ -199,6 +199,10 @@ impl History {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     pub fn clear(&mut self) {

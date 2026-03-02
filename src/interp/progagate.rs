@@ -240,7 +240,7 @@ fn propagate_bool_not(arg1: &AtomVal<IdentCtx>, arg2: &AtomVal<IdentCtx>) -> Pro
 pub fn propagate_unify(
     prims: &mut Vec<(Prim, Vec<AtomVal<IdentCtx>>)>,
     unifier: &mut Unifier<IdentCtx, LitVal, OptCons<Ident>>,
-) -> Result<(), ()> {
+) -> bool {
     let mut skip_flags: Vec<bool> = prims.iter().map(|_| false).collect();
     let mut dirty_flag: bool = true;
 
@@ -262,16 +262,17 @@ pub fn propagate_unify(
                 }
                 progagate::PropagateResult::Propagate(subst) => {
                     for (lhs, rhs) in subst.iter() {
-                        unifier
-                            .unify(&lhs.to_term(), &rhs.to_term())
-                            .map_err(|_| ())?;
+                        let res = unifier.unify(&lhs.to_term(), &rhs.to_term());
+                        if let Err(_err) = res {
+                            return false;
+                        }
                     }
                     *skip_flag = true;
                     if !subst.is_empty() {
                         dirty_flag = true;
                     }
                 }
-                progagate::PropagateResult::Conflit => return Err(()),
+                progagate::PropagateResult::Conflit => return false,
             }
         }
     }
@@ -284,5 +285,5 @@ pub fn propagate_unify(
 
     *prims = filtered_prims;
 
-    Ok(())
+    true
 }
