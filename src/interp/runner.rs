@@ -286,7 +286,7 @@ end
 
 function is_elem_after_append(xs: IntList, x: Int) -> Bool
 begin
-    guard !is_elem(append(xs, x), x);
+    guard is_elem(append(xs, x), x) = false;
     true
 end
 

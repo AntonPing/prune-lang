@@ -85,10 +85,10 @@ end
 
 function pythagorean_triple(xs: BitList, ys: BitList, zs: BitList)
 begin
-    guard () = not_zero(xs);
-    guard () = well_formed(xs);
-    guard () = not_zero(ys);
-    guard () = well_formed(ys);
+    guard not_zero(xs);
+    guard well_formed(xs);
+    guard not_zero(ys);
+    guard well_formed(ys);
     guard add(mul(xs, xs), mul(ys, ys)) = mul(zs, zs);
 end
 

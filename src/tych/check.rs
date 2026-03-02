@@ -253,7 +253,7 @@ impl Checker {
                     let rhs = self.check_expr(rhs);
                     self.unify(&lhs, &rhs);
                 } else {
-                    self.unify(&lhs, &TermType::Lit(LitType::TyBool));
+                    self.unify(&lhs, &TermType::Cons(OptCons::None, Vec::new()));
                 }
                 self.check_expr(cont)
             }

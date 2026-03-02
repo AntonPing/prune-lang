@@ -225,8 +225,8 @@ impl Translater {
             } => {
                 let (term1, goal1) = self.translate_expr(lhs);
                 let (term2, goal2) =
-                    self.translate_expr(rhs.as_deref().unwrap_or(&Box::new(ast::Expr::Lit {
-                        lit: LitVal::Bool(true),
+                    self.translate_expr(rhs.as_deref().unwrap_or(&Box::new(ast::Expr::Tuple {
+                        flds: Vec::new(),
                         span: logos::Span { start: 0, end: 0 },
                     })));
                 let (term3, goal3) = self.translate_expr(cont);

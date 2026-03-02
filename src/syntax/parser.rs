@@ -521,7 +521,7 @@ impl<'src> Parser<'src> {
                         Some(Box::new(self.parse_expr()?))
                     }
                     Token::Semi => {
-                        // guard e1; e2, if e1 has Bool type
+                        // guard e1; e2, if e1 has Unit type
                         None
                     }
                     _ => {

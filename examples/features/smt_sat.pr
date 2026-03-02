@@ -1,8 +1,8 @@
 function example(a: Int, b: Int, c: Int)
 begin
-    guard a > 0;
-    guard b > 0;
-    guard c > 0;
+    guard a > 0 = true;
+    guard b > 0 = true;
+    guard c > 0 = true;
     guard a * a + b * b = c * c;
 end
 
