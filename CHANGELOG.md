@@ -5,13 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2026-03-02
+## [Unreleased]
 
 ### Changed
 
-- Rewrite benchmark examples.
-- Change CLI arguments for program outputs.
-- Change default right-hand side for guard syntax.
+- Reimplement example `avl_tree_gen`.
+
+## [0.2.0] - 2026-03-02
 
 ### Added
 
@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support file dump in output directory.
 - Implement lookahead branching heuristic.
 - Support interactive debug mode.
+
+### Changed
+
+- Rewrite benchmark examples.
+- Change CLI arguments for program outputs.
+- Change default right-hand side for guard syntax.
 
 ### Removed
 
