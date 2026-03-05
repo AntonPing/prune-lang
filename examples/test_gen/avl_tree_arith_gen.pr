@@ -1,0 +1,98 @@
+datatype Tree[a] where
+| Empty
+| Node(Tree[a], a, Tree[a])
+end
+
+datatype Nat where
+| Z
+| S(Nat)
+end
+
+function cancel(x: Nat, y: Nat) -> (Nat, Nat)
+begin
+    match (x, y) with
+    | (S(k), S(l)) => cancel(k, l)
+    | (S(k), Z) => (S(k), Z)
+    | (Z, S(l)) => (Z, S(l))
+    | (Z, Z) => (Z, Z)
+    end
+end
+
+function less_than(x: Nat, y: Nat)
+begin
+    match cancel(x, y) with
+    | (Z, S(_)) => ()
+    end
+end
+
+function is_balanced[a](tree: Tree[a])
+begin
+    let _ = is_balanced_help(tree);
+end
+
+function is_balanced_help[a](tree: Tree[a]) -> Nat
+begin
+    match tree with
+    | Empty => Z
+    | Node(left, _, right) =>
+        let l_h = is_balanced_help(left);
+        let r_h = is_balanced_help(right);
+        match cancel(l_h, r_h) with
+        | (Z, Z) => S(Z)
+        | (S(Z), Z) => S(l_h)
+        | (Z, S(Z)) => S(r_h)
+        end
+    end
+end
+
+function is_sorted(tree: Tree[Nat])
+begin
+    match tree with
+    | Empty => ()
+    | Node(left, x, right) =>
+        guard is_sorted_max(left, x);
+        guard is_sorted_min(right, x);
+    end
+end
+
+function is_sorted_min(tree: Tree[Nat], min: Nat)
+begin
+    match tree with
+    | Empty => ()
+    | Node(left, x, right) =>
+        guard less_than(min, x);
+        guard is_sorted_min_max(left, min, x);
+        guard is_sorted_min(right, x);
+    end
+end
+
+function is_sorted_max(tree: Tree[Nat], max: Nat)
+begin
+    match tree with
+    | Empty => ()
+    | Node(left, x, right) =>
+        guard less_than(x, max);
+        guard is_sorted_max(left, x);
+        guard is_sorted_min_max(right, x, max);
+    end
+end
+
+function is_sorted_min_max(tree: Tree[Nat], min: Nat, max: Nat)
+begin
+    match tree with
+    | Empty => ()
+    | Node(left, x, right) =>
+        guard less_than(min, x);
+        guard less_than(x, max);
+        guard is_sorted_min_max(left, min, x);
+        guard is_sorted_min_max(right, x, max);
+    end
+end
+
+function example(tree: Tree[Nat])
+begin
+    guard is_sorted(tree);
+    guard is_balanced(tree);
+end
+
+query example(depth_step=5, depth_limit=50, answer_limit=100)

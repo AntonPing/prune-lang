@@ -92,6 +92,12 @@ fn test_avl_tree_gen() {
 }
 
 #[test]
+fn test_avl_tree_arith_gen() {
+    cli::pipeline::run_cli_test(PathBuf::from("./examples/test_gen/avl_tree_arith_gen.pr"))
+        .unwrap();
+}
+
+#[test]
 fn test_lambda_free_gen() {
     cli::pipeline::run_cli_test(PathBuf::from("./examples/test_gen/lambda_free_gen.pr")).unwrap();
 }
