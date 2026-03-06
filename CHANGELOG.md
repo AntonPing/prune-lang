@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Reimplement example `avl_tree_gen`.
+- Reimplement example `binary_arith`.
 
 ## [0.2.0] - 2026-03-02
 

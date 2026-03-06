@@ -8,20 +8,12 @@ datatype BitList where
 | Cons(Bit, BitList)
 end
 
-function not_zero(xs: BitList)
+function well_formed_sign(xs: BitList) -> Bit
 begin
     match xs with
-    | Cons(I, _) => ()
-    | Cons(O, ys) => not_zero(ys)
-    end
-end
-
-function well_formed(xs: BitList)
-begin
-    match xs with
-    | Nil => ()
-    | Cons(I, Nil) => ()
-    | Cons(_, Cons(head, tail)) => well_formed(Cons(head, tail))
+    | Nil => O
+    | Cons(I, Nil) => I
+    | Cons(_, Cons(head, tail)) => well_formed_sign(Cons(head, tail))
     end
 end
 
@@ -73,22 +65,22 @@ begin
     | (Cons(x_head, x_tail), Cons(y_head, y_tail)) =>
         let new_tail = mul(x_tail, y_tail);
         match (x_head, y_head) with
+        // (2m)(2n) = 4mn
         | (O, O) => Cons(O, Cons(O, new_tail))
+        // (2m)(2n + 1) = 4mn + 2m
         | (O, I) => Cons(O, add(x_tail, Cons(O, new_tail)))
+        // (2m + 1)(2n) = 4mn + 2n
         | (I, O) => Cons(O, add(y_tail, Cons(O, new_tail)))
-        | (I, I) => 
-            let cross = add(x_tail, y_tail);
-            Cons(I, add(cross, Cons(O, new_tail)))
+        // (2m + 1)(2n + 1) = 4mn + 2(m + n) + 1
+        | (I, I) => Cons(I, add(add(x_tail, y_tail), Cons(O, new_tail)))
         end
     end
 end
 
 function pythagorean_triple(xs: BitList, ys: BitList, zs: BitList)
 begin
-    guard not_zero(xs);
-    guard well_formed(xs);
-    guard not_zero(ys);
-    guard well_formed(ys);
+    guard well_formed_sign(xs) = I;
+    guard well_formed_sign(ys) = I;
     guard add(mul(xs, xs), mul(ys, ys)) = mul(zs, zs);
 end
 
