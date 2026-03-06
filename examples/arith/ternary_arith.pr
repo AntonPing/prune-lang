@@ -1,0 +1,150 @@
+datatype Trit where
+| T
+| O
+| I
+end
+
+datatype TritList where
+| Nil
+| Cons(Trit, TritList)
+end
+
+function well_formed_sign(xs: TritList) -> Trit
+begin
+    match xs with
+    | Nil => O
+    | Cons(T, Nil) => T
+    | Cons(I, Nil) => I
+    | Cons(_, Cons(head, tail)) => well_formed_sign(Cons(head, tail))
+    end
+end
+
+function negate(xs: TritList) -> TritList
+begin
+    match xs with
+    | Nil => Nil
+    | Cons(T, tail) => Cons(I, negate(tail))
+    | Cons(O, tail) => Cons(O, negate(tail))
+    | Cons(I, tail) => Cons(T, negate(tail))
+    end
+end
+
+function shift(xs: TritList) -> TritList
+begin
+    match xs with
+    | Nil => Nil
+    | Cons(_, _) => Cons(O, xs)
+    end
+end
+
+function cons(x: Trit, xs: TritList) -> TritList
+begin
+    match (x, xs) with
+    | (T, xs) => Cons(x, xs)
+    | (O, Nil) => Nil
+    | (O, Cons(_, _)) => Cons(x, xs)
+    | (I, xs) => Cons(x, xs)
+    end
+end
+
+// adder (ci, x, y) -> (z, co)
+function full_adder_1(ci: Trit, x: Trit, y: Trit) -> (Trit, Trit) 
+begin
+    match (ci, x, y) with
+    | (T, T, T) => (O, T)
+    | (T, T, O) => (I, T)
+    | (T, T, I) => (T, O)
+    | (T, O, T) => (I, T)
+    | (T, O, O) => (T, O)
+    | (T, O, I) => (O, O)
+    | (T, I, T) => (T, O)
+    | (T, I, O) => (O, O)
+    | (T, I, I) => (I, O)
+    | (O, T, T) => (I, T)
+    | (O, T, O) => (T, O)
+    | (O, T, I) => (O, O)
+    | (O, O, T) => (T, O)
+    | (O, O, O) => (O, O)
+    | (O, O, I) => (I, O)
+    | (O, I, T) => (O, O)
+    | (O, I, O) => (I, O)
+    | (O, I, I) => (T, I)
+    | (I, T, T) => (T, O)
+    | (I, T, O) => (O, O)
+    | (I, T, I) => (I, O)
+    | (I, O, T) => (O, O)
+    | (I, O, O) => (I, O)
+    | (I, O, I) => (T, I)
+    | (I, I, T) => (I, O)
+    | (I, I, O) => (T, I)
+    | (I, I, I) => (O, I)
+    end
+end
+
+function full_adder_n(ci: Trit, xs: TritList, ys: TritList) -> TritList
+begin
+    match (xs, ys) with
+    | (Nil, Nil) => match ci with
+        | T => Cons(T, Nil)
+        | O => Nil
+        | I => Cons(I, Nil)
+        end
+    | (Cons(x_head, x_tail), Nil) => 
+        let (z, co) = full_adder_1(ci, x_head, O);
+        cons(z, full_adder_n(co, x_tail, Nil))
+    | (Nil, Cons(y_head, y_tail)) => 
+        let (z, co) = full_adder_1(ci, O, y_head);
+        cons(z, full_adder_n(co, Nil, y_tail))
+    | (Cons(x_head, x_tail), Cons(y_head, y_tail)) =>
+        let (z, co) = full_adder_1(ci, x_head, y_head);
+        cons(z, full_adder_n(co, x_tail, y_tail))
+    end
+end
+
+function add(xs: TritList, ys: TritList) -> TritList
+begin
+    full_adder_n(O, xs, ys)
+end
+
+function mul(xs: TritList, ys: TritList) -> TritList
+begin
+    match (xs, ys) with
+    | (Nil, Nil) => Nil
+    | (Cons(_, _), Nil) => Nil
+    | (Nil, Cons(_, _)) => Nil
+    | (Cons(x_head, x_tail), Cons(y_head, y_tail)) =>
+        let new_tail = mul(x_tail, y_tail);
+        match (x_head, y_head) with
+        // (3m - 1)(3n - 1) = 9mn - 3(m + n) + 1
+        | (T, T) => Cons(I, add(shift(new_tail), negate(add(x_tail, y_tail))))
+        // (3m - 1)(3n) = 9mn - 3n
+        | (T, O) => shift(add(new_tail, negate(y_tail)))
+        // (3m - 1)(3n + 1) = 9mn + 3(m - n) - 1
+        | (T, I) => Cons(T, add(shift(new_tail), add(x_tail, negate(y_tail))))
+        // (3m)(3n - 1) = 9mn - 3m
+        | (O, T) => shift(add(new_tail, negate(x_tail)))
+        // (3m)(3n) = 9mn
+        | (O, O) => shift(shift(new_tail))
+        // (3m)(3n + 1) = 9mn + 3m
+        | (O, I) => shift(add(new_tail, x_tail))
+        // (3m + 1)(3n - 1) = 9mn + 3(n - m) - 1
+        | (I, T) => Cons(T, add(shift(new_tail), add(negate(x_tail), y_tail)))
+        // (3m + 1)(3n) = 9mn + 3n
+        | (I, O) => shift(add(new_tail, y_tail))
+        // (3m + 1)(3n + 1) = 9mn + 3(m + n) + 1
+        | (I, I) => Cons(I, add(shift(new_tail), add(x_tail, y_tail)))
+        end
+    end
+end
+
+function pythagorean_triple(xs: TritList, ys: TritList, zs: TritList)
+begin
+    guard well_formed_sign(xs) = I;
+    guard well_formed_sign(ys) = I;
+    
+    guard zs = Cons(T, Cons(T, Cons(I, Nil)));
+    
+    guard add(mul(xs, xs), mul(ys, ys)) = mul(zs, zs);
+end
+
+query pythagorean_triple(depth_step=20, depth_limit=200, answer_limit=1)

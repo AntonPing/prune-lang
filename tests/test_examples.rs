@@ -13,6 +13,11 @@ fn test_binary_arith() {
 }
 
 #[test]
+fn test_ternary_arith() {
+    cli::pipeline::run_cli_test(PathBuf::from("./examples/arith/ternary_arith.pr")).unwrap();
+}
+
+#[test]
 fn test_binary_vec() {
     cli::pipeline::run_cli_test(PathBuf::from("./examples/arith/binary_vec.pr")).unwrap();
 }
